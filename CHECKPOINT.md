@@ -8,11 +8,14 @@
 自进化 3D 红蓝 5v5 射击场。现行 baseline 已能 deterministic co-evolution + 3D 观战；新主线是把它从“shared-brain + privileged structured state”迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA** 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round 等只能自然涌现、事后识别。
 
 ## 现状（截至 2026-09-11 晚）
-- 三条入口都能跑：`npm run dev`（浏览器训练 + 观战）· `npm test`（32 个 vitest）· `npm run train -- --gens 40 --pop 16 --seed 1`（无头）。
+- 三条入口都能跑：`npm run dev`（浏览器训练 + 观战）· `npm test`（33 个 vitest）· `npm run train -- --gens 40 --pop 16 --seed 1`（无头）。
 - 默认超参在 `src/core/config.ts`（`DEFAULT_SIM` / `DEFAULT_EVO`），改之前先看 LOG 里 `#deadend` 为什么现在是这个值。
 - 已知行为：胜负主要靠淘汰，占区时间占比很低；被长期压制的一方偶发滑向躲藏。旧结论与数字见 README Evidence。
 - 当前 observation / action 是**baseline，不是 Gold Standard**：team-shared exact last-known enemy、enemy truth features、360° lidar、target-slot auto-turn、feed-forward shared team brain 等已在 `docs/SUBSTRATE.md` 登记为承重 gap。
 - 无头训练输出在 `runs/`（gitignore），浏览器端用「export run」拿 JSON。
+- 观战体验做过一轮五修（底栏布局 / 转头平滑 / 射击命中特效 / 三个跟随镜头 / 渲染插值），实测数字与取舍在 LOG 2026-09-11 21:30。
+  其中**转头是仿真机制改动**（`turnRate` 交战 2π + `scanTurnRate` 扫视 2.6 rad/s + look 动作 0.45 s 低通），⚠ 它踩在 SUBSTRATE **V4 要删掉的 `targetId` 抽象**上 ⇒ A2/V4 动手时必须重新推导，不能照搬（LOG 同条末尾）。
+  ⚠ **A0 census 若现在落数，冻的是这次改动之后的值**。
 
 ## 新 docs（先读）
 - `docs/VISION.md` — Gold Standard；决定“什么值得做、什么绝不能写死”。
@@ -34,6 +37,8 @@
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（见坑 5）。
+  - 页面上有 `window.evo.probe()`（模式/主体/相机/插值位姿/FX 计数）和 `evo.viewer.scene.fxStats()`，⭐ 无头验证走它们（见坑 8）。
+  - 布局类改动**跨宽度量**（坑 7）；可以用 `page.addStyleTag` 还原旧规则做 A/B，不必动 git。
 - **推送**：个人号 Quarkgluonmixture；仓库本地 git config 已设身份 + **钉死个人号的 token helper**（`git config --local --get-all credential.helper` 可看），所以直接 `git push` 即可。⛔ 不要 `gh auth switch`（全局共享态）；⛔ 不要换回 `gh auth git-credential`——它按全局活跃账号发 token，公司号活跃时会鉴权失败（LOG `#ship` 条）。
 - Node ≥ 22.6 直跑 TS：源码只用可擦除语法（`erasableSyntaxOnly`），import 带 `.ts` 后缀。
 - `npm run bench` 量 ms/match；改网络尺寸或观测维度前后都跑。
@@ -52,6 +57,10 @@
 4. (2026-09-11) vitest 默认 5s 超时：后台训练抢 CPU 时慢测试会假失败（不是断言错）。闸: 无 — 已把逐元素 expect 改成聚合断言减负；跑测试时别并行开训练。
 5. (2026-09-11) 端口被别的项目占时 `curl` 会命中别人的页面，截图/验证全是假的。闸: 无 — 启动后先 grep 页面 title。
 6. (2026-09-11) **未来增加 recurrent brain / individual player parameters 会改变 genome 尺度**；旧 mutation σ/rate 不可直接沿用。任何 D1/E1 改动先重新做 inheritance/mutation sensitivity。
+7. (2026-09-11) 浏览器里**重叠是宽度的函数**：两条各自 absolute、靠固定间距错开的 HUD 条，1600 px 宽下完全正常，1100 px 下有 14 个控件点不到。闸: 无 — 布局验证至少量 3 档宽度，判据用 `elementFromPoint` 的命中者，不是肉眼。
+8. (2026-09-11) 拿场景图里「可见 Sprite 数」证明特效触发是**假信号**（血条也是 Sprite，29 个里全是血条）。闸: 无 — 数特效池本身 `scene.fxStats()`；要在没人开枪时看特效，`#pause-view` 冻住仿真后直接 `scene.addShot(...)` 注入事件。
+9. (2026-09-11) 渲染必须读**插值位姿** `scene.pose(i)`，不是 `agent.x/z/yaw`：仿真 15 Hz、屏幕 60 Hz，直接贴仿真位姿会让人和相机都一卡一卡（实测 150 个动画帧里只有 28 帧在动）。闸: 无 — 新增跟随类视觉都走 `scene.pose`。
+10. (2026-09-11) **观感参数达标 ≠ 可以 ship**：扫视限速 1.6 与 2.6 rad/s 的抖动指标完全相同，但 1.6 让 seed 2 红方冠军打不过第 0 代。闸: 无 — 任何改仿真机制的"手感"调整都要过 same-seed 阶梯 A/B，挑对学习代价最小的那档。
 
 ## 链接
 `docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · `README.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
