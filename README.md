@@ -10,8 +10,9 @@ flanking, comm-channel use, time to first shot …).
 ```
 npm install
 npm run dev        # open the URL, press "start evolving"
-npm test           # 32 vitest tests (determinism, mirror symmetry, colour fairness, env rewards competence)
+npm test           # vitest: determinism, mirror symmetry, colour fairness, env rewards competence, leak matrix
 npm run train -- --gens 40 --pop 16 --seed 1   # headless training in the terminal
+npm run leaks      # print what each observation field is allowed to know, and where it cheats today
 ```
 
 Node ≥ 22.6 (TypeScript runs directly in Node; the browser build uses Vite).
@@ -159,6 +160,18 @@ What did **not** work, and why the defaults are what they are:
   genomes), but it starves the learning signal: seed 2's red champion fell to 45 % / 50 % against gen 0 and first
   contact stalled at 15 s. 2.6 rad/s costs nothing visually and restores the ladder. The jitter itself is killed by
   the 0.45 s low-pass on the look action (reversals 14.5 % → 4.3 %), *not* by the cap; the cap only limits jump size.
+
+## What the agents are allowed to know
+
+`src/sim/obsSchema.ts` names all 100 observation indices and tags each one **legal** (a human could get it from
+proprioception, the HUD, vision or radio), **truth-form** (legitimately perceivable, but handed over as an exact
+engine value) or **hidden** (the observer cannot legally know it at all). `npm run leaks` runs a probe matrix that
+changes one thing the observer cannot perceive — an enemy only a teammate can see, an enemy's HP, a wall behind the
+head — and prints which fields moved. Probes are registered with the status we currently expect, and
+`tests/leak.test.ts` asserts measured == registered on the exact field set, so both a fix and a regression turn the
+suite red. Most probes report a leak today (the clean ones are regression guards) — run the command for the
+current list. This is the shipped baseline being honest about what it owes, not a to-do list anyone can quietly
+edit. The gaps themselves are `V1`–`V12` in `docs/SUBSTRATE.md`.
 
 ## Headless runs
 

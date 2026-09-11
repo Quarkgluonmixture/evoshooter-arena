@@ -101,6 +101,11 @@
 - 测试能稳定抓住已知 V1–V4；
 - 没有修机制，只把病量出来。
 
+**当前状态：CLOSED（2026-09-11 22:30）。** 仪器 = `src/sim/obsSchema.ts`（每个 obs index 的 provenance + legality）
+· `src/probe/leak.ts`（13 条登记在册的 probe）· `tests/leak.test.ts`（断言实测 == 登记的**精确字段集**）·
+`npm run leaks`（打印当期 matrix，⛔ 不把表抄进任何文档）。V1/V2/V3/V4 全部被稳定抓住，另外实测出两条新 gap
+（V11 far-teammate firing、V12 objective 数不可见敌人），已登记进 `SUBSTRATE.md` §1。机制一行未改。详见 LOG。
+
 ---
 
 ## Phase A2 — Player-local knowledge：砍掉 team omniscience
@@ -849,16 +854,19 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A1 — Information provenance + leak probes。**
+**当前：A2 — Player-local knowledge（砍掉 team omniscience）。**
 
-A0 已 CLOSED（2026-09-11 22:15）：authority 接线 + `GOTCHAS.md` 拆分 + baseline census（`npm test` 33 绿 · bench · obsDim/genome/ms-match · 两 seed × 40 代 evolution census）。数字在 `LOG.md`。
+已 CLOSED：**A0**（authority + baseline census，2026-09-11 22:15）· **A1**（provenance + leak probes，22:30）。
+数字与结论在 `LOG.md`；leak matrix 现查 `npm run leaks`。
 
-A1 下一最小可关闭单元：
+A2 的验收尺已经就位——动手前先看清楚它守什么：
 
-1. observation provenance 分解：每个 obs index 属于哪个 channel（self / objective / geometry / teammate / comm / enemy），以及它是 legal percept、truth-form 还是 hidden-state；
-2. counterfactual leak probes：改一个观察者**合法感知不到**的量，看 obs 是否变化；
-3. leak matrix：每条 probe 登记**当前预期状态**（clean / leak + 对应 V 编号），测试断言「实测 == 登记」——修好了会红、退化了也会红；
-4. ⛔ 本 phase **不修机制**，只把病量出来。A2 才动 observation。
-5. LOG 一条 `#measure`，然后进入 **A2 — Player-local knowledge**。
+- `A1-P2` / `A1-P3`（V1）**必须翻成 clean**，并在同一个 commit 里把 `src/probe/leak.ts` 的登记从 `leak` 改成 `clean`；
+- `A1-P1`（没人看见的敌人移动 ⇒ obs 不动）**必须保持 clean**；
+- `A1-P13`（队友看见就能自动瞄准）会跟着 V1 一起变化，记得重新登记；
+- ⛔ 不要顺手修 V2/V3（`A1-P4/P5/P6/P7/P8` 仍应报 leak）——一次一根杠杆，否则归因不了。
 
-⭐ A0 census 冻结的是**当前 main 的 post-viewer/turn-fix 数值**；旧 run 只作历史，不回退 baseline。
+按 Phase A2 的 Intervention / Probe / Evolution prediction 走：`known[team][enemy]` → `known[player][enemy]`，
+只有自己的 direct vision 能更新，comm 接口先不动。预测**先冻结再跑**：短期 performance 下降是允许的，
+paralysis（完全不接敌）不允许。改完必须 `npm test` + `npm run bench` + short same-seed evolution A/B
+（对照 = `runs/a0-census-s{1,2}`，同 `--gens 40 --pop 16 --seed 1|2`）。

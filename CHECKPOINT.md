@@ -30,15 +30,19 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-**A1 — Information provenance + leak probes**（A0 已 CLOSED 2026-09-11 22:15）。
+**A2 — Player-local knowledge（砍掉 team omniscience）**。A0 CLOSED 22:15、A1 CLOSED 22:30（均 2026-09-11）。
 
-A0 结论一句话：`obsDim=100` / genome 5324 / ~44 ms per 40 s match / 40 代两 seed 都能打赢第 0 代；
-⭐ 跨进程 determinism 在 40 代尺度实测成立。数字只在 `LOG.md`（⛔ 别抄到别处）。
+- A0 一句话：`obsDim=100` / genome 5324 / ~44 ms per 40 s match / 两 seed 40 代都打得赢第 0 代；跨进程 determinism 实测成立。
+- A1 一句话：obs 的 provenance 与 leak matrix 已经是**可执行的仪器**——`npm run leaks` 打印当期结果，
+  `tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。V1–V4 稳定被抓；新增 V11 / V12 两条 gap 已进 SUBSTRATE §1。
+  ⭐ 已做过 mutation test：临时拿掉 enemy HP 通道会让 3 条 probe 变红 ⇒ 仪器不是空过。
+- 数字只在 `LOG.md`，matrix 只在 `npm run leaks`（⛔ 两者都别抄进别的文档）。
 
-下一个最小可关闭单元严格按 `docs/ROADMAP.md` Current Cursor 的 A1 五步：obs provenance 分解 → counterfactual leak probes →
-leak matrix（登记 clean/leak + V 编号，测试断言「实测 == 登记」）→ ⛔ 不修机制 → LOG 后进 **A2**。
+下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A2：`known[team][enemy]` → `known[player][enemy]`，
+只有自己的视觉能更新，comm 接口不动；A1-P2/P3 必须翻绿并在同一 commit 改登记，A1-P1 必须保持绿，
+⛔ 不顺手修 V2/V3。改完 `npm test` + `npm run bench` + same-seed 40 代 A/B（对照 `runs/a0-census-s{1,2}`）。
 
-⛔ **不要直接跳 A2 改 observation；不要因为新增 E4–E6/G4/文化 E7 预留合同就跳施工顺序。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
+⛔ **不要因为新增 E4–E6/G4/三份专门合同（含 E7 文化预留）就跳施工顺序。**
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。

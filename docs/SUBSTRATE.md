@@ -148,6 +148,20 @@
 
 目标：analytics 层建立 discovery → interpretation → intervention 的证据链，而且永不回流 live policy。
 
+### V11 — Far-teammate body-action truth
+
+（A1 probe 实测新增，2026-09-11）当前 teammate slot 的 `firing` 位**不做任何 visibility 判定**：队友在 30 m 外、
+隔着墙开火，我的 observation 一样会亮。§6.2 规定不在视野内时不得继续获得 teammate body-action truth ⇒
+`mate*.firing` 必须降级成「只在合法视觉里可见的 cue」，或改由 radio / 声音承载。
+探针：`A1-P10`（`src/probe/leak.ts`）。
+
+### V12 — Objective HUD counts invisible bodies
+
+（A1 probe 实测新增，2026-09-11）`obj.enemyInZone` 直接数**站在区里的敌人个数**，与谁看见过无关：
+一个全程没人看见的敌人走进控制区，我的 obs 立刻变化，等于一条免费的 occupancy radar。
+目标：objective HUD 只能给合法的比分 / 占领**状态**，不能给未被观测的敌方人数。
+探针：`A1-P11`。
+
 ---
 
 ## 2. World / physics contract
