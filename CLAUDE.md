@@ -2,7 +2,7 @@
 
 ## 接手顺序（binding）
 
-1. `CHECKPOINT.md` — 当前现场、坑、current cursor。
+1. `CHECKPOINT.md` — 当前现场、current cursor；`GOTCHAS.md` — 耐久陷阱（编号稳定，动手前扫）。
 2. `docs/VISION.md` — **用户想要什么的最高层 authority / Gold Standard**。
 3. `docs/SUBSTRATE.md` — VISION 对应的底座与信息权限工程合同。
 4. `docs/ROADMAP.md` — 承重级迁移 phase、exit、当前施工顺序。

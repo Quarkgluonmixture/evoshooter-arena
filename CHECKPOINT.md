@@ -36,7 +36,7 @@
 ⛔ **不要直接跳 A2 改 observation。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
 
 ## Ops 速查
-- **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（见坑 5）。
+- **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。
   - 页面上有 `window.evo.probe()`（模式/主体/相机/插值位姿/FX 计数）和 `evo.viewer.scene.fxStats()`，⭐ 无头验证走它们（见坑 8）。
   - 布局类改动**跨宽度量**（坑 7）；可以用 `page.addStyleTag` 还原旧规则做 A/B，不必动 git。
 - **推送**：个人号 Quarkgluonmixture；仓库本地 git config 已设身份 + **钉死个人号的 token helper**（`git config --local --get-all credential.helper` 可看），所以直接 `git push` 即可。⛔ 不要 `gh auth switch`（全局共享态）；⛔ 不要换回 `gh auth git-credential`——它按全局活跃账号发 token，公司号活跃时会鉴权失败（LOG `#ship` 条）。
@@ -50,17 +50,8 @@
 - 回退实现 ≠ 回退现实中的现象；旧手写战术不得换名字复活。
 - `README.md` 只在 phase 真 ship 后更新，不提前描述未来世界。
 
-## 坑（编号只增不重排）
-1. (2026-09-11) 突变 σ 相对权重尺度（首层 ≈ 0.1）过大 ⇒ 孩子继承不到父代行为，best 每代 ±0.5 跳、mean 贴 0，最终种群塌成全员躲藏。**先查优化器再改规则。** 闸: 无 — 是超参判断；证据在 README Evidence。
-2. (2026-09-11) 战斗按 agent 顺序结算 ⇒ 先处理的队永远先手，开局对称测试抓不到。闸: `tests/world.test.ts` fairness（镜像对打红胜率须在 33–67%）。
-3. (2026-09-11) 出生点直视目标区 ⇒ 蹲出生点压过占区，双方都学会躲。闸: `tests/map.test.ts`（>75% 出生点→区视线被挡）。
-4. (2026-09-11) vitest 默认 5s 超时：后台训练抢 CPU 时慢测试会假失败（不是断言错）。闸: 无 — 已把逐元素 expect 改成聚合断言减负；跑测试时别并行开训练。
-5. (2026-09-11) 端口被别的项目占时 `curl` 会命中别人的页面，截图/验证全是假的。闸: 无 — 启动后先 grep 页面 title。
-6. (2026-09-11) **未来增加 recurrent brain / individual player parameters 会改变 genome 尺度**；旧 mutation σ/rate 不可直接沿用。任何 D1/E1 改动先重新做 inheritance/mutation sensitivity。
-7. (2026-09-11) 浏览器里**重叠是宽度的函数**：两条各自 absolute、靠固定间距错开的 HUD 条，1600 px 宽下完全正常，1100 px 下有 14 个控件点不到。闸: 无 — 布局验证至少量 3 档宽度，判据用 `elementFromPoint` 的命中者，不是肉眼。
-8. (2026-09-11) 拿场景图里「可见 Sprite 数」证明特效触发是**假信号**（血条也是 Sprite，29 个里全是血条）。闸: 无 — 数特效池本身 `scene.fxStats()`；要在没人开枪时看特效，`#pause-view` 冻住仿真后直接 `scene.addShot(...)` 注入事件。
-9. (2026-09-11) 渲染必须读**插值位姿** `scene.pose(i)`，不是 `agent.x/z/yaw`：仿真 15 Hz、屏幕 60 Hz，直接贴仿真位姿会让人和相机都一卡一卡（实测 150 个动画帧里只有 28 帧在动）。闸: 无 — 新增跟随类视觉都走 `scene.pose`。
-10. (2026-09-11) **观感参数达标 ≠ 可以 ship**：扫视限速 1.6 与 2.6 rad/s 的抖动指标完全相同，但 1.6 让 seed 2 红方冠军打不过第 0 代。闸: 无 — 任何改仿真机制的"手感"调整都要过 same-seed 阶梯 A/B，挑对学习代价最小的那档。
+## 坑
+**全部搬到 `GOTCHAS.md`（编号连续，永不重排）——动手前扫一遍。** 这里不再复制，避免两份漂移。
 
 ## 链接
-`docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · `README.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
+`docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · `README.md` · `GOTCHAS.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
