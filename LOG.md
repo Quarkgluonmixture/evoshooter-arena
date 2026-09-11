@@ -44,3 +44,11 @@
 - 首推：`gh auth git-credential` helper 拿到的是全局活跃的公司号 token ⇒ 鉴权失败三次；单命令覆盖法成功，远端读回 main 6 commits。
 - 把仓库本地 credential.helper 改成钉死 Quarkgluonmixture 的函数式 helper（先置空再 add，避免全局 helper 先应答），以后直接 `git push`。本条 commit 就是用它推的。
 - 删除已合并的本地分支 feat/core-sim；之后在 main 上先开分支再改。
+
+## [2026-09-11] Gold Standard / substrate roadmap reframe  #decision
+- 用户用成熟 `EvoFootball VISION` 明确了 Shooter 的质量尺：**底座给自由度，战术从选择里长；内部意图 / 外显动作 / observer-local belief 必须分权；现实职业 CS 只作验收镜子，不作战术 API。**
+- 深挖 current world 后确认 8 个承重 gap：team-shared exact enemy knowledge、enemy truth features、hard-range + 360° lidar、target-slot auto-turn、无真实 hearing、无 private temporal belief、shared brain 穿五个身体、continuous comm 潜在高带宽 state bus。
+- prior-work 裁决：Valve CS2 把远距视觉可读性与环境化音频当核心 game-state channel；modl.ai + Riot tactical-shooter work 证明 structured/raycast sensor 可替代 pixels 但仍保持 human-like perception；DeepMind CTF / limited-communication MARL 支持 population play + recurrent memory + constrained communication；职业 CS 采访支持 opening call + distributed local information + secondary voice + mid-round adaptation，而不是全知 commander。
+- 新 authority：`docs/VISION.md`（Gold Standard）→ `docs/SUBSTRATE.md`（底座合同）→ `docs/ROADMAP.md`（Programme A–G phase ledger）；`README.md` 继续只写当前已 ship reality。
+- 关键新裁决：当前 central KOTH objective 结构上无法产生真正 A/B fake/rotate/anchor 博弈；ROADMAP C1 单列 tactical objective topology，但必须在 information/action boundary 稳定后再做，避免一次改太多无法归因。
+- Current cursor = A0（authority + baseline freeze）；下一步先 baseline test/bench/census，再 A1 把已知 information leaks 变成红灯 probes，⛔ 不直接跳 A2 改 observation。
