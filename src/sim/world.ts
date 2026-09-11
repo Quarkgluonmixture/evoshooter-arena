@@ -1,0 +1,787 @@
+import { type SimConfig, type Team, RED, BLUE } from '../core/config.ts';
+import { Rng } from '../core/rng.ts';
+import type { ArenaMap } from './map.ts';
+import { segmentHitsBox, rayBoxDist2D, resolveCircleBox, wrapAngle } from './geom.ts';
+
+/* ------------------------------------------------------------------ actions */
+
+export const ACT_DIM = 12;
+export const A_MOVE_X = 0;
+export const A_MOVE_Z = 1;
+export const A_LOOK_X = 2;
+export const A_LOOK_Z = 3;
+export const A_FIRE = 4;
+export const A_TARGET0 = 5; // 5..7 target-slot logits
+export const A_RELOAD = 8;
+export const A_AIM = 9;
+export const A_COMM0 = 10; // 10..11 comm channel
+
+/* --------------------------------------------------------------- observation */
+
+export const SELF_BASE = 20;
+export const MATE_FEATS_BASE = 6;
+export const ENEMY_FEATS = 10;
+
+export function obsDim(cfg: SimConfig): number {
+  return SELF_BASE + cfg.teamSize + 5 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim) + cfg.enemySlots * ENEMY_FEATS;
+}
+
+/* -------------------------------------------------------------------- state */
+
+export interface Agent {
+  id: number;
+  team: Team;
+  slot: number;
+  x: number;
+  z: number;
+  vx: number;
+  vz: number;
+  yaw: number;
+  hp: number;
+  alive: boolean;
+  ammo: number;
+  reloadT: number;
+  cooldownT: number;
+  targetId: number;
+  settleT: number;
+  aim: boolean;
+  firing: boolean;
+  comm: Float32Array;
+  dmgRecent: number;
+  hitDirX: number;
+  hitDirZ: number;
+  shots: number;
+  hits: number;
+  kills: number;
+  damageDealt: number;
+  damageTaken: number;
+  deathT: number;
+}
+
+export interface Known { x: number; z: number; t: number }
+
+export interface ShotEvent {
+  kind: 'shot';
+  shooter: number;
+  target: number;
+  hit: boolean;
+  x0: number; y0: number; z0: number;
+  x1: number; y1: number; z1: number;
+}
+export interface KillEvent { kind: 'kill'; victim: number; killer: number; x: number; z: number }
+export type WorldEvent = ShotEvent | KillEvent;
+
+/** Raw per-team accumulators; turned into human metrics by match.ts. */
+export interface TeamStats {
+  shots: number;
+  hits: number;
+  kills: number;
+  deaths: number;
+  damageDealt: number;
+  damageTaken: number;
+  zoneAgentTicks: number;
+  aliveAgentTicks: number;
+  coverTicks: number;
+  threatTicks: number;
+  moveTicks: number;
+  aimTicks: number;
+  spreadSum: number;
+  spreadTicks: number;
+  engageDistSum: number;
+  flankHits: number;
+  commSum: number[];
+  commSq: number[];
+  commN: number;
+  firstContactT: number;
+  reloads: number;
+}
+
+function newStats(commDim: number): TeamStats {
+  return {
+    shots: 0, hits: 0, kills: 0, deaths: 0, damageDealt: 0, damageTaken: 0,
+    zoneAgentTicks: 0, aliveAgentTicks: 0, coverTicks: 0, threatTicks: 0, moveTicks: 0, aimTicks: 0,
+    spreadSum: 0, spreadTicks: 0, engageDistSum: 0, flankHits: 0,
+    commSum: new Array(commDim).fill(0), commSq: new Array(commDim).fill(0), commN: 0,
+    firstContactT: -1, reloads: 0,
+  };
+}
+
+const THREAT_RANGE = 25;
+
+/**
+ * Deterministic 3D arena simulation. Both teams perceive the world in a "team frame" (blue's frame is the
+ * world rotated 180°), so a genome can play either colour and the two populations stay directly comparable.
+ */
+export class World {
+  readonly cfg: SimConfig;
+  readonly map: ArenaMap;
+  readonly rng: Rng;
+  readonly agents: Agent[] = [];
+  readonly n: number;
+  readonly obsDim: number;
+  readonly obs: Float32Array;
+  readonly act: Float32Array;
+  /** exposure[i*n+j]: fraction of j's body points visible from i's eye (LOS only, no FOV). */
+  readonly exposure: Float32Array;
+  /** visible[i*n+j]: j is inside i's field of view and at least partly unobstructed. */
+  readonly visible: Uint8Array;
+  /** slots[i*enemySlots+s]: enemy id occupying observation slot s of agent i, or -1. */
+  readonly slots: Int16Array;
+  readonly known: Known[][];
+  readonly stats: [TeamStats, TeamStats];
+  readonly heat: [Float32Array, Float32Array] | null;
+  readonly events: WorldEvent[] = [];
+  score: [number, number] = [0, 0];
+  aliveCount: [number, number];
+  t = 0;
+  tick = 0;
+  done = false;
+  /** -1 draw / undecided, 0 red, 1 blue */
+  winner: -1 | 0 | 1 = -1;
+  private readonly cosHalfFov: number;
+  private readonly cosAimCone: number;
+  private readonly lidarDirs: Float32Array;
+  private readonly pendingShots: number[] = [];
+
+  constructor(cfg: SimConfig, map: ArenaMap, seed: number, opts: { heat?: boolean } = {}) {
+    this.cfg = cfg;
+    this.map = map;
+    this.rng = new Rng(seed);
+    this.n = cfg.teamSize * 2;
+    this.obsDim = obsDim(cfg);
+    this.obs = new Float32Array(this.n * this.obsDim);
+    this.act = new Float32Array(this.n * ACT_DIM);
+    this.exposure = new Float32Array(this.n * this.n);
+    this.visible = new Uint8Array(this.n * this.n);
+    this.slots = new Int16Array(this.n * cfg.enemySlots).fill(-1);
+    this.known = [[], []];
+    this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
+    this.aliveCount = [cfg.teamSize, cfg.teamSize];
+    this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
+    this.cosAimCone = Math.cos((cfg.aimConeDeg * Math.PI) / 180);
+    this.lidarDirs = new Float32Array(cfg.lidarRays * 2);
+    for (let k = 0; k < cfg.lidarRays; k++) {
+      const a = (k * 2 * Math.PI) / cfg.lidarRays;
+      this.lidarDirs[k * 2] = Math.cos(a);
+      this.lidarDirs[k * 2 + 1] = Math.sin(a);
+    }
+    this.heat = opts.heat
+      ? [new Float32Array(cfg.heatCells * cfg.heatCells), new Float32Array(cfg.heatCells * cfg.heatCells)]
+      : null;
+
+    for (let team = 0; team < 2; team++) {
+      for (let s = 0; s < cfg.teamSize; s++) {
+        const sp = map.spawns[team][s];
+        this.agents.push({
+          id: this.agents.length,
+          team: team as Team,
+          slot: s,
+          x: sp.x,
+          z: sp.z,
+          vx: 0,
+          vz: 0,
+          yaw: team === RED ? Math.PI / 2 : -Math.PI / 2, // face the enemy half (+z for red)
+          hp: cfg.hp,
+          alive: true,
+          ammo: cfg.magSize,
+          reloadT: 0,
+          cooldownT: 0,
+          targetId: -1,
+          settleT: 0,
+          aim: false,
+          firing: false,
+          comm: new Float32Array(cfg.commDim),
+          dmgRecent: 0,
+          hitDirX: 0,
+          hitDirZ: 0,
+          shots: 0,
+          hits: 0,
+          kills: 0,
+          damageDealt: 0,
+          damageTaken: 0,
+          deathT: -1,
+        });
+      }
+      for (let e = 0; e < cfg.teamSize; e++) this.known[team].push({ x: 0, z: 0, t: -1e9 });
+    }
+  }
+
+  /* --------------------------------------------------------------- helpers */
+
+  /** +1 for red, -1 for blue: multiplies world coordinates into the team frame. */
+  static sgn(team: Team): number {
+    return team === RED ? 1 : -1;
+  }
+
+  teamOf(id: number): Team {
+    return this.agents[id].team;
+  }
+
+  private losClear(ax: number, ay: number, az: number, bx: number, by: number, bz: number): boolean {
+    const boxes = this.map.boxes;
+    for (let i = 0; i < boxes.length; i++) {
+      if (segmentHitsBox(ax, ay, az, bx, by, bz, boxes[i])) return false;
+    }
+    return true;
+  }
+
+  /** Fraction of `target` body points visible from `viewer` eye. */
+  private computeExposure(viewer: Agent, target: Agent): number {
+    const pts = this.cfg.bodyPoints;
+    let vis = 0;
+    for (let k = 0; k < pts.length; k++) {
+      if (this.losClear(viewer.x, this.cfg.eyeHeight, viewer.z, target.x, pts[k], target.z)) vis++;
+    }
+    return vis / pts.length;
+  }
+
+  private lidar(a: Agent, out: Float32Array, off: number): void {
+    const cfg = this.cfg;
+    const sg = World.sgn(a.team);
+    const half = cfg.arenaHalf;
+    for (let k = 0; k < cfg.lidarRays; k++) {
+      const dx = sg * this.lidarDirs[k * 2];
+      const dz = sg * this.lidarDirs[k * 2 + 1];
+      let best = cfg.lidarRange;
+      // arena walls
+      if (dx > 1e-9) best = Math.min(best, (half - a.x) / dx);
+      else if (dx < -1e-9) best = Math.min(best, (-half - a.x) / dx);
+      if (dz > 1e-9) best = Math.min(best, (half - a.z) / dz);
+      else if (dz < -1e-9) best = Math.min(best, (-half - a.z) / dz);
+      const boxes = this.map.boxes;
+      for (let i = 0; i < boxes.length; i++) {
+        const t = rayBoxDist2D(a.x, a.z, dx, dz, boxes[i]);
+        if (t < best) best = t;
+      }
+      out[off + k] = Math.max(0, best) / cfg.lidarRange;
+    }
+  }
+
+  inZone(a: Agent): boolean {
+    const dx = a.x - this.map.zoneX;
+    const dz = a.z - this.map.zoneZ;
+    return dx * dx + dz * dz <= this.cfg.zoneRadius * this.cfg.zoneRadius;
+  }
+
+  /* --------------------------------------------------------------- observe */
+
+  /** Fill `obs` for every living agent from the current state. Must be called before `step`. */
+  observe(): void {
+    const cfg = this.cfg;
+    const n = this.n;
+    const ag = this.agents;
+    const T = cfg.teamSize;
+
+    // 1. exposure / visibility between opposing agents
+    this.exposure.fill(0);
+    this.visible.fill(0);
+    for (let i = 0; i < n; i++) {
+      const a = ag[i];
+      if (!a.alive) continue;
+      const fx = Math.cos(a.yaw);
+      const fz = Math.sin(a.yaw);
+      for (let j = 0; j < n; j++) {
+        const b = ag[j];
+        if (b.team === a.team || !b.alive) continue;
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const d = Math.hypot(dx, dz);
+        if (d > cfg.viewRange) continue;
+        const e = this.computeExposure(a, b);
+        this.exposure[i * n + j] = e;
+        if (e > 0 && d > 1e-6 && (fx * dx + fz * dz) / d >= this.cosHalfFov) this.visible[i * n + j] = 1;
+      }
+    }
+
+    // 2. team knowledge (any teammate sees an enemy => whole team knows where it is)
+    for (let team = 0; team < 2; team++) {
+      const enemyBase = team === RED ? T : 0;
+      const myBase = team === RED ? 0 : T;
+      for (let e = 0; e < T; e++) {
+        const enemy = ag[enemyBase + e];
+        if (!enemy.alive) continue;
+        for (let m = 0; m < T; m++) {
+          const me = ag[myBase + m];
+          if (me.alive && this.visible[me.id * n + enemy.id]) {
+            const k = this.known[team][e];
+            k.x = enemy.x;
+            k.z = enemy.z;
+            k.t = this.t;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. per-team spread + zone counts + heat
+    const zoneCount: [number, number] = [0, 0];
+    for (let team = 0; team < 2; team++) {
+      const base = team === RED ? 0 : T;
+      let sum = 0;
+      let pairs = 0;
+      for (let i = 0; i < T; i++) {
+        const a = ag[base + i];
+        if (!a.alive) continue;
+        if (this.inZone(a)) zoneCount[team]++;
+        if (this.heat) {
+          const cells = cfg.heatCells;
+          const cx = Math.min(cells - 1, Math.max(0, Math.floor(((a.x + cfg.arenaHalf) / (2 * cfg.arenaHalf)) * cells)));
+          const cz = Math.min(cells - 1, Math.max(0, Math.floor(((a.z + cfg.arenaHalf) / (2 * cfg.arenaHalf)) * cells)));
+          this.heat[team][cz * cells + cx] += 1;
+        }
+        for (let j = i + 1; j < T; j++) {
+          const b = ag[base + j];
+          if (!b.alive) continue;
+          sum += Math.hypot(a.x - b.x, a.z - b.z);
+          pairs++;
+        }
+      }
+      if (pairs > 0) {
+        this.stats[team].spreadSum += sum / pairs;
+        this.stats[team].spreadTicks++;
+      }
+    }
+
+    // 4. observations
+    const half = cfg.arenaHalf;
+    const timeLeft = Math.max(0, cfg.matchSeconds - this.t) / cfg.matchSeconds;
+    const maxScore = cfg.matchSeconds * cfg.zonePointsPerSecond;
+    const mateOrder: number[] = [];
+    const enemyOrder: number[] = [];
+    const enemyDist: number[] = [];
+    const enemyVis: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+      const a = ag[i];
+      const off = i * this.obsDim;
+      const o = this.obs;
+      const slotBase = i * cfg.enemySlots;
+      for (let s = 0; s < cfg.enemySlots; s++) this.slots[slotBase + s] = -1;
+      if (!a.alive) {
+        o.fill(0, off, off + this.obsDim);
+        continue;
+      }
+      const team = a.team;
+      const sg = World.sgn(team);
+      const st = this.stats[team];
+      const yawT = team === RED ? a.yaw : a.yaw + Math.PI;
+      const speed = Math.hypot(a.vx, a.vz);
+      const enemyTeam: Team = team === RED ? BLUE : RED;
+      const myBase = team === RED ? 0 : T;
+      const enemyBase = team === RED ? T : 0;
+
+      let p = off;
+      // --- self
+      o[p++] = (sg * a.x) / half;
+      o[p++] = (sg * a.z) / half;
+      o[p++] = Math.cos(yawT);
+      o[p++] = Math.sin(yawT);
+      o[p++] = (sg * a.vx) / cfg.maxSpeed;
+      o[p++] = (sg * a.vz) / cfg.maxSpeed;
+      o[p++] = a.hp / cfg.hp;
+      o[p++] = a.ammo / cfg.magSize;
+      o[p++] = a.reloadT > 0 ? 1 : 0;
+      o[p++] = this.inZone(a) ? 1 : 0;
+      o[p++] = a.aim ? 1 : 0;
+      o[p++] = timeLeft;
+      o[p++] = (this.score[team] - this.score[enemyTeam]) / maxScore;
+      o[p++] = Math.min(1, a.dmgRecent / 50);
+      o[p++] = sg * a.hitDirX;
+      o[p++] = sg * a.hitDirZ;
+      o[p++] = a.cooldownT <= 0 && a.reloadT <= 0 && a.ammo > 0 ? 1 : 0;
+      o[p++] = this.aliveCount[team] / T;
+      o[p++] = this.aliveCount[enemyTeam] / T;
+      o[p++] = speed / cfg.maxSpeed;
+      for (let s = 0; s < T; s++) o[p++] = s === a.slot ? 1 : 0;
+
+      // --- zone
+      {
+        const dx = this.map.zoneX - a.x;
+        const dz = this.map.zoneZ - a.z;
+        o[p++] = (sg * dx) / half;
+        o[p++] = (sg * dz) / half;
+        o[p++] = Math.min(1, Math.hypot(dx, dz) / half);
+        o[p++] = zoneCount[team] / T;
+        o[p++] = zoneCount[enemyTeam] / T;
+      }
+
+      // --- lidar
+      this.lidar(a, o, p);
+      p += cfg.lidarRays;
+
+      // --- teammates (alive first, then nearest)
+      mateOrder.length = 0;
+      for (let m = 0; m < T; m++) {
+        const id = myBase + m;
+        if (id !== i) mateOrder.push(id);
+      }
+      mateOrder.sort((u, v) => {
+        const A = ag[u];
+        const B = ag[v];
+        if (A.alive !== B.alive) return A.alive ? -1 : 1;
+        return Math.hypot(A.x - a.x, A.z - a.z) - Math.hypot(B.x - a.x, B.z - a.z);
+      });
+      for (let s = 0; s < cfg.mateSlots; s++) {
+        if (s < mateOrder.length) {
+          const m = ag[mateOrder[s]];
+          const dx = m.x - a.x;
+          const dz = m.z - a.z;
+          o[p++] = (sg * dx) / half;
+          o[p++] = (sg * dz) / half;
+          o[p++] = Math.min(1, Math.hypot(dx, dz) / half);
+          o[p++] = m.alive ? 1 : 0;
+          o[p++] = m.alive ? m.hp / cfg.hp : 0;
+          o[p++] = m.alive && m.firing ? 1 : 0;
+          for (let c = 0; c < cfg.commDim; c++) o[p++] = m.alive ? m.comm[c] : 0;
+        } else {
+          for (let c = 0; c < MATE_FEATS_BASE + cfg.commDim; c++) o[p++] = 0;
+        }
+      }
+
+      // --- enemies: currently visible first (by distance), then team-known (by distance)
+      enemyOrder.length = 0;
+      enemyDist.length = 0;
+      enemyVis.length = 0;
+      for (let e = 0; e < T; e++) {
+        const id = enemyBase + e;
+        const en = ag[id];
+        if (!en.alive) continue;
+        const vis = this.visible[i * n + id];
+        const k = this.known[team][e];
+        const fresh = this.t - k.t <= cfg.memorySeconds;
+        if (!vis && !fresh) continue;
+        const px = vis ? en.x : k.x;
+        const pz = vis ? en.z : k.z;
+        enemyOrder.push(id);
+        enemyDist.push(Math.hypot(px - a.x, pz - a.z));
+        enemyVis.push(vis);
+      }
+      const idx = enemyOrder.map((_, k) => k);
+      idx.sort((u, v) => (enemyVis[v] - enemyVis[u]) || (enemyDist[u] - enemyDist[v]));
+      for (let s = 0; s < cfg.enemySlots; s++) {
+        if (s < idx.length) {
+          const k = idx[s];
+          const id = enemyOrder[k];
+          const en = ag[id];
+          const vis = enemyVis[k] === 1;
+          const kn = this.known[team][id - enemyBase];
+          const px = vis ? en.x : kn.x;
+          const pz = vis ? en.z : kn.z;
+          const dx = px - a.x;
+          const dz = pz - a.z;
+          const d = enemyDist[k];
+          this.slots[slotBase + s] = id;
+          o[p++] = 1;
+          o[p++] = (sg * dx) / half;
+          o[p++] = (sg * dz) / half;
+          o[p++] = Math.min(1, d / half);
+          o[p++] = vis ? this.exposure[i * n + id] : 0;
+          o[p++] = vis ? this.exposure[id * n + i] : 0;
+          {
+            // is the enemy looking at me? (only knowable when I can see it)
+            const efx = Math.cos(en.yaw);
+            const efz = Math.sin(en.yaw);
+            o[p++] = vis && d > 1e-6 ? (-(efx * dx + efz * dz)) / d : 0;
+          }
+          o[p++] = vis ? en.hp / cfg.hp : 0;
+          o[p++] = vis ? 0 : Math.min(1, (this.t - kn.t) / cfg.memorySeconds);
+          o[p++] = vis ? 1 : 0;
+        } else {
+          for (let c = 0; c < ENEMY_FEATS; c++) o[p++] = 0;
+        }
+      }
+
+      // --- metrics: cover vs nearest known threat
+      {
+        let nearest = -1;
+        let nd = THREAT_RANGE;
+        for (let e = 0; e < T; e++) {
+          const id = enemyBase + e;
+          if (!ag[id].alive) continue;
+          const kn = this.known[team][e];
+          if (this.t - kn.t > cfg.memorySeconds && !this.visible[i * n + id]) continue;
+          const d = Math.hypot(ag[id].x - a.x, ag[id].z - a.z);
+          if (d < nd) { nd = d; nearest = id; }
+        }
+        if (nearest >= 0) {
+          st.threatTicks++;
+          if (this.exposure[nearest * n + i] === 0) st.coverTicks++;
+        }
+      }
+      st.aliveAgentTicks++;
+      if (this.inZone(a)) st.zoneAgentTicks++;
+      if (speed > 0.5) st.moveTicks++;
+      if (a.aim) st.aimTicks++;
+      for (let c = 0; c < cfg.commDim; c++) {
+        st.commSum[c] += a.comm[c];
+        st.commSq[c] += a.comm[c] * a.comm[c];
+      }
+      st.commN++;
+    }
+  }
+
+  /* ------------------------------------------------------------------ step */
+
+  /** Apply `act` for every living agent and advance one tick. */
+  step(): void {
+    if (this.done) return;
+    const cfg = this.cfg;
+    const dt = cfg.dt;
+    const n = this.n;
+    const ag = this.agents;
+    this.events.length = 0;
+
+    // 1. decode actions, turn, move
+    for (let i = 0; i < n; i++) {
+      const a = ag[i];
+      if (!a.alive) continue;
+      const off = i * ACT_DIM;
+      const act = this.act;
+      const sg = World.sgn(a.team);
+
+      // target selection among occupied slots
+      let best = -1;
+      let bestLogit = -Infinity;
+      for (let s = 0; s < cfg.enemySlots; s++) {
+        const id = this.slots[i * cfg.enemySlots + s];
+        if (id < 0) continue;
+        const l = act[off + A_TARGET0 + s];
+        if (l > bestLogit) { bestLogit = l; best = id; }
+      }
+      if (best !== a.targetId) a.settleT = 0;
+      else a.settleT += dt;
+      a.targetId = best;
+      a.aim = act[off + A_AIM] > 0;
+      a.firing = act[off + A_FIRE] > 0 && best >= 0;
+      for (let c = 0; c < cfg.commDim; c++) a.comm[c] = Math.tanh(act[off + A_COMM0 + c]);
+
+      // movement intent (team frame -> world)
+      let mx = Math.tanh(act[off + A_MOVE_X]);
+      let mz = Math.tanh(act[off + A_MOVE_Z]);
+      const mlen = Math.hypot(mx, mz);
+      if (mlen > 1) { mx /= mlen; mz /= mlen; }
+      const speedCap = cfg.maxSpeed * (a.aim ? cfg.aimSpeedMul : 1);
+      const tvx = sg * mx * speedCap;
+      const tvz = sg * mz * speedCap;
+
+      // desired facing
+      let want = a.yaw;
+      let hasWant = false;
+      if ((a.firing || a.aim) && best >= 0) {
+        const en = ag[best];
+        const vis = this.visible[i * n + best];
+        const kn = this.known[a.team][best - (a.team === RED ? cfg.teamSize : 0)];
+        const px = vis ? en.x : kn.x;
+        const pz = vis ? en.z : kn.z;
+        want = Math.atan2(pz - a.z, px - a.x);
+        hasWant = true;
+      } else {
+        const lx = Math.tanh(act[off + A_LOOK_X]);
+        const lz = Math.tanh(act[off + A_LOOK_Z]);
+        if (Math.hypot(lx, lz) > 0.3) {
+          want = Math.atan2(sg * lz, sg * lx);
+          hasWant = true;
+        } else if (mlen > 0.2) {
+          want = Math.atan2(tvz, tvx);
+          hasWant = true;
+        }
+      }
+      if (hasWant) {
+        const d = wrapAngle(want - a.yaw);
+        const maxTurn = cfg.turnRate * dt;
+        a.yaw = wrapAngle(a.yaw + Math.max(-maxTurn, Math.min(maxTurn, d)));
+      }
+
+      // velocity + integrate
+      const ax = tvx - a.vx;
+      const az = tvz - a.vz;
+      const alen = Math.hypot(ax, az);
+      const maxDv = cfg.accel * dt;
+      if (alen > maxDv) {
+        a.vx += (ax / alen) * maxDv;
+        a.vz += (az / alen) * maxDv;
+      } else {
+        a.vx = tvx;
+        a.vz = tvz;
+      }
+      a.x += a.vx * dt;
+      a.z += a.vz * dt;
+
+      // timers
+      if (a.cooldownT > 0) a.cooldownT -= dt;
+      if (a.reloadT > 0) {
+        a.reloadT -= dt;
+        if (a.reloadT <= 0) { a.reloadT = 0; a.ammo = cfg.magSize; }
+      } else if (a.ammo === 0 || (act[off + A_RELOAD] > 0 && a.ammo < cfg.magSize)) {
+        a.reloadT = cfg.reloadSeconds;
+        this.stats[a.team].reloads++;
+      }
+      a.dmgRecent *= Math.exp(-dt * 2);
+    }
+
+    // 2. collisions (agents vs boxes, agents vs agents, arena bounds)
+    const r = cfg.agentRadius;
+    const half = cfg.arenaHalf - r;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < n; i++) {
+        const a = ag[i];
+        if (!a.alive) continue;
+        for (const b of this.map.boxes) {
+          const [nx, nz] = resolveCircleBox(a.x, a.z, r, b);
+          a.x = nx;
+          a.z = nz;
+        }
+        if (a.x > half) a.x = half;
+        if (a.x < -half) a.x = -half;
+        if (a.z > half) a.z = half;
+        if (a.z < -half) a.z = -half;
+      }
+      for (let i = 0; i < n; i++) {
+        const a = ag[i];
+        if (!a.alive) continue;
+        for (let j = i + 1; j < n; j++) {
+          const b = ag[j];
+          if (!b.alive) continue;
+          const dx = b.x - a.x;
+          const dz = b.z - a.z;
+          const d2 = dx * dx + dz * dz;
+          const min = 2 * r;
+          if (d2 < min * min && d2 > 1e-9) {
+            const d = Math.sqrt(d2);
+            const push = (min - d) / 2;
+            a.x -= (dx / d) * push;
+            a.z -= (dz / d) * push;
+            b.x += (dx / d) * push;
+            b.z += (dz / d) * push;
+          }
+        }
+      }
+    }
+
+    // 3. combat — resolved SIMULTANEOUSLY: every shooter is judged against the start-of-tick state,
+    //    then damage is applied. Otherwise whichever team is processed first gets a permanent first-shot edge.
+    const pending = this.pendingShots;
+    pending.length = 0;
+    for (let i = 0; i < n; i++) {
+      const a = ag[i];
+      if (!a.alive || !a.firing || a.targetId < 0) continue;
+      if (a.cooldownT > 0 || a.reloadT > 0 || a.ammo <= 0) continue;
+      const tgt = ag[a.targetId];
+      if (!tgt.alive) continue;
+      const expo = this.exposure[i * n + tgt.id];
+      if (expo <= 0) continue;
+      const dx = tgt.x - a.x;
+      const dz = tgt.z - a.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1e-6) continue;
+      const fx = Math.cos(a.yaw);
+      const fz = Math.sin(a.yaw);
+      if ((fx * dx + fz * dz) / d < this.cosAimCone) continue; // still turning onto the target
+
+      a.ammo--;
+      a.cooldownT = cfg.fireCooldown;
+      a.shots++;
+      const st = this.stats[a.team];
+      st.shots++;
+      st.engageDistSum += d;
+      if (st.firstContactT < 0) st.firstContactT = this.t;
+      const other = this.stats[tgt.team];
+      if (other.firstContactT < 0) other.firstContactT = this.t;
+
+      const mySpeed = Math.hypot(a.vx, a.vz);
+      const tgtSpeed = Math.hypot(tgt.vx, tgt.vz);
+      const distF = d <= 8 ? 1 : Math.max(0.25, 1 - ((d - 8) / 22) * 0.75); // 1.0 inside 8u → 0.25 at view range
+      const moveF = a.aim ? 1 : mySpeed > 1 ? 0.55 : 1;
+      const settleF = 0.5 + 0.5 * Math.min(1, a.settleT / cfg.settleSeconds);
+      const tgtF = tgtSpeed > 3 ? 0.85 : 1;
+      const prob = cfg.baseAccuracy * expo * distF * moveF * settleF * tgtF;
+      const hit = this.rng.next() < prob;
+      pending.push(i, tgt.id, hit ? 1 : 0);
+
+      this.events.push({
+        kind: 'shot', shooter: i, target: tgt.id, hit,
+        x0: a.x, y0: cfg.eyeHeight, z0: a.z,
+        x1: tgt.x + (hit ? 0 : this.rng.range(-0.8, 0.8)), y1: hit ? 1.1 : this.rng.range(0.3, 2.2), z1: tgt.z + (hit ? 0 : this.rng.range(-0.8, 0.8)),
+      });
+    }
+    for (let k = 0; k < pending.length; k += 3) {
+      if (!pending[k + 2]) continue;
+      const a = ag[pending[k]];
+      const tgt = ag[pending[k + 1]];
+      const st = this.stats[a.team];
+      const other = this.stats[tgt.team];
+      const dmg = cfg.damage;
+      a.hits++;
+      st.hits++;
+      a.damageDealt += dmg;
+      st.damageDealt += dmg;
+      tgt.damageTaken += dmg;
+      other.damageTaken += dmg;
+      const dx = tgt.x - a.x;
+      const dz = tgt.z - a.z;
+      const d = Math.hypot(dx, dz) || 1;
+      tgt.dmgRecent += dmg;
+      tgt.hitDirX = -dx / d;
+      tgt.hitDirZ = -dz / d;
+      if ((Math.cos(tgt.yaw) * -dx + Math.sin(tgt.yaw) * -dz) / d < 0) st.flankHits++;
+      if (!tgt.alive) continue; // already killed this tick by someone else; damage still counts
+      tgt.hp -= dmg;
+      if (tgt.hp <= 0) {
+        tgt.hp = 0;
+        tgt.alive = false;
+        tgt.deathT = this.t;
+        tgt.firing = false;
+        a.kills++;
+        st.kills++;
+        other.deaths++;
+        this.aliveCount[tgt.team]--;
+        this.events.push({ kind: 'kill', victim: tgt.id, killer: a.id, x: tgt.x, z: tgt.z });
+      }
+    }
+
+    // 4. zone control scoring
+    let rz = 0;
+    let bz = 0;
+    for (let i = 0; i < n; i++) {
+      const a = ag[i];
+      if (a.alive && this.inZone(a)) {
+        if (a.team === RED) rz++;
+        else bz++;
+      }
+    }
+    if (rz > bz) this.score[RED] += cfg.zonePointsPerSecond * dt;
+    else if (bz > rz) this.score[BLUE] += cfg.zonePointsPerSecond * dt;
+
+    // 5. clock + termination
+    this.t += dt;
+    this.tick++;
+    if (this.aliveCount[RED] === 0 || this.aliveCount[BLUE] === 0) {
+      const remaining = Math.max(0, cfg.matchSeconds - this.t);
+      if (this.aliveCount[RED] > 0) this.score[RED] += remaining * cfg.zonePointsPerSecond;
+      if (this.aliveCount[BLUE] > 0) this.score[BLUE] += remaining * cfg.zonePointsPerSecond;
+      this.done = true;
+    } else if (this.t >= cfg.matchSeconds - 1e-9) {
+      this.done = true;
+    }
+    if (this.done) {
+      if (this.score[RED] > this.score[BLUE] + 1e-9) this.winner = RED;
+      else if (this.score[BLUE] > this.score[RED] + 1e-9) this.winner = BLUE;
+      else this.winner = -1;
+    }
+  }
+
+  /** Cheap state fingerprint for determinism checks. */
+  hash(): number {
+    let h = 2166136261;
+    const mix = (v: number) => {
+      const x = Math.round(v * 1000) | 0;
+      h ^= x;
+      h = Math.imul(h, 16777619) >>> 0;
+    };
+    for (const a of this.agents) {
+      mix(a.x); mix(a.z); mix(a.yaw); mix(a.hp); mix(a.alive ? 1 : 0); mix(a.ammo);
+    }
+    mix(this.score[0]); mix(this.score[1]); mix(this.tick);
+    return h >>> 0;
+  }
+}
