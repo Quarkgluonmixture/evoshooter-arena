@@ -91,10 +91,7 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`enemy${s}.dx`, 'enemy', 'truth-form', 'V2', 'exact relative position, not a bearing/range cue');
     push(`enemy${s}.dz`, 'enemy', 'truth-form', 'V2');
     push(`enemy${s}.dist`, 'enemy', 'truth-form', 'V2');
-    push(`enemy${s}.exposure`, 'enemy', 'truth-form', 'V2', 'engine body-point exposure fraction');
-    push(`enemy${s}.exposureToMe`, 'enemy', 'hidden', 'V2', 'how exposed I am FROM THE ENEMY EYE — their view, not mine');
-    push(`enemy${s}.facingDot`, 'enemy', 'truth-form', 'V2', 'exact "is it looking at me" dot product');
-    push(`enemy${s}.hp`, 'enemy', 'hidden', 'V2', 'enemy HP is not a visual percept');
+    push(`enemy${s}.exposure`, 'enemy', 'truth-form', 'V2', 'engine body-point exposure fraction, not a degraded percept');
     push(`enemy${s}.staleness`, 'enemy', 'truth-form', 'V6', 'age of the world-managed memory entry');
     push(`enemy${s}.visible`, 'enemy', 'legal', undefined, 'flag: is this contact my own current vision');
   }
@@ -103,7 +100,7 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
   if (f.length !== expected) {
     throw new Error(`obsSchema drift: schema has ${f.length} fields, world.obsDim is ${expected}`);
   }
-  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 10) {
+  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 7) {
     throw new Error('obsSchema drift: world.ts feature-group widths changed, re-derive the field names');
   }
   return f;

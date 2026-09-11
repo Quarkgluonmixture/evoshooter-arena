@@ -177,6 +177,13 @@ accuracy .22–.32 / 首枪 4.8–19 s / kills 1.3–3.5）。⚠ 预注册的�
 - 远/近 engagement 行为应有可测差异；
 - POV debug overlay 能显示“这个 player 实际看到了什么”。
 
+### 施工进度（三刀，见 Current Cursor）
+
+- **A3.1 删真值：CLOSED（2026-09-11 23:00）。** `enemy*.hp` / `exposureToMe` / `facingDot` 已删，obsDim 100 → 91；
+  `A1-P4`/`A1-P5` 转绿、`A1-P6` 降到 4 个字段。行为侧无可测差异（细节与教训见 LOG 同日条 + GOTCHAS #14/#15）。
+- **A3.2 位置 → 感知 + 连续化：NEXT。**
+- **A3.3 front-biased 几何：待 A3.2 之后。**
+
 ---
 
 ## Phase A4 — Hearing v1：footstep + gunshot
@@ -859,19 +866,19 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A3 — Vision v2（truth slots → 诚实 percept）。**
+**当前：A3.2 — 位置换成感知 + 视距连续化。**
 
-已 CLOSED：**A0** baseline census（22:15）· **A1** provenance + leak matrix（22:30）· **A2** player-local contacts（22:55），均 2026-09-11。
-数字与 reconcile 在 `LOG.md`；当期 leak matrix 现查 `npm run leaks`。
+已 CLOSED：**A0** census · **A1** leak matrix · **A2** player-local contacts · **A3.1** 删 enemy truth 字段（均 2026-09-11）。
+数字与 reconcile 在 `LOG.md`；当期 matrix 现查 `npm run leaks`。
 
-⚠ A3 的 Intervention 一共四件事（删真值 / 换成 bearing-range-quality / 连续化 viewRange / front-biased 几何），
-**一次全改就没法归因**。本文件的施工顺序因此拆成三刀，每刀独立过门、独立 A/B、独立改 probe 登记：
+A3.2 要做的（**一刀之内只动“视觉怎么递给我”这一个家族**）：
 
-- **A3.1 删真值**：拿掉 `enemy*.hp`、`enemy*.exposureToMe`、`enemy*.facingDot`（`A1-P4`/`A1-P5` 应翻 clean，
-  `A1-P6` 应从 6/6 降到 3/6）。obsDim 会变 ⇒ 改前后都要 `npm run bench` + 重新 census。
-- **A3.2 位置 → 感知**：exact `dx/dz/dist` 换成 bearing + range cue + quality（eccentricity × distance × visible fraction），
-  并把 `viewRange` 硬断崖换成连续衰减（`A1-P6` 应全 clean、`A1-P8` 应翻 clean）。deterministic noise 也在这一刀。
-- **A3.3 几何**：360° lidar → front-biased rays/sectors（`A1-P7` 应翻 clean）。
+- exact `enemy*.dx/dz/dist` → **bearing（相对我朝向的角度）+ range cue + quality**；
+- quality 由 eccentricity × distance × visible fraction 产生；远处/余光可以有 contact，但更粗；
+- `viewRange` 硬断崖 → **连续衰减**（可以有物理上限，但不能是突兀真值门）；
+- deterministic perception noise / quantization（⛔ 不许用 `Math.random`，必须走 `Rng` 或纯函数式抖动，否则 T6 determinism 会红）。
 
-每刀都按 Phase discipline：**预测先写进 LOG 再跑**；对照 = `runs/a0-census-s{1,2}` 与 `runs/a2-local-s{1,2,3}`；
-⛔ 不顺手修 V11/V12（那是 B/C 段的活），⛔ 不因为 ladder 变弱就回头软化 VISION。
+**验收**：`A1-P6` 应**全 clean**（没有任何 contact 字段与引擎表达式逐位相等）、`A1-P8` 应翻 clean（20 cm 不该让接触消失）；
+`A1-P1`/`A1-P2`/`A1-P3`/`A1-P4`/`A1-P5`/`A1-P9`/`A1-P13` 保持 clean；V3 的 `A1-P7`（背后几何）仍应报 leak（那是 A3.3）。
+obsDim 会再变 ⇒ **bench 前后各一次，跑之前先 `uptime`**（GOTCHAS #15）。对照 = `runs/a31-notruth-s{1,2,3}`。
+⚠ 预注册时注意 GOTCHAS #14：别对零和指标写「双方同向」的预测。

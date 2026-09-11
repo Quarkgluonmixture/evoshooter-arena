@@ -20,7 +20,7 @@ export const A_COMM0 = 10; // 10..11 comm channel
 
 export const SELF_BASE = 20;
 export const MATE_FEATS_BASE = 6;
-export const ENEMY_FEATS = 10;
+export const ENEMY_FEATS = 7;
 
 export function obsDim(cfg: SimConfig): number {
   return SELF_BASE + cfg.teamSize + 5 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim) + cfg.enemySlots * ENEMY_FEATS;
@@ -485,15 +485,9 @@ export class World {
           o[p++] = (sg * dx) / half;
           o[p++] = (sg * dz) / half;
           o[p++] = Math.min(1, d / half);
+          // how much of his body I can actually see. His view of me, his facing and his health are HIS
+          // state, not my percept — they were engine truth and A3.1 removed them.
           o[p++] = vis ? this.exposure[i * n + id] : 0;
-          o[p++] = vis ? this.exposure[id * n + i] : 0;
-          {
-            // is the enemy looking at me? (only knowable when I can see it)
-            const efx = Math.cos(en.yaw);
-            const efz = Math.sin(en.yaw);
-            o[p++] = vis && d > 1e-6 ? (-(efx * dx + efz * dz)) / d : 0;
-          }
-          o[p++] = vis ? en.hp / cfg.hp : 0;
           o[p++] = vis ? 0 : Math.min(1, (this.t - kn.t) / cfg.memorySeconds);
           o[p++] = vis ? 1 : 0;
         } else {

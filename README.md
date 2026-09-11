@@ -106,11 +106,12 @@ freshly acquired target is harder to hit than one you have been tracking for hal
 **Team frame.** Blue perceives the world rotated 180°, so both populations solve the *same* problem and any genome
 can play either colour. That is what makes "champion vs its own past self" and "gen 0 vs latest" fair comparisons.
 
-**Observation (100 inputs).** Own state + slot one-hot, zone vector and occupancy, 8 lidar rays, 4 teammate slots
-(relative position, health, firing, comm), 3 enemy slots (relative position, my exposure to them and theirs to me,
-whether they face me, health, how stale *my own* sighting is). **Contacts are private**: an enemy only a teammate can
-see never appears in my slots. I get what I have seen myself, plus a three-second memory of it — anything else has to
-travel over the comm channel or be inferred from a teammate's body.
+**Observation (91 inputs).** Own state + slot one-hot, zone vector and occupancy, 8 lidar rays, 4 teammate slots
+(relative position, health, firing, comm), 3 enemy slots (relative position, how much of the body I can see, how stale
+*my own* sighting is). **Contacts are private**: an enemy only a teammate can see never appears in my slots. I get what
+I have seen myself, plus a three-second memory of it — anything else has to travel over the comm channel or be inferred
+from a teammate's body. An enemy's health, his facing, and how exposed *I* am to *him* are his state, not my percept,
+so they are not in there.
 
 **Action (12 outputs).** Move vector, look vector, fire, 3 target-slot logits, reload, aim mode, 2 comm values.
 
@@ -166,7 +167,7 @@ What did **not** work, and why the defaults are what they are:
 
 ## What the agents are allowed to know
 
-`src/sim/obsSchema.ts` names all 100 observation indices and tags each one **legal** (a human could get it from
+`src/sim/obsSchema.ts` names every observation index and tags each one **legal** (a human could get it from
 proprioception, the HUD, vision or radio), **truth-form** (legitimately perceivable, but handed over as an exact
 engine value) or **hidden** (the observer cannot legally know it at all). `npm run leaks` runs a probe matrix that
 changes one thing the observer cannot perceive — an enemy only a teammate can see, an enemy's HP, a wall behind the

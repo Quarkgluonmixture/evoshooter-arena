@@ -30,20 +30,19 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-**A3 — Vision v2（truth slots → 诚实 percept）**。2026-09-11 一晚连关三个 phase：A0 22:15 · A1 22:30 · A2 22:55。
+**A3.2 — 位置换成感知（bearing + range cue + quality）+ 视距连续化**。
+2026-09-11 一晚关掉四刀：A0 22:15 · A1 22:30 · A2 22:55 · **A3.1 23:00**。
 
-- A0：`obsDim=100` / genome 5324 / ~44 ms per 40 s match；跨进程 determinism 在 40 代尺度实测成立。
-- A1：obs provenance + leak matrix 成为**可执行仪器**（`npm run leaks`；`tests/leak.test.ts` 断言实测 == 登记的精确字段集）。
-  新发现两条 gap 已进 SUBSTRATE：V11（`mate*.firing` 不判可见性）、V12（`obj.enemyInZone` 数不可见的敌人）。
-- A2：`known[team][enemy]` → `contact[player][enemy]`，敌情私有化，`A1-P2`/`A1-P3`/`A1-P13` 转绿，补 `A1-P14`（自动瞄准我的**记忆**）
-  与 `A1-P15`（3 秒记忆是 world 代管的完美阶跃，gap 重标为 V6）。
-- ⚠ **两条别踩**：① A2 后 `coverRatio` 不可跨 phase 比较（尺子变了，GOTCHAS #12）；
-  ② 末代冠军对第 0 代的 ladder 在 3/6 血统上变弱（基线 4/4 都 90–100%），已记为 open question，⛔ 别用这一个标量给 A2 定罪。
+- A1 给了仪器：`npm run leaks` 打印当期信息泄漏矩阵，`tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。
+  ⇒ **每一刀的验收就是看哪几条 probe 该翻绿**，别再靠读代码自证。
+- A2：敌情私有化（`contact[player][enemy]`）。A3.1：删掉 `enemy*.hp` / `exposureToMe` / `facingDot`，obsDim **100 → 91**、genome **4964**。
+- ⚠ **三条别踩**：① `coverRatio` 不可跨 A2 比较（尺子变了，GOTCHAS #12）；
+  ② 零和指标（kills/deaths/damage）不能当独立 cell 写预测（#14）；
+  ③ bench 前先看 `uptime`，忙机器会让 ms/match 虚高 35%（#15）。
+- ⚠ **ladder 追踪**：末代冠军对第 0 代两个方向都 ≥50% 的血统数 = baseline 4/4 → A2 3/6 → A3.1 3/6。
+  连续两刀同一水平 ⇒ 更像预算/尺子问题。下一步不是加 seed，是把 TODO 里的 **cross-play 矩阵**做出来。
 
-下一步严格按 `docs/ROADMAP.md` Current Cursor：A3 拆成 **A3.1 删真值 → A3.2 位置换感知 + 连续化 → A3.3 front-biased 几何**，
-一刀一门，预测先写 LOG 再跑，对照 `runs/a0-census-s{1,2}` 与 `runs/a2-local-s{1,2,3}`。
-
-⛔ **不要因为新增 E4–E6/G4/三份专门合同（含 E7 文化预留）就跳施工顺序。**
+下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A3.2；之后才是 A3.3（front-biased 几何）。
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。

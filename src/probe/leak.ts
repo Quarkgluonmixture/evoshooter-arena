@@ -220,8 +220,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     test: 'T1',
     gap: 'V2',
     title: 'a visible enemy loses HP without changing its silhouette',
-    expect: 'leak',
-    expectFields: ['enemy0.hp'],
+    expect: 'clean', // flipped by ROADMAP A3.1 (was: leak on enemy0.hp)
     run: (cfg) =>
       cf(
         cfg,
@@ -243,8 +242,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     kind: 'counterfactual',
     gap: 'V2',
     title: 'a visible enemy turns around',
-    expect: 'leak',
-    expectFields: ['enemy0.facingDot'],
+    expect: 'clean', // flipped by ROADMAP A3.1 (was: leak on enemy0.facingDot)
     run: (cfg) =>
       cf(
         cfg,
@@ -367,7 +365,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     gap: 'V2',
     title: 'a visible contact is engine truth, not a percept',
     expect: 'leak',
-    expectFields: ['enemy0.dx', 'enemy0.dz', 'enemy0.dist', 'enemy0.exposure', 'enemy0.exposureToMe', 'enemy0.hp'],
+    expectFields: ['enemy0.dx', 'enemy0.dz', 'enemy0.dist', 'enemy0.exposure'], // A3.1 deleted the other three
     run: (cfg) => {
       const w = new World(cfg, labMap(cfg, []), 1);
       standObserver(w);
@@ -378,23 +376,29 @@ export const LEAK_PROBES: LeakProbe[] = [
       const off = OBSERVER * w.obsDim;
       const half = cfg.arenaHalf;
       const n = w.n;
-      const at = (name: string) => w.obs[off + indexOfField(cfg, name)];
-      const exact: Array<[string, number]> = [
+      const names = new Set(obsSchema(cfg).map((f) => f.name));
+      const candidates: Array<[string, number]> = [
         ['enemy0.dx', (en.x - me.x) / half],
         ['enemy0.dz', (en.z - me.z) / half],
         ['enemy0.dist', Math.min(1, Math.hypot(en.x - me.x, en.z - me.z) / half)],
         ['enemy0.exposure', w.exposure[OBSERVER * n + ENEMY]],
         ['enemy0.exposureToMe', w.exposure[ENEMY * n + OBSERVER]],
+        ['enemy0.facingDot', -(Math.cos(en.yaw) * (en.x - me.x) + Math.sin(en.yaw) * (en.z - me.z)) /
+          Math.hypot(en.x - me.x, en.z - me.z)],
         ['enemy0.hp', en.hp / cfg.hp],
       ];
-      const fields = exact.filter(([name, v]) => at(name) === Math.fround(v)).map(([name]) => name);
+      // a field a phase has deleted is not a leak that got fixed silently — it simply is not there any more
+      const exact = candidates.filter(([name]) => names.has(name));
+      const fields = exact
+        .filter(([name, v]) => w.obs[off + indexOfField(cfg, name)] === Math.fround(v))
+        .map(([name]) => name);
       return fields.length === 0
         ? { status: 'clean', fields, detail: 'no contact field equals the engine value bit for bit' }
         : {
             status: 'leak',
             fields,
             detail: `${fields.length}/${exact.length} contact fields equal the engine truth expression exactly ` +
-              '(no bearing/quality transform, no noise, no quantisation)',
+              `(of ${candidates.length} the baseline shipped; no bearing/quality transform, no noise, no quantisation)`,
           };
     },
   },
@@ -404,10 +408,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     gap: 'V3',
     title: 'an enemy steps 20 cm across the view-range line',
     expect: 'leak',
-    expectFields: [
-      'enemy0.present', 'enemy0.dz', 'enemy0.dist', 'enemy0.exposure',
-      'enemy0.exposureToMe', 'enemy0.facingDot', 'enemy0.hp', 'enemy0.visible',
-    ],
+    expectFields: ['enemy0.present', 'enemy0.dz', 'enemy0.dist', 'enemy0.exposure', 'enemy0.visible'],
     run: (cfg) => {
       const d = counterfactual(cfg, {
         setup: (w) => {

@@ -182,3 +182,53 @@ s3 红方是 zoneShare **0.000** + kills 3.48 的纯淘汰流，输给一个风�
 
 **判决：SHIP。** A2 exit 三条全过（privileged cache 消失 · leak 测试转绿 · 不瘫痪）；VISION 不因为 ladder 变弱而降。
 下一步 **A3 — Vision v2**（truth slots → 诚实 percept）。
+
+## [2026-09-11 22:55] A3.1 预注册：删掉三个 enemy truth 字段之前先冻预测  #decision
+A3 拆三刀的第一刀（见 ROADMAP Current Cursor）。⚠ 本条写在**改代码之前**。
+
+**要删的三个字段**（每个 enemy slot）：`enemy*.hp`（血量不是视觉可感知）· `enemy*.exposureToMe`（我在**他眼里**的暴露度，
+是他的视角不是我的）· `enemy*.facingDot`（「他有没有在看我」的精确点积）。
+留下 `exposure`（我能看见他身体的比例 = §3.3 的 `bodyVisibility`，是合法 percept，形式问题留给 A3.2）。
+⇒ `ENEMY_FEATS` 10 → 7，**obsDim 100 → 91**，genome 5324 → **4964**。
+
+**基线 = `runs/a2-local-s{1,2,3}`**（末 5 代均值，6 个 cell）：kills 2.29/1.35/2.15/3.10/3.48/2.07 ·
+accuracy .275/.216/.263/.324/.250/.226 · firstContact 15.4/19.0/4.8/4.8/5.6/5.9 s。
+
+**⭐ 先说清楚这一刀的性质**：这是**正确性改动**，不是性能杠杆。A2 已经实测过——在 pop 16 × 40 代 × 3 seed 的预算下，
+seed 间波动（accuracy ±.07、spread 7.6–13.1、firstContact 4.8–19 s）**吞掉大多数真实效应**。
+所以主门是「不塌」，不是「变好」；我预期大部分行为指标的 Δ 落在噪声里，**那不算预测失败，算预算不足**。
+
+**预测**
+1. **probe 面（高置信）**：`A1-P4`（血量）与 `A1-P5`（转身）翻 clean；`A1-P6` 从 6/6 降到 **4/6**（剩 dx/dz/dist/exposure）；
+   `A1-P8` 的变化字段表缩短（去掉 hp / exposureToMe / facingDot）；其余 probe 状态不变。
+2. **kills 下降**（≥4/6 cell）：没有血量就没法专打残血。⚠ 中等置信——当前 targeting 是 slot logits，
+   本来就未必学会了聚火。
+3. accuracy、firstContact、spread、commActivity 的 Δ **落在 seed 噪声内**（不作方向预测）。
+4. **不塌**（硬门）：每个 cell accuracy > 0.10、firstContact < 25 s、kills > 0.5。
+5. bench：genome 缩 7%，ms/match 持平或略快（≤ 基线 43.6–45.4 的下沿）。
+6. determinism / mirror fairness / map 测试保持绿。
+
+## [2026-09-11 23:00] A3.1 reconcile：三个 enemy truth 字段删掉了，行为看不出差别  #measure #ship
+`ENEMY_FEATS` 10 → 7，**obsDim 100 → 91、genome 5324 → 4964**。删的是 `enemy*.hp` / `exposureToMe` / `facingDot`；
+留下 `exposure`（= §3.3 的 `bodyVisibility`，形式问题归 A3.2）。
+
+逐条对 22:55 的预注册：
+1. **probe 面 ✅ 全中**：`A1-P4`（血量）、`A1-P5`（转身）翻 clean；`A1-P6` 只剩 **4 个**字段与引擎表达式逐位相等
+   （dx/dz/dist/exposure）；`A1-P8` 的翻转字段从 8 个缩到 5 个；其余状态不变。`npm test` 58 绿。
+   ⭐ 顺手把 P6 改成**跳过已被删除的字段**而不是抛错——「这一期删掉的通道」和「悄悄修好的泄漏」不是一回事，探针要能活过 schema 变更。
+2. **kills 下降 ≥4/6 → ❌ 3/6**。但更重要的是：**这条预测本身设计错了**。kills 在一场对抗里是准零和的
+   （我方 kills = 对方 deaths），红蓝两个 cell 不可能独立同向下降，除非总杀伤率下降。按**总杀伤**（红+蓝）重算：
+   3.63→4.57 ↑ · 5.25→6.29 ↑ · 5.55→4.67 ↓ ⇒ 依然没有效应。教训进 GOTCHAS #14。
+3. accuracy / firstContact / spread / comm 的 Δ 落在 seed 噪声内 → ✅。
+   （seed 1 的 firstContact 15.4/19.0 → 9.9/8.7 是**回到了另外两个 seed 的 4.8–5.9 s 那一档**，不是新效应。）
+4. 不塌（硬门）→ ✅ accuracy .252–.326 · firstContact 4.9–9.9 s · kills 1.59–3.77。
+5. bench → ✅ **41.1 / 41.5 / 42.6 / 42.0 ms/match**（A2 是 43.8/44.2/43.7）⇒ 网络小了 7%，快了约 4%。
+   ⚠ 第一次量到的是 **58–59 ms**，纯粹是隔壁 session 的 xcodebuild 把机器压到 load 32（swift helper 930% CPU）。
+   差点把「删了三个输入反而慢 33%」当结论报出去。教训进 GOTCHAS #15。
+6. determinism / mirror / map 测试保持绿 → ✅。
+
+**ladder 追踪**（末代冠军对第 0 代，两个方向都 ≥50% 才算这条血统有进步）：baseline **4/4** → A2 **3/6** → A3.1 **3/6**。
+⇒ 连续两刀停在同一水平 ⇒ 更像是**预算/尺子**的问题，而不是某一刀砍坏了什么。TODO 里那条「换 cross-play 矩阵」优先级上调。
+
+**判决：SHIP A3.1。** 下一刀 **A3.2**：exact `dx/dz/dist` → bearing + range cue + quality，并把 `viewRange` 硬断崖连续化
+（`A1-P6` 应全 clean、`A1-P8` 应翻 clean）。
