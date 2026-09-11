@@ -5,35 +5,35 @@
 > 当前已 ship 的规则/架构/数字 = `README.md` + `src/`。** 四者职责不要混。
 
 ## 一句话
-自进化 3D 红蓝 5v5 射击场。现行 baseline 已能 deterministic co-evolution + 3D 观战；新主线是把它从“shared-brain + privileged structured state”迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA** 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round 等只能自然涌现、事后识别。
+自进化 3D 红蓝 5v5 射击场。现行 baseline 已能 deterministic co-evolution + 3D 观战；新主线是把它从“shared-brain + privileged structured state + 双 red/blue population”迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA、side-neutral club league + opponent ecology** 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round / emergent language 等只能自然涌现、事后识别，并能展示其出生→稳定→因果验证的证据链。
 
 ## 现状（截至 2026-09-11 晚）
 - 三条入口都能跑：`npm run dev`（浏览器训练 + 观战）· `npm test`（33 个 vitest）· `npm run train -- --gens 40 --pop 16 --seed 1`（无头）。
 - 默认超参在 `src/core/config.ts`（`DEFAULT_SIM` / `DEFAULT_EVO`），改之前先看 LOG 里 `#deadend` 为什么现在是这个值。
 - 已知行为：胜负主要靠淘汰，占区时间占比很低；被长期压制的一方偶发滑向躲藏。旧结论与数字见 README Evidence。
 - 当前 observation / action 是**baseline，不是 Gold Standard**：team-shared exact last-known enemy、enemy truth features、360° lidar、target-slot auto-turn、feed-forward shared team brain 等已在 `docs/SUBSTRATE.md` 登记为承重 gap。
+- 当前 trainer 的 **red population vs blue population 也是 bootstrap，不是终局 ontology**：未来 ROADMAP E4–E6 迁成 `Club = team/coach DNA + five player blocks`，red/blue 只作为比赛 sides；对手分布由 peers / diverse contemporaries / history / exploiters 构成。⛔ 这不是当前 cursor，别现在跳过去改 trainer。
 - 无头训练输出在 `runs/`（gitignore），浏览器端用「export run」拿 JSON。
 - 观战体验做过一轮五修（底栏布局 / 转头平滑 / 射击命中特效 / 三个跟随镜头 / 渲染插值），实测数字与取舍在 LOG 2026-09-11 21:30。
   其中**转头是仿真机制改动**（`turnRate` 交战 2π + `scanTurnRate` 扫视 2.6 rad/s + look 动作 0.45 s 低通），⚠ 它踩在 SUBSTRATE **V4 要删掉的 `targetId` 抽象**上 ⇒ A2/V4 动手时必须重新推导，不能照搬（LOG 同条末尾）。
   ⭐ **A0 census 就冻改动后的值**（改动后才是 main 上的现实，A1/A2 从这里出发；改动前的 run 留在 `runs/post-turnfix-s*.json` 仅作历史）。⛔ 别再重议这一条。
 
 ## 新 docs（先读）
-- `docs/VISION.md` — Gold Standard；决定“什么值得做、什么绝不能写死”。
-- `docs/SUBSTRATE.md` — world truth / sensors / private belief / body actions / radio / team DNA 的工程边界与 hard tests。
-- `docs/ROADMAP.md` — future agent 可直接自走的 Programme A–G phase ledger。
+- `docs/VISION.md` — Gold Standard；决定“什么值得做、什么绝不能写死”；新增两根北极星：**对手分布才是老师**、**观赏性来自可解释的新行为诞生**。
+- `docs/SUBSTRATE.md` — world truth / sensors / private belief / body actions / radio / Club DNA / league ecology / discovery analytics 的工程边界与 hard tests。
+- `docs/ROADMAP.md` — future agent 可直接自走的 Programme A–G phase ledger；E4–E6 = club/league/opponent ecology，G4 = Evolution Discovery Feed。
 
 ## Current cursor
-**A0 — Authority + baseline freeze**（docs 已起草，baseline census 尚未做）。
+**A0 — Authority + baseline freeze**（authority 已接线，baseline census 尚未做）。
 
 下一个最小可关闭单元严格按 `docs/ROADMAP.md` A0：
-1. authority pointers 接线完成后检查读回；
-2. `npm test`；
-3. `npm run bench`；
-4. 记录当前 `obsDim`、network parameter count、ms/match；
-5. LOG 一条 `#decision #measure`；
-6. A0 close 后进入 **A1 — Information provenance + leak probes**。
+1. `npm test`；
+2. `npm run bench`；
+3. 记录当前 `obsDim`、network parameter count、ms/match；
+4. LOG 一条 `#decision #measure`；
+5. A0 close 后进入 **A1 — Information provenance + leak probes**。
 
-⛔ **不要直接跳 A2 改 observation。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
+⛔ **不要直接跳 A2 改 observation；不要因为新增 E4–E6/G4 就跳施工顺序。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。
@@ -47,6 +47,8 @@
 - 一次一根承重杠杆；probe-first；预测先冻结；same-seed A/B；不过门就 revert/reframe。
 - 战术术语只能事后 detector / 人类命名；不进入 live policy。
 - Policy 不得读取 engine truth；每个新增信息通道都要过 counterfactual leak tests。
+- 对手分布本身是选择压力：最终不得把“只会打赢唯一熟悉对手”称为 progress；但当前 A0/A1 不改 trainer。
+- 声称“语言/战术/角色已涌现”要有 discovery + lineage + intervention，不能只看录像脑补。
 - 回退实现 ≠ 回退现实中的现象；旧手写战术不得换名字复活。
 - `README.md` 只在 phase 真 ship 后更新，不提前描述未来世界。
 
