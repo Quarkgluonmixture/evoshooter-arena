@@ -1,20 +1,23 @@
-# TODO — 只放未来的活（做完立即删）
+# TODO — 补充 backlog（主线以 docs/ROADMAP.md 为准）
 
-## 进化稳定性（最优先）
-- [ ] 长跑验证：pop 24、≥200 代、两 seed；判据 = 两队 ladder0 全程 ≥75% 且 zoneShare 不归零。现在只测过 pop 16 × 40 代。
-- [ ] 若被压制方仍塌成躲藏：先试**优化器侧**（名人堂窗口/采样权重、fitness sharing 保多样性），不改游戏规则（坑 1 的教训）。
-- [ ] 探一下 comm 信道是否有语义：comm 值与「有敌人可见 / 在区内 / 换弹中」的相关性随代变化，若为零则说明通讯没涌现，可以考虑加信道噪声或成本。
+> **承重级 substrate / vision 工作不要从这里挑。** Future agent 先走
+> `CHECKPOINT.md → docs/VISION.md → docs/SUBSTRATE.md → docs/ROADMAP.md`。
+> 本文件只放不改变主路线的补充活；做完立即删。
+
+## 当前 roadmap 外的补充验证
+- [ ] 在不干扰 A0/A1 的前提下，保留一次旧 baseline 长跑：pop 24、≥200 代、两 seed；只作为迁移前历史 census，不再把“旧 observation 下更稳定”当未来设计裁决。
+- [ ] 旧 comm channel 的语义 census 可作为 D2 前 baseline：comm 值与「有敌人可见 / 在区内 / 换弹中」相关性；只测现状，不据此保留无限连续通信设计。
 
 ## 观战 / 导播
-- [ ] kill feed（谁打死谁，右上角滚动）。
+- [ ] kill feed（谁打死谁，右上角滚动）——C2 public event ship 后必须消费同一合法事件源，不能从 spectator truth 另造一套。
 - [ ] 导播切镜头淡入淡出；击杀慢动作回放（需要 world 快照或从 seed 重放到 tick）。
-- [ ] 观战条头像加实时 comm 颜色点，与 3D 头灯一致。
+- [ ] 观战条头像加实时 comm 颜色点；D2 迁移为 token/quantized radio 后同步改可视化。
 
 ## 可视化
 - [ ] 热力图区分「移动」与「开火位置」两层。
-- [ ] 每代冠军 vs 全部历史冠军的胜率矩阵（小图），比两条阶梯更能看出非传递/循环。
+- [ ] 每代冠军 vs 全部历史冠军的胜率矩阵（小图），观察非传递/循环。
 
 ## 工程
 - [ ] GitHub Pages 部署（对齐 `../evofootball-arena/.github/workflows/pages.yml`：npm ci + test + build）。
-- [ ] 地图池轮换防单图过拟合（需要 viewer 支持重建场景）。
+- [ ] 地图池轮换防单图过拟合——C1 tactical objective topology 稳定后再做，避免为旧 KOTH map 过度工程。
 - [ ] 导入 run 时按 mapSeed 自动重载，而不是弹 alert 让人手改 URL。
