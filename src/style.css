@@ -71,3 +71,36 @@ label.file { cursor: pointer; border: 1px solid var(--line); border-radius: 7px;
 .heat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .heat-row canvas { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; }
 @media (max-width: 1000px) { #app { grid-template-columns: 1fr; grid-template-rows: 60vh 1fr; } #panel { border-left: none; border-top: 1px solid var(--line); } }
+
+/* spectator */
+#crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); pointer-events: none; display: none; }
+#crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.85); box-shadow: 0 0 3px rgba(0,0,0,0.8); }
+#crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+#crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+#crosshair.show { display: block; }
+#pov { position: absolute; left: 12px; top: 12px; width: 220px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(6px); display: none; }
+#pov.show { display: block; }
+.pov-head { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 6px; }
+.pov-head #pov-state { color: var(--text-2); font-weight: 400; font-size: 12px; }
+.pov-hp { height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+.pov-hp i { display: block; height: 100%; width: 100%; background: #7ee08a; border-radius: 4px; transition: width 0.1s; }
+.pov-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; color: var(--text-2); font-size: 12px; letter-spacing: 0.1em; }
+#pov-comm { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,0.25); }
+#spec-bar { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; }
+.spec-team { display: flex; gap: 6px; }
+.spec-tile { width: 64px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px 4px; cursor: pointer; backdrop-filter: blur(6px); user-select: none; }
+.spec-tile .n { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; display: flex; justify-content: space-between; }
+.spec-tile .n small { font-weight: 400; color: var(--text-2); }
+.spec-tile .hp { height: 5px; margin-top: 4px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.spec-tile .hp i { display: block; height: 100%; width: 100%; border-radius: 3px; }
+.spec-tile.red .hp i { background: var(--red); }
+.spec-tile.blue .hp i { background: var(--blue); }
+.spec-tile.dead { opacity: 0.35; }
+.spec-tile.dead .n::after { content: '✕'; color: var(--text-2); }
+.spec-tile.firing { border-color: #fff2c4; }
+.spec-tile.sel { border-color: #fff; box-shadow: 0 0 0 1px #fff inset; }
+#cam-modes { display: flex; gap: 4px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+#cam-modes button { padding: 4px 9px; font-size: 12px; border-color: transparent; }
+#cam-modes button.on { background: #2a5a9a; }
+#view-bar { bottom: 12px; }
+kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, monospace; color: var(--text); }

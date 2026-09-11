@@ -49,6 +49,8 @@ export class ArenaScene {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
   readonly toggles: SceneToggles = { fov: true, trails: true, comm: true, tracers: true };
+  /** agent whose own body is hidden because the camera sits in its eyes */
+  firstPersonId = -1;
   private readonly cfg: SimConfig;
   private readonly map: ArenaMap;
   private readonly container: HTMLElement;
@@ -93,8 +95,11 @@ export class ArenaScene {
   }
 
   private buildLights(): void {
-    const hemi = new THREE.HemisphereLight(0xb8c4d8, 0x1a1c22, 0.85);
+    const hemi = new THREE.HemisphereLight(0xb8c4d8, 0x2a2d36, 1.15);
     this.scene.add(hemi);
+    const fill = new THREE.DirectionalLight(0x9fb4d8, 0.9); // opposite side, no shadows: keeps back faces readable in 1st person
+    fill.position.set(-30, 35, -40);
+    this.scene.add(fill);
     const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
     sun.position.set(30, 60, 20);
     sun.castShadow = true;
@@ -294,9 +299,11 @@ export class ArenaScene {
       if (!v) continue;
       v.group.position.set(a.x, 0, a.z);
       v.group.rotation.y = -a.yaw;
+      const hidden = i === this.firstPersonId;
+      v.group.visible = !hidden;
       v.fov.visible = this.toggles.fov && a.alive;
       v.comm.visible = this.toggles.comm && a.alive;
-      v.trail.visible = this.toggles.trails;
+      v.trail.visible = this.toggles.trails && !hidden;
       v.hpBg.visible = a.alive;
       v.hpFg.visible = a.alive;
       v.aimRing.visible = a.alive && a.aim;

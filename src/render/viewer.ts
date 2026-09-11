@@ -1,15 +1,17 @@
 import type { SimConfig } from '../core/config.ts';
 import type { ArenaMap } from '../sim/map.ts';
-import { World } from '../sim/world.ts';
+import { World, type WorldEvent } from '../sim/world.ts';
 import { NeuralPolicy, shapeFor, type Policy } from '../brain/policy.ts';
 import { stepMatch } from '../evo/match.ts';
 import { ArenaScene } from './scene.ts';
+import { CameraRig } from './camera.ts';
 
 export interface MatchLabels { red: string; blue: string }
 
 /** Drives one visible match in real time (× speed) and feeds the scene. */
 export class MatchViewer {
   readonly scene: ArenaScene;
+  readonly rig: CameraRig;
   world: World | null = null;
   labels: MatchLabels = { red: 'red', blue: 'blue' };
   speed = 1.5;
@@ -21,6 +23,7 @@ export class MatchViewer {
   private blue: Policy | null = null;
   private acc = 0;
   private hold = 0;
+  private readonly frameEvents: WorldEvent[] = [];
   private finishedNotified = false;
   private readonly cfg: SimConfig;
   private readonly map: ArenaMap;
@@ -31,6 +34,7 @@ export class MatchViewer {
     this.map = map;
     this.hidden = hidden;
     this.scene = new ArenaScene(container, cfg, map);
+    this.rig = new CameraRig(this.scene);
   }
 
   load(red: Float32Array, blue: Float32Array, seed: number, labels: MatchLabels): void {
@@ -54,6 +58,7 @@ export class MatchViewer {
   frame(realDt: number): void {
     const w = this.world;
     let advanced = false;
+    this.frameEvents.length = 0;
     if (w && this.red && this.blue && !this.paused) {
       if (!w.done) {
         this.acc += realDt * this.speed;
@@ -63,6 +68,7 @@ export class MatchViewer {
           for (const ev of w.events) {
             if (ev.kind === 'shot') this.scene.addShot(ev, w);
             else this.scene.addKill(ev, w);
+            this.frameEvents.push(ev);
           }
           this.acc -= this.cfg.dt;
           steps++;
@@ -78,6 +84,7 @@ export class MatchViewer {
       }
     }
     if (w) this.scene.sync(w, advanced);
+    this.rig.update(w, realDt, this.frameEvents);
     this.scene.update(realDt);
     this.scene.render();
   }
