@@ -58,7 +58,9 @@ Right-hand panel:
   fitness. Head-to-head balance between red and blue.
 - **How they play** — 12 population-average behaviour metrics per generation. This is where tactics become visible:
   accuracy climbs first, then time-to-first-shot collapses, cover ratio rises, spread and flank rate change as
-  the two sides answer each other.
+  the two sides answer each other. Note that *in cover while threatened* counts only threats the agent itself
+  knows about (its own sighting, or its own three-second memory), so it is not comparable with runs from before
+  contacts became private.
 - **Where they go** — occupancy heat-maps per team with a generation scrubber.
 - **Time travel** — pit any generation's champion against any other. "gen 0 vs latest" is the fastest way to *feel*
   the change.
@@ -106,8 +108,9 @@ can play either colour. That is what makes "champion vs its own past self" and "
 
 **Observation (100 inputs).** Own state + slot one-hot, zone vector and occupancy, 8 lidar rays, 4 teammate slots
 (relative position, health, firing, comm), 3 enemy slots (relative position, my exposure to them and theirs to me,
-whether they face me, health, staleness of the team's last sighting). Enemies seen by any teammate are shared with the
-whole team, so spreading out has an information payoff.
+whether they face me, health, how stale *my own* sighting is). **Contacts are private**: an enemy only a teammate can
+see never appears in my slots. I get what I have seen myself, plus a three-second memory of it — anything else has to
+travel over the comm channel or be inferred from a teammate's body.
 
 **Action (12 outputs).** Move vector, look vector, fire, 3 target-slot logits, reload, aim mode, 2 comm values.
 

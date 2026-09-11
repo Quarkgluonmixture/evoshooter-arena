@@ -162,8 +162,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     test: 'T1',
     gap: 'V1',
     title: 'an enemy only my TEAMMATE can see moves',
-    expect: 'leak',
-    expectFields: ['enemy0.dx', 'enemy0.dz', 'enemy0.dist'],
+    expect: 'clean', // flipped by ROADMAP A2 (was: leak on enemy0.dx/dz/dist)
     run: (cfg) =>
       cf(
         cfg,
@@ -187,10 +186,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     test: 'T1',
     gap: 'V1',
     title: 'the team memory outlives the teammate who made the contact',
-    expect: 'leak',
-    expectFields: [
-      'enemy0.present', 'enemy0.dx', 'enemy0.dz', 'enemy0.dist', 'enemy0.staleness',
-    ],
+    expect: 'clean', // flipped by ROADMAP A2 (was: leak on enemy0.present/dx/dz/dist/staleness)
     run: (cfg) =>
       cf(
         cfg,
@@ -469,7 +465,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     kind: 'action',
     gap: 'V4',
     title: 'the head snaps onto an enemy only my teammate can see',
-    expect: 'leak',
+    expect: 'clean', // flipped by ROADMAP A2: there is no inherited contact to aim at any more
     run: (cfg) => {
       const w = new World(cfg, labMap(cfg, [WIDE_WALL]), 1);
       standObserver(w);
@@ -480,7 +476,9 @@ export const LEAK_PROBES: LeakProbe[] = [
       const n = w.n;
       if (w.visible[OBSERVER * n + ENEMY] !== 0) throw new Error('A1-P13 scenario broken: the observer can see the enemy');
       if (w.visible[MATE * n + ENEMY] !== 1) throw new Error('A1-P13 scenario broken: the teammate cannot see the enemy');
-      if (w.slots[OBSERVER * cfg.enemySlots] !== ENEMY) throw new Error('A1-P13 scenario broken: no inherited contact');
+      if (w.slots[OBSERVER * cfg.enemySlots] !== ENEMY) {
+        return { status: 'clean', fields: [], detail: 'nothing inherited from the teammate, so there is nothing to auto-aim at' };
+      }
       const before = w.agents[OBSERVER].yaw;
       w.act.fill(0);
       w.act[OBSERVER * ACT_DIM + A_AIM] = 1;
@@ -497,9 +495,80 @@ export const LEAK_PROBES: LeakProbe[] = [
           };
     },
   },
+  {
+    id: 'A1-P14',
+    kind: 'action',
+    gap: 'V4',
+    title: 'the head snaps onto where I last saw someone',
+    expect: 'leak',
+    run: (cfg) => {
+      const w = new World(cfg, labMap(cfg, [MID_WALL]), 1);
+      standObserver(w);
+      place(w, ENEMY, 12, 6, -Math.PI / 2); // in plain view, 37° off my facing
+      w.observe();
+      if (w.visible[OBSERVER * w.n + ENEMY] !== 1) throw new Error('A1-P14 scenario broken: the enemy is not visible');
+      place(w, ENEMY, 0, 10, -Math.PI / 2); // steps behind the wall, straight ahead of me
+      w.t += 1;
+      w.observe();
+      if (w.visible[OBSERVER * w.n + ENEMY] !== 0) throw new Error('A1-P14 scenario broken: the enemy is still visible');
+      if (w.slots[OBSERVER * cfg.enemySlots] !== ENEMY) throw new Error('A1-P14 scenario broken: my own contact expired');
+      const before = w.agents[OBSERVER].yaw; // already pointing at where the enemy REALLY is
+      w.act.fill(0);
+      w.act[OBSERVER * ACT_DIM + A_AIM] = 1;
+      w.act[OBSERVER * ACT_DIM + A_TARGET0] = 1;
+      w.step();
+      const turned = Math.abs(w.agents[OBSERVER].yaw - before);
+      return turned <= 1e-9
+        ? { status: 'clean', fields: [], detail: 'the head stays where the policy put it' }
+        : {
+            status: 'leak',
+            fields: [],
+            detail: `the head swung ${(turned * 180 / Math.PI).toFixed(1)}° AWAY from the enemy's real bearing and ` +
+              'onto my one-second-old memory of it: the aim service reads my contact list, not my eyes',
+          };
+    },
+  },
+  {
+    id: 'A1-P15',
+    kind: 'discontinuity',
+    gap: 'V6',
+    title: 'my memory of a contact is a perfect step function the world keeps for me',
+    expect: 'leak',
+    expectFields: ['enemy0.present', 'enemy0.dx', 'enemy0.dz', 'enemy0.dist', 'enemy0.staleness'],
+    run: (cfg) => {
+      // Both worlds are read at the SAME clock time (so the legal round-time HUD is identical); they differ
+      // only in how long ago the sighting happened — see GOTCHAS #11.
+      const NOW = 4;
+      const seen = (age: number): Float32Array => {
+        const w = new World(cfg, labMap(cfg, [MID_WALL]), 1);
+        standObserver(w);
+        w.t = NOW - age;
+        place(w, ENEMY, 12, 6, -Math.PI / 2); // seen once, in plain view
+        w.observe();
+        place(w, ENEMY, 0, 10, -Math.PI / 2); // then gone behind the wall
+        w.t = NOW;
+        w.observe();
+        return w.obs.slice(OBSERVER * w.obsDim, (OBSERVER + 1) * w.obsDim);
+      };
+      const before = seen(cfg.memorySeconds - 0.1);
+      const after = seen(cfg.memorySeconds + 0.1);
+      const schema = obsSchema(cfg);
+      const fields: string[] = [];
+      for (let k = 0; k < before.length; k++) if (Math.abs(before[k] - after[k]) > 1e-9) fields.push(schema[k].name);
+      return fields.length === 0
+        ? { status: 'clean', fields, detail: 'remembering is the brain’s job and it degrades on its own terms' }
+        : {
+            status: 'leak',
+            fields,
+            detail: `200 ms either side of the ${cfg.memorySeconds} s memory window flips ${fields.length} fields: ` +
+              'the world holds an exact position for me, at full precision, and then deletes it in one tick',
+          };
+    },
+  },
 ];
 
 /** Wide version of the mid wall, so a contact well off the centre line is still hidden. */
+
 const WIDE_WALL: Box = { minX: -9, minZ: -1, maxX: 9, maxZ: 1, h: 3 };
 
 export function indexOfField(cfg: SimConfig, name: string): number {

@@ -130,7 +130,11 @@ export class World {
   readonly visible: Uint8Array;
   /** slots[i*enemySlots+s]: enemy id occupying observation slot s of agent i, or -1. */
   readonly slots: Int16Array;
-  readonly known: Known[][];
+  /**
+   * contact[playerId][enemySlot]: the last position THIS player saw that enemy at, and when.
+   * Contacts are private: a teammate's sighting never lands here (ROADMAP A2 / SUBSTRATE V1).
+   */
+  readonly contact: Known[][];
   readonly stats: [TeamStats, TeamStats];
   readonly heat: [Float32Array, Float32Array] | null;
   readonly events: WorldEvent[] = [];
@@ -157,7 +161,7 @@ export class World {
     this.exposure = new Float32Array(this.n * this.n);
     this.visible = new Uint8Array(this.n * this.n);
     this.slots = new Int16Array(this.n * cfg.enemySlots).fill(-1);
-    this.known = [[], []];
+    this.contact = [];
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
     this.aliveCount = [cfg.teamSize, cfg.teamSize];
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
@@ -207,7 +211,11 @@ export class World {
           deathT: -1,
         });
       }
-      for (let e = 0; e < cfg.teamSize; e++) this.known[team].push({ x: 0, z: 0, t: -1e9 });
+    }
+    for (let i = 0; i < this.n; i++) {
+      const c: Known[] = [];
+      for (let e = 0; e < cfg.teamSize; e++) c.push({ x: 0, z: 0, t: -1e9 });
+      this.contact.push(c);
     }
   }
 
@@ -298,23 +306,20 @@ export class World {
       }
     }
 
-    // 2. team knowledge (any teammate sees an enemy => whole team knows where it is)
-    for (let team = 0; team < 2; team++) {
-      const enemyBase = team === RED ? T : 0;
-      const myBase = team === RED ? 0 : T;
+    // 2. private contacts: what I see updates MY memory only. Teammates get nothing for free — a sighting
+    //    can only reach them through a legal channel (body cue in view, or the comm channel).
+    for (let i = 0; i < n; i++) {
+      const me = ag[i];
+      if (!me.alive) continue;
+      const enemyBase = me.team === RED ? T : 0;
+      const mine = this.contact[i];
       for (let e = 0; e < T; e++) {
         const enemy = ag[enemyBase + e];
-        if (!enemy.alive) continue;
-        for (let m = 0; m < T; m++) {
-          const me = ag[myBase + m];
-          if (me.alive && this.visible[me.id * n + enemy.id]) {
-            const k = this.known[team][e];
-            k.x = enemy.x;
-            k.z = enemy.z;
-            k.t = this.t;
-            break;
-          }
-        }
+        if (!enemy.alive || !this.visible[i * n + enemy.id]) continue;
+        const k = mine[e];
+        k.x = enemy.x;
+        k.z = enemy.z;
+        k.t = this.t;
       }
     }
 
@@ -443,7 +448,7 @@ export class World {
         }
       }
 
-      // --- enemies: currently visible first (by distance), then team-known (by distance)
+      // --- enemies: currently visible first (by distance), then my own remembered contacts (by distance)
       enemyOrder.length = 0;
       enemyDist.length = 0;
       enemyVis.length = 0;
@@ -452,7 +457,7 @@ export class World {
         const en = ag[id];
         if (!en.alive) continue;
         const vis = this.visible[i * n + id];
-        const k = this.known[team][e];
+        const k = this.contact[i][e];
         const fresh = this.t - k.t <= cfg.memorySeconds;
         if (!vis && !fresh) continue;
         const px = vis ? en.x : k.x;
@@ -469,7 +474,7 @@ export class World {
           const id = enemyOrder[k];
           const en = ag[id];
           const vis = enemyVis[k] === 1;
-          const kn = this.known[team][id - enemyBase];
+          const kn = this.contact[i][id - enemyBase];
           const px = vis ? en.x : kn.x;
           const pz = vis ? en.z : kn.z;
           const dx = px - a.x;
@@ -503,7 +508,7 @@ export class World {
         for (let e = 0; e < T; e++) {
           const id = enemyBase + e;
           if (!ag[id].alive) continue;
-          const kn = this.known[team][e];
+          const kn = this.contact[i][e];
           if (this.t - kn.t > cfg.memorySeconds && !this.visible[i * n + id]) continue;
           const d = Math.hypot(ag[id].x - a.x, ag[id].z - a.z);
           if (d < nd) { nd = d; nearest = id; }
@@ -583,7 +588,7 @@ export class World {
       if (engaging) {
         const en = ag[best];
         const vis = this.visible[i * n + best];
-        const kn = this.known[a.team][best - (a.team === RED ? cfg.teamSize : 0)];
+        const kn = this.contact[i][best - (a.team === RED ? cfg.teamSize : 0)];
         const px = vis ? en.x : kn.x;
         const pz = vis ? en.z : kn.z;
         want = Math.atan2(pz - a.z, px - a.x);

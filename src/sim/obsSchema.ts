@@ -86,7 +86,8 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
 
   // --- enemies: contact slots
   for (let s = 0; s < cfg.enemySlots; s++) {
-    push(`enemy${s}.present`, 'enemy', 'hidden', 'V1', 'slot can be filled purely by what a TEAMMATE saw');
+    push(`enemy${s}.present`, 'enemy', 'truth-form', 'V6',
+      'my own contact since A2, but the world does the remembering for me');
     push(`enemy${s}.dx`, 'enemy', 'truth-form', 'V2', 'exact relative position, not a bearing/range cue');
     push(`enemy${s}.dz`, 'enemy', 'truth-form', 'V2');
     push(`enemy${s}.dist`, 'enemy', 'truth-form', 'V2');
@@ -94,7 +95,7 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`enemy${s}.exposureToMe`, 'enemy', 'hidden', 'V2', 'how exposed I am FROM THE ENEMY EYE — their view, not mine');
     push(`enemy${s}.facingDot`, 'enemy', 'truth-form', 'V2', 'exact "is it looking at me" dot product');
     push(`enemy${s}.hp`, 'enemy', 'hidden', 'V2', 'enemy HP is not a visual percept');
-    push(`enemy${s}.staleness`, 'enemy', 'hidden', 'V1', 'age of the team-shared memory entry');
+    push(`enemy${s}.staleness`, 'enemy', 'truth-form', 'V6', 'age of the world-managed memory entry');
     push(`enemy${s}.visible`, 'enemy', 'legal', undefined, 'flag: is this contact my own current vision');
   }
 

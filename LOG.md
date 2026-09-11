@@ -128,3 +128,57 @@ ROADMAP A1 要的是**先量病不治病**。做出来的是三件套 + 一条�
   队友 HUD 字段混进 diff 把敌情泄漏盖住了。
 - bench 复测 43.6 ms/match（A0 是 43.9/45.4/44.7）⇒ 仪器不在仿真路径上，throughput 未动。
 - A1 close。下一步 **A2**：`known[team][enemy]` → `known[player][enemy]`。⛔ 一次一根杠杆，不顺手修 V2/V3。
+
+## [2026-09-11 22:40] A2 预注册：砍 team omniscience 之前先冻预测  #decision
+⚠ 这条写在**跑之前**，改完不许回头改这里（改了就等于没预测）。对照 = `runs/a0-census-s{1,2}`，同 `--gens 40 --pop 16`。
+
+**先量出来的噪声底**（`node scripts/compare.ts runs/a0-census-s1.json runs/a0-census-s2.json`，末 5 代均值）：
+仅仅换一个 seed，accuracy 就在 0.224–0.361、spread 7.59–12.35、aimUsage **0.017–0.959** 之间跳。
+⇒ **2 seed 的 A/B 只能判大效应**；小于 seed 间差的变化一律不下结论（同 [[project-grader-lever-noise]] 的教训）。
+
+**预测（末 5 代均值，4 个 cell = 2 seed × 红蓝）**
+1. firstContact **上升**（≥3/4 cell）——白捡的接触没了。基线 6.31 / 6.78 / 8.33 / 7.17 s。
+2. accuracy **下降**（≥3/4 cell）。基线 .361 / .347 / .224 / .355。
+3. spread **不系统性上升**（4 cell 均值 ≤ 基线的 11.0）——分散换情报的红利消失。
+4. commActivity **上升**（≥2/4 cell）。⚠ 低置信：comm 无带宽约束、全靠突变漂，容易被噪声淹。
+5. **不许瘫痪**（A2 exit 硬门）：每个 cell accuracy > 0.10 且 firstContact < 20 s；末代冠军对第 0 代 ≥50% 的 cell ≥ 3/4。
+6. 仪器面：`A1-P2`/`A1-P3` 必须翻 clean（同一 commit 改登记）；`A1-P1`/`A1-P9` 保持 clean；
+   `A1-P4..P8`/`A1-P10`/`A1-P11`/`A1-P12` 仍报 leak；`A1-P13`（队友的接触喂给自动瞄准）会**因为 V1 消失而失去场景**，
+   预期翻 clean ⇒ 届时补一条只用**自己的陈旧记忆**做自动瞄准的新 probe，保住 V4 的覆盖。
+
+## [2026-09-11 22:55] A2：敌情变成私有的，以及预测大半落空  #measure #ship
+`known[team][enemy]` → `contact[player][enemy]`，只有**我自己看见**才更新我的记忆；队友的视野不再自动进我的
+observation。改动只在 `src/sim/world.ts`（6 处），comm 接口一行没动。
+
+**仪器面（与预注册完全一致）**
+- `A1-P2` / `A1-P3` 翻 clean（登记同 commit 改掉）；`A1-P1`/`A1-P9` 仍 clean；V2/V3/V11/V12 的 probe 仍报 leak。
+- `A1-P13`（队友的接触喂给自动瞄准）如预测**失去场景**翻 clean ⇒ 按预注册补了 `A1-P14`：
+  我**自己**看过一眼、人躲进墙后 1 秒，look 动作全 0，头仍然**一 tick 转 24.0°** 朝我的**记忆**（而不是他真身所在的方向）。V4 覆盖保住。
+- 顺带修正 schema：`enemy*.present` / `enemy*.staleness` 的 gap 从 V1 改成 **V6**（现在是我自己的接触，
+  但**记忆仍由 world 代管**）。补 `A1-P15`：同一时刻读，只差「上次看见是多久以前」——
+  2.9 s 记得住、3.1 s 整条接触被一次性删除，5 个字段跳变 ⇒ 完美阶跃的记忆是 world 服务，不是学出来的 belief。
+- `npm test` 58 绿；bench 43.8 / 44.2 / 43.7 ms（基线 43.6–45.4）⇒ throughput 未动。
+
+**Evolution A/B**（`--gens 40 --pop 16`，seed 1/2 与 `runs/a0-census-s{1,2}` 配对；另跑 seed 3 作补充，无配对基线）
+逐条对预注册（4 个 cell = seed 1,2 × 红蓝，末 5 代均值）：
+1. firstContact 上升 ≥3/4 → ❌ **只有 2/4**（seed 1 涨到 15.4 / 19.0 s，seed 2 反而**降到** 4.8 s）。
+2. accuracy 下降 ≥3/4 → ✅ 3/4（−.086 / −.131 / +.039 / −.031），幅度小。
+3. spread 不系统性上升 → ❌ 字面失败（均值 11.31 vs 11.00），但差值只有 seed 间波动的 ~7%，⇒ **测不到效应**。
+4. commActivity 上升 ≥2/4 → ✅ 字面成立（2/4），实为掷硬币，⇒ 无信号。
+5. 不瘫痪 → ✅ 接敌与射击都健康（accuracy .22–.32、首枪 4.8–19 s、kills 1.3–3.5）。
+6. 仪器预测 → ✅ 全中。
+⇒ **我预测的行为方向大半没测到**。真正测得出来的只有两条：accuracy 略降，以及下面这条。
+
+⚠ **ladder 变弱（本轮最该记的观察）**：末代冠军对第 0 代冠军，基线 2 seed × 红蓝 **4/4 全部 90–100%**；
+A2 三个 seed 里 **3/6 个血统打不赢自己的第 0 代**（s1 红 55/50、s1 蓝 50/50 = 平手，**s3 红 5/5 = 明显退化**）。
+⛔ 不下「A2 让进化变差」的结论：① n 太小；② champion-vs-gen0 是 SUBSTRATE §10.2 明确警告过的**单一对手标量**，
+s3 红方是 zoneShare **0.000** + kills 3.48 的纯淘汰流，输给一个风格完全不同的老对手完全可能是非传递性而非退步。
+⇒ 记成 open question：A3 继续盯；若再现，先加预算或提前上 cross-play matrix，**别用一个标量下判决**。
+
+⭐ **coverRatio 掉的那一大截主要是尺子变了，不是行为变了**（差点当成「学会不躲了」报出去）：
+指标的「已知威胁」定义跟着 A2 一起变了。同一批 12 条轨迹上并排算两种定义：
+团队共享口径 **11374** 个被威胁 agent-tick / coverRatio **0.580**，自己接触口径 **7581** / **0.450**
+⇒ 光换定义就吃掉 0.13，分母掉 33%。跨 A2 比较这条指标 = 拿两把尺量。已进 GOTCHAS #12，README 也标了。
+
+**判决：SHIP。** A2 exit 三条全过（privileged cache 消失 · leak 测试转绿 · 不瘫痪）；VISION 不因为 ladder 变弱而降。
+下一步 **A3 — Vision v2**（truth slots → 诚实 percept）。

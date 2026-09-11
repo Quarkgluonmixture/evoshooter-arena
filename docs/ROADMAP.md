@@ -140,6 +140,11 @@
 - leak test 转绿；
 - short-run 仍能产生接敌和基本射击，不陷入完全无信息 paralysis。
 
+**当前状态：CLOSED（2026-09-11 22:55）。** 三条 exit 全过（`known[team]` → `contact[player]`；`A1-P2`/`A1-P3` 转绿；
+accuracy .22–.32 / 首枪 4.8–19 s / kills 1.3–3.5）。⚠ 预注册的行为预测**大半没测到**，且末代冠军对第 0 代的 ladder
+在 3/6 个血统上变弱（基线 4/4 都是 90–100%）——记为 open question，见 LOG 同日条与 `TODO.md`，⛔ 不用单一标量下判决。
+⭐ `coverRatio` 的暴跌主要是**指标定义跟着变了**（GOTCHAS #12），⛔ 不可跨 A2 直接比较。
+
 ---
 
 ## Phase A3 — Vision v2：从 truth slots 变成诚实 percept
@@ -854,19 +859,19 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A2 — Player-local knowledge（砍掉 team omniscience）。**
+**当前：A3 — Vision v2（truth slots → 诚实 percept）。**
 
-已 CLOSED：**A0**（authority + baseline census，2026-09-11 22:15）· **A1**（provenance + leak probes，22:30）。
-数字与结论在 `LOG.md`；leak matrix 现查 `npm run leaks`。
+已 CLOSED：**A0** baseline census（22:15）· **A1** provenance + leak matrix（22:30）· **A2** player-local contacts（22:55），均 2026-09-11。
+数字与 reconcile 在 `LOG.md`；当期 leak matrix 现查 `npm run leaks`。
 
-A2 的验收尺已经就位——动手前先看清楚它守什么：
+⚠ A3 的 Intervention 一共四件事（删真值 / 换成 bearing-range-quality / 连续化 viewRange / front-biased 几何），
+**一次全改就没法归因**。本文件的施工顺序因此拆成三刀，每刀独立过门、独立 A/B、独立改 probe 登记：
 
-- `A1-P2` / `A1-P3`（V1）**必须翻成 clean**，并在同一个 commit 里把 `src/probe/leak.ts` 的登记从 `leak` 改成 `clean`；
-- `A1-P1`（没人看见的敌人移动 ⇒ obs 不动）**必须保持 clean**；
-- `A1-P13`（队友看见就能自动瞄准）会跟着 V1 一起变化，记得重新登记；
-- ⛔ 不要顺手修 V2/V3（`A1-P4/P5/P6/P7/P8` 仍应报 leak）——一次一根杠杆，否则归因不了。
+- **A3.1 删真值**：拿掉 `enemy*.hp`、`enemy*.exposureToMe`、`enemy*.facingDot`（`A1-P4`/`A1-P5` 应翻 clean，
+  `A1-P6` 应从 6/6 降到 3/6）。obsDim 会变 ⇒ 改前后都要 `npm run bench` + 重新 census。
+- **A3.2 位置 → 感知**：exact `dx/dz/dist` 换成 bearing + range cue + quality（eccentricity × distance × visible fraction），
+  并把 `viewRange` 硬断崖换成连续衰减（`A1-P6` 应全 clean、`A1-P8` 应翻 clean）。deterministic noise 也在这一刀。
+- **A3.3 几何**：360° lidar → front-biased rays/sectors（`A1-P7` 应翻 clean）。
 
-按 Phase A2 的 Intervention / Probe / Evolution prediction 走：`known[team][enemy]` → `known[player][enemy]`，
-只有自己的 direct vision 能更新，comm 接口先不动。预测**先冻结再跑**：短期 performance 下降是允许的，
-paralysis（完全不接敌）不允许。改完必须 `npm test` + `npm run bench` + short same-seed evolution A/B
-（对照 = `runs/a0-census-s{1,2}`，同 `--gens 40 --pop 16 --seed 1|2`）。
+每刀都按 Phase discipline：**预测先写进 LOG 再跑**；对照 = `runs/a0-census-s{1,2}` 与 `runs/a2-local-s{1,2,3}`；
+⛔ 不顺手修 V11/V12（那是 B/C 段的活），⛔ 不因为 ladder 变弱就回头软化 VISION。
