@@ -112,6 +112,15 @@ function newStats(commDim: number): TeamStats {
 
 const THREAT_RANGE = 25;
 
+/** Stateless integer hash → [-1, 1). Perception error must be reproducible without touching the RNG stream
+ *  the combat rolls draw from, otherwise a replay of the same match would diverge. */
+function jitter(a: number, b: number, c: number): number {
+  let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(c, 2246822519)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return h / 2147483648 - 1;
+}
+
 /**
  * Deterministic 3D arena simulation. Both teams perceive the world in a "team frame" (blue's frame is the
  * world rotated 180°), so a genome can play either colour and the two populations stay directly comparable.
@@ -268,6 +277,44 @@ export class World {
     return exposure * near * near * centre * centre;
   }
 
+  /**
+   * Where I think he is. The true offset is blurred and then quantised, both by an amount that grows as
+   * the look gets worse, so a movement finer than my perceptual resolution does not reach the policy.
+   */
+  perceive(viewer: number, target: number, dx: number, dz: number, reported: number): { dx: number; dz: number } {
+    const cfg = this.cfg;
+    const d = Math.hypot(dx, dz);
+    if (d < 1e-6) return { dx, dz };
+    // `reported` is already quantised, so every step size below is one of a discrete set. Deriving a step
+    // from a continuous quantity would leak that quantity straight back through the rounding.
+    const coarse = 0.15 + 0.85 * (1 - Math.min(1, Math.max(0, reported)));
+    const bucket = Math.floor(this.t / cfg.perceptBucketSeconds);
+    const key = viewer * 31 + target;
+    const bErr = cfg.perceptBearingError * coarse;
+    const rErr = cfg.perceptRangeError * coarse;
+    const bearing = Math.atan2(dz, dx) + jitter(key, bucket, 0x9e3779b1) * bErr;
+    const range = Math.max(0.5, d * (1 + jitter(key, bucket, 0x85ebca6b) * rErr));
+    const qb = Math.round(bearing / bErr) * bErr;                       // absolute angular lattice
+    const lr = Math.log1p(rErr);
+    const qr = Math.exp(Math.round(Math.log(range) / lr) * lr);         // multiplicative range lattice
+    return { dx: Math.cos(qb) * qr, dz: Math.sin(qb) * qr };
+  }
+
+  /**
+   * What I would say about how good my look is. Quantised, because an exact quality number is an exact
+   * function of the true geometry and would hand back everything the blurred bearing just removed.
+   */
+  reportQuality(viewer: number, target: number, q: number): number {
+    if (q <= 0) return 0;
+    const bucket = Math.floor(this.t / this.cfg.perceptBucketSeconds);
+    const noisy = q * (1 + jitter(viewer * 31 + target, bucket, 0xc2b2ae35) * 0.2);
+    if (noisy <= 1e-6) return 0;
+    // fixed 15% multiplicative lattice: a faint contact stays faint instead of rounding away, and the
+    // lattice itself carries no information about the true value
+    const lq = Math.log(1.15);
+    return Math.min(1, Math.exp(Math.round(Math.log(noisy) / lq) * lq));
+  }
+
   private lidar(a: Agent, out: Float32Array, off: number): void {
     const cfg = this.cfg;
     const sg = World.sgn(a.team);
@@ -336,11 +383,14 @@ export class World {
       for (let e = 0; e < T; e++) {
         const enemy = ag[enemyBase + e];
         if (!enemy.alive || !this.visible[i * n + enemy.id]) continue;
-        const q = this.perceptQuality(me, enemy.x - me.x, enemy.z - me.z, this.exposure[i * n + enemy.id]);
+        const qTrue = this.perceptQuality(me, enemy.x - me.x, enemy.z - me.z, this.exposure[i * n + enemy.id]);
+        if (qTrue <= 0) continue;
+        const q = this.reportQuality(i, enemy.id, qTrue);
         if (q <= 0) continue;
+        const seen = this.perceive(i, enemy.id, enemy.x - me.x, enemy.z - me.z, q);
         const k = mine[e];
-        k.x = enemy.x;
-        k.z = enemy.z;
+        k.x = me.x + seen.dx;
+        k.z = me.z + seen.dz;
         k.t = this.t;
         k.q = q;
       }
@@ -488,12 +538,16 @@ export class World {
         const age = this.t - k.t;
         const fresh = age <= cfg.memorySeconds;
         if (!vis && !fresh) continue;
-        const px = vis ? en.x : k.x;
-        const pz = vis ? en.z : k.z;
-        const live = vis ? this.perceptQuality(a, en.x - a.x, en.z - a.z, this.exposure[i * n + id]) : 0;
+        const qTrue = vis ? this.perceptQuality(a, en.x - a.x, en.z - a.z, this.exposure[i * n + id]) : 0;
+        const live = vis ? this.reportQuality(i, id, qTrue) : 0;
+        // while I can see him the belief is this tick's percept, and the stored contact is the same
+        // number — what I remember is what I saw, not what was true
+        const believed = vis ? this.perceive(i, id, en.x - a.x, en.z - a.z, live) : null;
         const recalled = fresh ? k.q * Math.max(0, 1 - age / cfg.memorySeconds) : 0; // a glimpse I barely got is a memory I barely hold
         const conf = Math.max(live, recalled);
         if (conf <= 0) continue;
+        const px = believed ? a.x + believed.dx : k.x;
+        const pz = believed ? a.z + believed.dz : k.z;
         enemyOrder.push(id);
         enemyDist.push(Math.hypot(px - a.x, pz - a.z));
         enemyVis.push(vis);
@@ -509,8 +563,9 @@ export class World {
           const en = ag[id];
           const vis = enemyVis[k] === 1;
           const kn = this.contact[i][id - enemyBase];
-          const px = vis ? en.x : kn.x;
-          const pz = vis ? en.z : kn.z;
+          const believed = vis ? this.perceive(i, id, en.x - a.x, en.z - a.z, enemyLive[k]) : null;
+          const px = believed ? a.x + believed.dx : kn.x;
+          const pz = believed ? a.z + believed.dz : kn.z;
           const d = enemyDist[k];
           const conf = enemyConf[k];
           // Everything about a contact is scaled by how sure I am of it, so a fading percept fades the

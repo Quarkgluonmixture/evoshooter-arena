@@ -30,19 +30,23 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-**A3.2b — 确定性感知噪声 + 量化**。2026-09-11 一晚关掉五刀：A0 22:15 · A1 22:30 · A2 22:55 · A3.1 23:00 · **A3.2a 23:20**。
+**A3.3 — 360° lidar → front-biased 几何感知**（验收 = `A1-P7` 翻绿）。
+2026-09-11 夜到 09-12 凌晨连关六刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b。**V2（enemy truth）已关闭**。
 
-- A1 给了仪器：`npm run leaks` 打印当期信息泄漏矩阵，`tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。
-  ⇒ **每一刀的验收就是看哪几条 probe 该翻绿**。
-- 现在的 enemy contact = `c·sin(bearing)` / `c·cos(bearing)` / `c·range` / `quality` / `c` / `staleness`，
-  bearing 相对自己朝向，quality 在视距与视野边缘平滑归零（obsDim **88**、genome **4844**）。
-- ⚠ **四条别踩**：① `coverRatio` 不可跨 **A2** 比较（GOTCHAS #12；A3.1→A3.2a 之间可比）；
-  ② 零和指标不能当独立 cell 写预测（#14）；③ bench 前看 `uptime`（#15）；
-  ④ ⭐ **性能结论必须 `git stash` 配对交错量**，绝对值会在 10 分钟内从 43 漂到 91 ms（#16）。
-- ⭐ 已知遗留：`staleness` 是唯一没被 confidence 缩放的 contact 字段 ⇒ 3 秒记忆窗口仍是断崖（`A1-P15`），那是 V6/A5 的活。
-- ladder（两个方向都 ≥50% 的血统数）：baseline 4/4 → A2 3/6 → A3.1 3/6 → A3.2a **5/6**。⛔ n=3，别当结论。
+- 仪器先行：`npm run leaks` 打印当期信息泄漏矩阵，`tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。
+  ⇒ **每一刀的验收就是看哪几条 probe 该翻绿**，⛔ 别靠读代码自证。
+- 现在的 enemy contact = `c·sin(bearing)` / `c·cos(bearing)` / `c·range` / `quality` / `c` / `staleness`（obsDim **88**、genome **4844**），
+  bearing 相对自己朝向；quality 在视距与视野边缘平滑归零；bearing/range/quality 全部走**量化格 + 确定性 hash 抖动**
+  （⛔ 不碰 `world.rng`，格子本身不能由连续量推出——否则量化会把信息原样漏回去）。
+- ⚠ **五条别踩**：① `coverRatio` 不可跨 **A2** 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
+  ③ bench 前看 `uptime`（#15）；④ ⭐ 性能结论必须 `git stash` **配对交错**量（#16）；
+  ⑤ ⭐⭐ **行为指标变了先做 same-genome 对照**：A3.2b 的 accuracy 6/6 下降，拿同一批冠军在两版代码下重跑，
+  命中率反而略升、逐因子几乎不动 ⇒ 变的是「40 代能进化出什么」，不是「这套感知打不准」。
+- ⭐ 已知遗留：`staleness` 是唯一没被 confidence 缩放的字段 ⇒ 3 秒记忆窗口仍是断崖（`A1-P15`，V6/A5 的活）。
+- ladder（两个方向都 ≥50% 的血统数）：baseline 4/4 → A2 3/6 → A3.1 3/6 → A3.2a 5/6 → A3.2b 3/6。⛔ n=3，别当结论；
+  真要判进步，做 TODO 里的 **cross-play 矩阵**。
 
-下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A3.2b；之后 A3.3（front-biased 几何，验收 = `A1-P7` 翻绿）。
+下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A3.3。
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。

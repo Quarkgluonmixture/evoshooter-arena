@@ -591,22 +591,41 @@ export const LEAK_PROBES: LeakProbe[] = [
     kind: 'counterfactual',
     gap: 'V2',
     title: 'an enemy 25 m away shifts by 5 cm',
-    expect: 'leak',
-    expectFields: ['enemy0.bearingSin', 'enemy0.bearingCos', 'enemy0.range', 'enemy0.quality', 'enemy0.confidence'],
-    run: (cfg) =>
-      cf(
-        cfg,
-        {
+    expect: 'clean', // flipped by ROADMAP A3.2b (was: leak, 20/20 starting positions tracked the shift)
+    run: (cfg) => {
+      // Quantisation always has boundaries, so ONE scenario would pass by luck about 97% of the time.
+      // Sweep 20 starting offsets and allow at most 10% of them to move (threshold fixed in LOG 23:25).
+      const N = 20;
+      const ALLOWED = 0.1;
+      let moved = 0;
+      let worst = 0;
+      for (let k = 0; k < N; k++) {
+        const x0 = -3 + (6 * k) / (N - 1); // spread the true bearing across the quantisation grid
+        const d = counterfactual(cfg, {
           setup: (w) => {
             standObserver(w);
-            place(w, ENEMY, 0, 15, -Math.PI / 2); // 25 m straight ahead, in plain view
+            place(w, ENEMY, x0, 15, -Math.PI / 2); // ~25 m ahead, in plain view
           },
-          mutate: (w) => place(w, ENEMY, 0.05, 15, -Math.PI / 2),
-        },
-        'a shift no human eye could resolve at 25 m does not move the percept',
-        'the percept tracks a 5 cm shift at 25 m exactly: the transform is continuous and noiseless, ' +
-          'so the true position is still recoverable from it',
-      ),
+          mutate: (w) => place(w, ENEMY, x0 + 0.05, 15, -Math.PI / 2),
+        });
+        if (d.changed.length > 0) moved++;
+        if (d.maxDelta > worst) worst = d.maxDelta;
+      }
+      const rate = moved / N;
+      return rate <= ALLOWED
+        ? {
+            status: 'clean',
+            fields: [],
+            detail: `${moved}/${N} starting positions react to a 5 cm shift at 25 m (allowed ${ALLOWED * 100}%): ` +
+              'the percept is coarser than the movement, so the true position is no longer recoverable',
+          }
+        : {
+            status: 'leak',
+            fields: [],
+            detail: `${moved}/${N} starting positions track a 5 cm shift at 25 m (max |Δ| ${worst.toExponential(2)}): ` +
+              'the transform is continuous and noiseless, so the true position is still recoverable from it',
+          };
+    },
   },
 ];
 

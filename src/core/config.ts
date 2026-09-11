@@ -25,7 +25,10 @@ export interface SimConfig {
   aimConeDeg: number;       // must face target within this cone to fire
   zoneRadius: number;
   zonePointsPerSecond: number;
-  memorySeconds: number;    // how long team knowledge of an enemy position persists
+  memorySeconds: number;    // how long a player's own contact memory persists
+  perceptBearingError: number;   // worst-case angular error of a visual contact (rad); also the quantisation step
+  perceptRangeError: number;     // worst-case relative range error of a visual contact; also the quantisation step
+  perceptBucketSeconds: number;  // how long one perception error persists before it is redrawn
   lidarRays: number;
   lidarRange: number;
   enemySlots: number;
@@ -61,6 +64,9 @@ export const DEFAULT_SIM: SimConfig = {
   zoneRadius: 6,
   zonePointsPerSecond: 1,
   memorySeconds: 3,
+  perceptBearingError: 0.12,
+  perceptRangeError: 0.25,
+  perceptBucketSeconds: 0.4,
   lidarRays: 8,
   lidarRange: 15,
   enemySlots: 3,

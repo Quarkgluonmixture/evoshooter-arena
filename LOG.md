@@ -286,3 +286,52 @@ ladder 两个方向都 ≥50% 的血统数：baseline 4/4 → A2 3/6 → A3.1 3/
 ⚠ 但 n=3，⛔ 不当成「感知编码让进化更好」的结论。
 
 **判决：SHIP A3.2a。** 下一刀 **A3.2b**：确定性噪声 + 量化（`A1-P16` 应翻 clean），之后才是 A3.3 几何。
+
+## [2026-09-11 23:25] A3.2b 预注册：给感知加确定性噪声 + 量化  #decision
+⚠ 写在改代码之前。这一刀只动「数值有多精确」。
+
+**做法**
+- 纯整数 hash 抖动（⛔ 不用 `Math.random`，⛔ 也不从 `world.rng` 取——那条流被战斗掷骰共用，会污染回放对照）；
+  key = `(observer, target, floor(t / perceptBucketSeconds))` ⇒ 同一时间桶内读数稳定，跨进程可复现。
+- bearing 和 range 先加抖动再**量化**，幅度随 quality 变差而变粗：`err(q) = maxErr × (0.15 + 0.85 × (1-quality))`，
+  量化步长取同一尺度。新增 3 个 config 旋钮：`perceptBearingError`（最差档的角误差，rad）、
+  `perceptRangeError`（最差档的相对距离误差）、`perceptBucketSeconds`。
+- 记忆 contact 存**我感知到的位置**（带误差），不再是真值坐标。
+- ⛔ 自动瞄准（V4）这一刀仍用真值——那是 `A1-P12`/`A1-P14` 登记的账，不在这刀里混改。
+
+**⚠ 探针判据变更（现在定，不看结果再改）**：`A1-P16` 从「单一场景挪 5 cm」改成**扫 20 个起点**各挪 5 cm，
+统计有多少比例的 percept 发生变化。理由是**量化天然有边界**：单场景只有约 3% 概率恰好跨在台阶上，
+这种探针 97% 的时候会「碰巧通过」——是弱仪器，不是好结果。**判据：≤10%（20 个里 ≤2 个）变化算 clean。**
+
+**预测**
+1. `A1-P16`（新判据）→ **clean**。
+2. `A1-P8` 保持 clean；`A1-P12`/`A1-P14` 仍 leak；其余状态不变。
+3. determinism 测试保持绿（这是最容易被噪声写法搞红的一条；若红了，先查是不是取了 `world.rng`）。
+4. 行为面（对照 `runs/a32a-percept-s{1,2,3}`）：只设不塌硬门（accuracy > 0.10、firstContact < 25 s、合计 kills > 1）。
+   ⚠ 这刀**有可能**真的伤到行为：远距离接触的方向信息被量化后可能不够用。若 accuracy 跌破 0.10 或首枪 > 25 s，
+   按 revert/reframe 处理（降 maxErr 而不是放弃噪声）。
+5. bench：hash + 量化是几次整数运算，预期 **≤ +3%**（配对交错量，GOTCHAS #16）。
+
+## [2026-09-12 00:20] A3.2b reconcile：感知噪声 + 量化上线；accuracy 下降的真因不是噪声本身  #measure #ship
+纯整数 hash 抖动（不碰 `world.rng`），bearing 走绝对角度格、range 走**乘法格**、quality 走固定 15% 乘法格。
+新 config 旋钮：`perceptBearingError` 0.12 rad · `perceptRangeError` 0.25 · `perceptBucketSeconds` 0.4。
+
+逐条对 23:25 预注册：
+1. `A1-P16`（新扫描判据，20 个起点各挪 5 cm，≤10% 变化算 clean）→ ✅ **1/20**，翻 clean。
+2. `A1-P8` 保持 clean；`A1-P12`/`A1-P14` 仍 leak；其余不变 → ✅。
+3. determinism → ✅ vitest 绿 **且**跨进程实测：同 seed 跑两次，6 代全部指标逐字节相同。
+4. 不塌硬门 → ✅（accuracy .164–.321、首枪 4.2–8.9 s、合计 kills 1.55–5.28）。⚠ seed 1 是迁移以来最弱的一次（合计 kills 4.21 → 1.55）。
+5. bench ≤+3% → ✅ **+0.3%**（配对交错：44.0/43.6 vs 43.9/43.2）。
+
+⭐⭐ **本轮最值钱的一条：accuracy 在 6/6 个 cell 全部下降（均值 .314 → .247，−21%），但这不是噪声的机械后果。**
+做了 same-genome 对照（拿 A3.2a 的冠军基因组，在两版代码下各跑同样 12 场）：
+- 命中率 0.249（A3.2a）vs **0.271**（A3.2b）——不降反升；
+- 逐因子拆解几乎不动：expo .864→.879 · distF .462→.472 · moveF .938→.943 · settleF .889→.871 · tgtF .979→.980；
+- 目标切换率确实上升（engaged tick 的 4.10% → 5.49%，slot-0 身份变更 2.21% → 3.46%），
+  但它只经 settle 因子吃掉 **1.4%** 的命中率，⛔ **不足以解释 21%**（我原本的假设，被自己的测量否掉）。
+⇒ 正确说法是：**同一个策略在噪声下打得一样好；是「在噪声下 40 代能进化出什么」变差了**。
+⚠ 而且 6 个 cell 不独立（每 seed 一对红蓝、且红蓝互为对手），按 seed 算只有 3/3 ⇒ **suggestive，不是结论**。
+要坐实得加预算或换 cross-play 尺子（TODO 那条）。
+
+**判决：SHIP A3.2b。** V2（enemy truth）到此关闭：不再有任何 contact 字段是引擎真值的可逆函数。
+下一刀 **A3.3**：360° lidar → front-biased 几何感知，验收 = `A1-P7` 翻绿。

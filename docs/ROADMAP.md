@@ -183,8 +183,9 @@ accuracy .22–.32 / 首枪 4.8–19 s / kills 1.3–3.5）。⚠ 预注册的�
   `A1-P4`/`A1-P5` 转绿、`A1-P6` 降到 4 个字段。行为侧无可测差异（细节与教训见 LOG 同日条 + GOTCHAS #14/#15）。
 - **A3.2a 位置 → 感知 + 连续化：CLOSED（2026-09-11 23:20）。** contact = `c·sin/cos(bearing)` + `c·range` + `quality` + `c` + `staleness`，
   obsDim 91 → 88；`A1-P8` 按 0.05 量级判据翻 clean（实测 0.0000）。⚠ bench +6%（trig 比省下的权重贵）。
-- **A3.2b 确定性噪声 + 量化：NEXT。** 验收 = `A1-P16`（25 m 外 5 cm）翻 clean；⛔ 不许用 `Math.random`。
-- **A3.3 front-biased 几何：待 A3.2b 之后。** 验收 = `A1-P7` 翻 clean。
+- **A3.2b 确定性噪声 + 量化：CLOSED（2026-09-12 00:20）。** hash 抖动 + 量化格（角度绝对格 / 距离与 quality 乘法格），
+  `A1-P16` 翻 clean（1/20）；跨进程 determinism 实测；bench +0.3%。⭐ accuracy 6/6 下降但 same-genome 对照证明**不是噪声的机械后果**（见 LOG）。
+- **A3.3 front-biased 几何：NEXT。** 验收 = `A1-P7` 翻 clean。
 
 ---
 
@@ -868,17 +869,16 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A3.2b — 确定性感知噪声 + 量化。**
+**当前：A3.3 — 360° lidar → front-biased 几何感知。**
 
-已 CLOSED：A0 census · A1 leak matrix · A2 player-local contacts · A3.1 删 enemy truth · **A3.2a 感知编码 + 连续化**（均 2026-09-11）。
+已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · **A3.2b**（2026-09-11 ~ 09-12）。V2（enemy truth）已关闭。
 
-A3.2b 要做的（**只动“数值有多精确”这一件事**）：
+A3.3 要做的（**只动几何通道**）：
 
-- bearing / range 在写进 observation 之前过一层**量化 + 确定性抖动**，精度随 quality 下降而变粗；
-- 记忆 contact 存**我感知到的位置**（带误差），不是真值坐标；
-- ⛔ 不许 `Math.random`，也不要从 `world.rng` 取数（会和战斗掷骰共用流、污染回放对照）；
-  用 `(observer, target, 时间桶)` 的整数 hash，保证同一 tick 同一对象读数稳定、跨进程可复现。
+- 8 条均匀 360° 射线 → **前向密、余光疏**的结构化射线/扇区；背后不给墙距；
+- 射线密度中心高于边缘（参考 Justesen 的 crosshair-dense 结构，⛔ 别照抄常数）；
+- 射线读数同样要过 A3.2b 的**量化格**（远处更粗），⛔ 不要再引入一个可逆的精确通道。
 
-**验收**：`A1-P16`（25 m 外 5 cm）翻 **clean**；`A1-P8` 保持 clean；`A1-P12`/`A1-P14`（V4 自动瞄准）仍 leak；
-determinism 测试必须绿（这是最容易被噪声写法搞红的一条）。bench 配对交错量（GOTCHAS #16）。
-对照 = `runs/a32a-percept-s{1,2,3}`。
+**验收**：`A1-P7`（背后凭空出现一堵墙）翻 **clean**；`A1-P8`/`A1-P16` 保持 clean；V4 的 `A1-P12`/`A1-P14` 仍 leak。
+⚠ obsDim 会变 ⇒ bench **配对交错**量（GOTCHAS #16）。对照 = `runs/a32b-noise-s{1,2,3}`。
+⚠ 这一刀直接改导航输入，**最可能真的伤到行为**：预注册时写清楚 revert 条件（先降密度/加射线，⛔ 不是放弃 front-bias）。
