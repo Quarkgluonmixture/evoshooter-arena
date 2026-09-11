@@ -19,6 +19,21 @@ EvoShooter 不是“神经网络玩一个简化 FPS”，也不是“给机器�
 > 在长期竞争、共进化和共同经历中自己长出像职业 Counter-Strike 一样可辨认、可适应、可对抗的
 > 枪法、位置、角色、默契、沟通、开局安排、mid-round 调整和整队风格。**
 
+更短的一句话：
+
+> **真正的进化，就是我们只造完整而诚实的世界、感知和行动自由度，不预设答案，让角色、技巧、
+> 战术、默契、语言与风格全部在竞争中自己长出来。**
+
+用户 2026-09-11 进一步明确了“为什么这件事值得看”：
+
+> **进化的观赏性来自可解释性。** 足球里，是看到一个边锋从不会内切，到突然长出向中线带球再射门；
+> Shooter 里，是看到一支队伍的耳麦里长出一整套语言，而且真的靠这套语言执行“假打 A、真打 B”。
+
+因此第二条北极星是：
+
+> **最好的进化不是 fitness 数字变大，而是世界不断诞生出以前不存在、我们看得懂、还能用因果证据
+> 证明“它为什么有效”的新行为。**
+
 玩家看录像时应该能够说：
 
 - “他们开始会补枪了。”
@@ -27,6 +42,8 @@ EvoShooter 不是“神经网络玩一个简化 FPS”，也不是“给机器�
 - “这个双人组越来越有默契。”
 - “少一个人以后，他们现在明显会换打法。”
 - “这支队几乎不说话，但靠站位和动作也能互相读懂。”
+- “他们的 token 6 好像已经变成了一个真正的报点词。”
+- “这一代第一次出现了上一代完全没有的战术，而且能克当时的主流。”
 
 但源码里不应该存在 `TRADE`, `LURK`, `FAKE_A`, `RUSH_B`, `ENTRY`, `ANCHOR`,
 `SAVE`, `CROSSFIRE` 这些 live 决策标签来替他们做决定。
@@ -41,15 +58,15 @@ EvoShooter 不是“神经网络玩一个简化 FPS”，也不是“给机器�
 
 铁律：
 
-- 我们可以提供现实里存在的**自由度**：前后左右移动、转头/瞄准、开火、停火、换弹、姿态、声音、遮挡、无线电、记忆。
-- 我们可以提供现实里存在的**代价和约束**：移动影响命中、转身需要时间、视线会被墙挡、远处看不清、脚步会暴露、换弹占时间、枪声传播。
+- 我们可以提供现实里存在的**自由度**：前后左右移动、转头/瞄准、开火、停火、换弹、姿态、速度/gait、声音、遮挡、无线电、记忆。
+- 我们可以提供现实里存在的**代价和约束**：移动影响命中、转身需要时间、视线会被墙挡、远处看不清、移动会产生不同响度的脚步、换弹占时间、枪声传播。
 - 我们可以提供**可进化的能力/倾向维度**：视觉质量、反应、枪械控制、风险偏好、通信倾向、个人偏移、team prior 等。
 - **我们不能提供战术结果按钮**：`peekLeft()`、`tradeNearest()`、`fakeAThenB()`、`holdCrossfire()`、`saveWhen2v5()` 都是违规。
 
 诊断缺行为时，第一问不是“加哪个 if”。第一问是：
 
 > **现实中的人为什么能发现这个策略？我们的世界是不是缺了让它成立的感知、动作、记忆、
-> 通信、物理或收益面？**
+> 通信、物理、目标结构或选择压力？**
 
 缺的是“腿”就补腿；腿齐了仍不选，才是进化自己的选择。
 
@@ -77,6 +94,15 @@ EvoShooter 不是“神经网络玩一个简化 FPS”，也不是“给机器�
 - secondary calling / local initiative
 
 这些词**永远不成为 policy action、role enum、隐藏奖励或特殊权限**。
+
+### 1.3 静步的正确本体：速度—声音自由度，不是技能按钮
+
+现实里玩家“静步”成立，是因为**移动速度、步态和声音暴露存在连续的物理/感知代价**。
+
+正确底座应让玩家选择怎样移动，并由运动状态产生脚步响度/频率；进化自己发现“接近危险区域时慢下来”值不值。
+
+因此不要把 `SILENT_WALK` 当战术技能或自动条件分支。即使工程接口最终有 `walk/gait` 控制量，它表达的也只是身体执行方式；
+“静步摸点”“跑转静”“声音 bait”都必须从轨迹和声学后果里长出来。
 
 ---
 
@@ -270,11 +296,11 @@ metrics/debug 可以看 truth；live brain 不可以。
 
 像 EvoFootball 的“控制那一脚，而不是选择‘直塞’标签”，Shooter 应控制身体和枪：
 
-- movement intent / acceleration；
+- movement intent / acceleration / gait；
 - view / aim rotation；
 - trigger；
 - reload；
-- stance / walk / crouch / jump（在对应现实审 phase 引入）；
+- stance / crouch / jump（在对应现实审 phase 引入）；
 - weapon/utility physical controls（未来）；
 - radio emission。
 
@@ -288,6 +314,7 @@ metrics/debug 可以看 truth；live brain 不可以。
 - shoulder peek；
 - wide swing；
 - pre-aim；
+- silent approach；
 - entry；
 - trade；
 - crossfire；
@@ -314,7 +341,7 @@ metrics/debug 可以看 truth；live brain 不可以。
 
 ---
 
-## 6. 个体、队伍与“角色”
+## 6. 个体、队伍、教练与“角色”
 
 ### 6.1 五个人最终必须真的是五个人
 
@@ -324,7 +351,7 @@ metrics/debug 可以看 truth；live brain 不可以。
 
 > **Team / coach DNA × player-specific DNA / state**
 
-团队层表达共同 prior、风险/结构/communication 倾向；个体层表达能力和个人偏移。
+团队层表达共同 prior、风险/结构/communication 倾向；个体层表达能力、私人 policy/memory 和个人偏移。
 
 这样才能存在真正的：
 
@@ -346,6 +373,30 @@ metrics/debug 可以看 truth；live brain 不可以。
 - 给 `ANCHOR` 写死“不得离开 B”。
 
 真实职责是长期策略和位置分布的结果，不是 class selection。
+
+### 6.3 Player DNA 与 Team/Coach DNA 分开，但主要选择单位是整支 Club
+
+最终一个 club 的遗传结构应能区分：
+
+```text
+Club genotype
+├─ team / coach DNA      # 共同 prior、战略权重、沟通文化
+├─ player 1 DNA/state
+├─ player 2 DNA/state
+├─ player 3 DNA/state
+├─ player 4 DNA/state
+└─ player 5 DNA/state
+```
+
+两层都能独立 mutation / inheritance；但**主要 fitness 来自整队比赛结果**，不是个人 K/D。
+
+原因：一个 player 的价值必须通过“放进这支队以后是否更会赢”体现。否则进化会奖励抢人头、卖队友之类局部统计优化。
+
+个人统计可以做诊断和 identity discovery；除非有明确 cold-start 必要，不直接决定谁繁殖。
+
+Team/coach 也不是第六个全知玩家：它提供共同 prior / philosophy，不获得额外 engine truth，不逐 tick 指挥坐标。
+
+后期如果加入 player swap / transfer，它应成为第二条组合搜索通道，用来观察“强个人换队是否仍强、pair chemistry 是否可迁移”，而不是角色商城。
 
 ---
 
@@ -387,6 +438,18 @@ SAVE
 - **opening agreement**：回合开始共同 prior。
 
 四者必须分开，才能产生不同队伍风格。
+
+### 7.4 “长出语言”是强 claim，必须能解释和干预
+
+看到 `token 6` 经常伴随 B 点见敌，只能说“相关”。要说它已经形成语言，至少要能观察到：
+
+1. token 与发送者合法感知/事件有稳定关系；
+2. receiver 收到后行为系统性变化；
+3. radio-off / message-shuffle / token permutation 会破坏对应协调；
+4. 不同 team 的同编号 token 可以有不同语义；
+5. 语义随代际形成、稳定、漂移或分叉的历史能被追踪。
+
+最终最有价值的画面不是“comm entropy 上升”，而是：**我们看到一套从噪声里长出来的共享符号系统，并证明它真的参与了战术。**
 
 ---
 
@@ -431,6 +494,9 @@ Shooter 是 POMDP，不是单帧分类。
 
 如果代码里有 `FAKE_A_THEN_B` 状态机，失败。
 
+更强的终局验收不是只看到轨迹像 fake，而是能追到它的因果链：例如某个 opening prior 让 A 侧形成压力，
+某组 radio symbol 在 defender rotate 后触发全队 disengage/re-group；打乱这些 message 后，fake 的完成率显著下降。
+
 ### 9.3 Man-disadvantage adaptation
 
 队友死亡通过 kill feed / radio / 视野成为公共事件；每人更新 belief 与风险价值；整队可能收缩、抱团、
@@ -472,7 +538,7 @@ Shooter 是 POMDP，不是单帧分类。
 
 ---
 
-## 11. 涌现多样性：不是所有人都变成同一个最优机器人
+## 11. 涌现多样性与对手生态
 
 项目成功不仅是 champion 胜率上升。
 
@@ -488,13 +554,129 @@ Shooter 是 POMDP，不是单帧分类。
 
 未来需要考虑 budget / trade-off，使“什么都拉满”不可行，但具体预算设计必须经过 probe，不能拍脑袋。
 
+### 11.1 对手不是老师；**对手分布才是老师**
+
+新队伍不是从某个旧冠军那里 imitation learning。它经历的是选择：某个变异放进一组对手里，若更能赢，就更可能留下。
+
+因此 curriculum 的本体是**它被拿去跟谁打**。
+
+只让 A、B 两队无限互练，会有严重 co-adaptation 风险：
+
+- A 学会专打 B 的一个洞，但对其他风格毫无用处；
+- B 又只针对 A 反制；
+- 双方形成循环或封闭 meta；
+- 两边甚至可能共同掉进“都躲着不犯错”的垃圾 equilibrium；
+- “打赢昨天的对手”不等于对整个策略空间真的进步。
+
+所以最终进化必须面对一个**生态**，而不是一名固定老师。
+
+### 11.2 Red / Blue 最终只是比赛 sides，不是两个永久物种
+
+当前 red population vs blue population 是很好的 bootstrap：简单、对称、能快速验证 co-evolution。
+
+但终局应迁成一个 club league：
+
+```text
+EvoShooter League
+├─ Club A = team DNA + five player DNAs
+├─ Club B
+├─ Club C
+└─ ...
+```
+
+一场比赛给两支 club 临时分配 sides，并通过交换攻守/镜像赛程消除 side identity。
+
+同一 club 应能证明自己无论被放在哪一侧都保持“这支队伍是谁”。
+
+### 11.3 League 的训练压力至少来自四类对手
+
+最终 opponent ecology 应包含：
+
+- **current peers**：同代、能力接近的主流对手，提供自然 curriculum；
+- **current diverse styles**：同代但行为风格不同的队，防止所有人只适应主流镜像；
+- **historical archive / hall of fame**：防止为了克今天而忘掉昨天仍然有效的技能；
+- **exploiters / challengers**：专门寻找强队当前最脆弱的策略漏洞，防“看起来无敌、其实一戳就破”。
+
+具体配比不在 VISION 写死，由 ROADMAP 用 cross-play / exploitability / forgetting probes 校准。
+
+原则上先靠生态位产生多样性，**不先给“风格不同”本身发 diversity bonus**。如果多样性仍塌，再诊断资源预算、搜索压力和环境收益面。
+
+### 11.4 非传递性不是 bug，而是这个世界的内容
+
+可能长期存在：A 克 B，B 克 C，C 又克 A。
+
+因此单一 Elo / champion ladder 不能定义“全部进步”。需要 cross-play matrix、历史对局和 style lineage 来看一个时代的真实结构。
+
 ---
 
-## 12. 观赏性：战术必须看得懂
+## 12. 观赏性：进化必须被看懂，而且能被证明
 
 像 EvoFootball 一样，**能涌现但看不出来，也不够。**
 
-观战需要逐步支持：
+这里的“可解释”不是要求把神经网络每个权重翻成人话，而是要求**行为进化留下可读的化石**：
+
+> 这个东西什么时候第一次出现？怎样逐代稳定/扩散？它大概在做什么？把关键机制拿掉以后，它还在吗？
+
+### 12.1 每个重大 emergence claim 有三层证据
+
+**① 发生了什么（Detection）**
+
+- 新轨迹/通信/协同模式第一次出现；
+- 频率、稳定性、成功率如何随 generation 改变；
+- 能回放到具体 match / player / lineage。
+
+**② 它是什么意思（Interpretation）**
+
+- token / movement pattern 与哪些合法 percept、事件和后续动作相关；
+- 人类可给 candidate interpretation，例如 “trade-like”“pressure→switch”“可能是 B contact call”；
+- 解释必须标明 confidence，不把相关当语义真值。
+
+**③ 它真的有因果作用吗（Intervention）**
+
+- radio off；
+- message shuffle / permutation；
+- cue masking；
+- counterfactual replay；
+- same-seed behaviour ablation。
+
+如果干预后现象仍完全一样，就不能讲“因为这个 token 所以 rotate”。
+
+### 12.2 已知 detector + 开放式发现，两条腿都要有
+
+已知 detector 用职业 CS 做尺子：trade、crossfire、lurk-like、pressure→switch、rotate 等。
+
+但如果我们只检测这些词，就只能“发现我们事先知道的东西”。还需要开放式 novelty/discovery：
+
+- 找到代际间突然出现的稳定行为结构；
+- 找到新的 message→action dependency；
+- 找到新的 pair/team coordination motif；
+- 先告诉人“这里有新东西”，再通过录像和 intervention 给它命名。
+
+**最有价值的发现可能根本没有现成 CS 术语。**
+
+### 12.3 最终观战应有 Evolution Discovery Feed
+
+理想体验不是图表角落里一个 fitness 1.83→1.91，而是类似：
+
+```text
+Gen 217 — Communication structure emerged
+Token 6 与 speaker 在 B 侧形成 visual contact 高度相关；
+receiver 收到后 3 秒内改变空间分布；message shuffle 后效应消失。
+Candidate meaning: B-side contact / pressure cue.
+```
+
+或：
+
+```text
+Gen 391 — New team pattern
+A-side pressure → defender rotation → synchronized disengage → B commitment
+过去 50 场出现 17 次；radio ablation 后完成率显著下降。
+Candidate tactic: fake A → B.
+```
+
+默认画面仍首先是一场像样的射击比赛；debug / discovery 证据是可下钻层。
+
+### 12.4 观战需要逐步支持
 
 - POV 与 director 能看到真实信息流；
 - kill feed；
@@ -503,9 +685,9 @@ Shooter 是 POMDP，不是单帧分类。
 - team radio 可视化；
 - generation-to-generation 行为差异；
 - data-driven style / role / pair-chemistry 标签；
-- 历史 champion 对局与非传递关系。
-
-默认画面首先是一场像样的射击比赛，debug 只是可选层。
+- 历史 champion / club cross-play 与非传递关系；
+- communication vocabulary evolution；
+- discovery→录像→ablation 的证据链。
 
 ---
 
@@ -518,12 +700,15 @@ Shooter 是 POMDP，不是单帧分类。
 - 职业采访显示：开局 call、mid-round、secondary voice、局部 micro-management、个人主动性可以并存；这支持 distributed team cognition，而不是全知 central controller。
 - tactical-shooter agent 研究表明：compute-efficient structured/raycast perception 可以做到 human-like，而无需给 policy world truth 或依赖像素输入。
 - multi-agent partial-observability 研究表明：recurrent memory、population training、limited communication 是复杂协作出现的重要机制族。
+- competitive self-play / league-style training 的先例说明：只对当前单一对手优化容易过拟合或遗忘，历史对手与多策略 opponent pool 是承重的训练结构。
 
 ### Prior-work anchors
 
 - Valve, *Counter-Strike 2* — gameplay visuals / UI / accurate audio: https://www.counter-strike.net/cs2/
 - Justesen et al., *Human-like Bots for Tactical Shooters Using Compute-Efficient Sensors* (modl.ai + Riot Games), arXiv:2501.00078: https://arxiv.org/abs/2501.00078
 - Jaderberg et al., *Human-level performance in 3D multiplayer games with population-based reinforcement learning* / DeepMind CTF overview: https://deepmind.google/blog/capture-the-flag-the-emergence-of-complex-cooperative-agents/
+- OpenAI, *Competitive Self-Play* and OpenAI Five — population/history opponents as anti-overfitting / anti-forgetting pressure: https://openai.com/index/competitive-self-play/ ; https://cdn.openai.com/dota-2.pdf
+- Vinyals et al. / DeepMind, *AlphaStar* — league + main agents / exploiters as strategy-space pressure: https://deepmind.google/blog/alphastar-grandmaster-level-in-starcraft-ii-using-multi-agent-reinforcement-learning/
 - Wang, Everett & How, *R-MADDPG for Partially Observable Environments and Limited Communication*: https://arxiv.org/abs/2002.06684
 - HLTV interviews/articles on distributed calling and secondary voices (karrigan/Twistzz/FaZe and other pro teams); use these as qualitative reality anchors, not implementation specs.
 
@@ -553,13 +738,13 @@ Shooter 是 POMDP，不是单帧分类。
 
 ### 14.3 有故事就要有探针
 
-“他们因为听到脚步所以 rotate”是因果故事，不是肉眼看录像就能宣称的事实。
+“他们因为听到脚步所以 rotate”“token 6 就是 B 点有人”“这队学会了 fake”都是因果故事，不是肉眼看录像就能宣称的事实。
 
 需要：
 
 - counterfactual replay；
 - 关闭某条信息通道；
-- message ablation；
+- message ablation / permutation；
 - same-seed A/B；
 - 事件时间序列。
 
@@ -573,6 +758,17 @@ Shooter 是 POMDP，不是单帧分类。
 
 以后每新增 sensor / HUD / team feature，都要过这类 counterfactual test。
 
+### 14.5 进化系统本身也必须防“假进步”
+
+“这一代只会打赢它唯一的老对手”不是进步。任何 league/opponent-sampling 改动都要看：
+
+- cross-play；
+- historical forgetting；
+- exploitability；
+- side fairness；
+- population/team diversity；
+- 非传递循环是否被单一分数掩盖。
+
 ---
 
 ## 15. 怎么使用这份 VISION
@@ -584,6 +780,8 @@ Shooter 是 POMDP，不是单帧分类。
 3. 它给所有队规定了同一种“正确打法”吗？
 4. 这个行为能否换成轨迹/事件事后识别，而不是 live label？
 5. 有什么 probe 能证明机制真的产生了我们讲的因果？
-6. 它是否仍能维持 determinism、red/blue fairness 和可计算的进化速度？
+6. 它是否仍能维持 determinism、side fairness 和可计算的进化速度？
+7. 它是否提高了**对手分布的覆盖与抗过拟合能力**，而不只是打赢一个熟悉对手？
+8. 如果我们宣称“学会了 X”，能否展示 X 的**出生→稳定→因果验证**证据，而不只是一个漂亮故事？
 
 如果新需求与这份文档冲突，**先改 VISION 并记录为什么**，不要静悄悄绕过去。
