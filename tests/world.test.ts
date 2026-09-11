@@ -35,6 +35,34 @@ describe('World', () => {
     expect(shoot(11)).not.toBe(shoot(12));
   });
 
+  it('keeps the mirror symmetry once contacts exist (kickoff alone never touches the contact channel)', () => {
+    // Kickoff has nobody in sight, so the enemy-contact half of the observation is all zeros there and a
+    // symmetry break inside it goes unnoticed. Put both sides in the SAME situation, mirrored, and compare.
+    const w = new World(cfg, map, 3);
+    const T = cfg.teamSize;
+    const put = (id: number, x: number, z: number, yaw: number) => {
+      const a = w.agents[id];
+      a.x = x; a.z = z; a.yaw = yaw;
+    };
+    for (let s = 0; s < T; s++) {
+      // red at (x, z) looking at the enemy half; blue is its 180° rotation, looking back
+      const x = -6 + 3 * s;
+      put(s, x, -4 - s, Math.PI / 2);
+      put(T + s, -x, 4 + s, -Math.PI / 2);
+    }
+    w.t = 2.5;
+    w.observe();
+    w.observe(); // second pass so both sides have a contact memory of the same age
+    const dim = w.obsDim;
+    for (let s = 0; s < T; s++) {
+      const red = w.obs.slice(s * dim, (s + 1) * dim);
+      const blue = w.obs.slice((T + s) * dim, (T + s + 1) * dim);
+      for (let k = 0; k < dim; k++) {
+        expect(Math.abs(red[k] - blue[k]), `slot ${s} feature ${k}`).toBeLessThan(1e-6);
+      }
+    }
+  });
+
   it('gives mirrored teams identical observations at kickoff (team-frame symmetry)', () => {
     const w = new World(cfg, map, 1);
     w.observe();
