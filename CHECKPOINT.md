@@ -5,7 +5,7 @@
 > 当前已 ship 的规则/架构/数字 = `README.md` + `src/`。** 四者职责不要混。
 
 ## 一句话
-自进化 3D 红蓝 5v5 射击场。现行 baseline 已能 deterministic co-evolution + 3D 观战；新主线是把它从“shared-brain + privileged structured state + 双 red/blue population”迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA、side-neutral club league + opponent ecology** 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round / emergent language 等只能自然涌现、事后识别，并能展示其出生→稳定→因果验证的证据链。
+自进化 3D 红蓝 5v5 射击场。现行 baseline 已能 deterministic co-evolution + 3D 观战；新主线是把它从“shared-brain + privileged structured state + 双 red/blue population”迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA、side-neutral club league + opponent ecology** 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round / emergent language 等只能自然涌现、事后识别，并能展示其出生→稳定→因果验证→对手反制/语义漂移/消亡的证据链。
 
 ## 现状（截至 2026-09-11 晚）
 - 三条入口都能跑：`npm run dev`（浏览器训练 + 观战）· `npm test`（33 个 vitest）· `npm run train -- --gens 40 --pop 16 --seed 1`（无头）。
@@ -19,9 +19,13 @@
   ⭐ **A0 census 就冻改动后的值**（改动后才是 main 上的现实，A1/A2 从这里出发；改动前的 run 留在 `runs/post-turnfix-s*.json` 仅作历史）。⛔ 别再重议这一条。
 
 ## 新 docs（先读）
-- `docs/VISION.md` — Gold Standard；决定“什么值得做、什么绝不能写死”；新增两根北极星：**对手分布才是老师**、**观赏性来自可解释的新行为诞生**。
+- `docs/VISION.md` — Gold Standard；决定“什么值得做、什么绝不能写死”；两根北极星：**对手分布才是老师**、**观赏性来自可解释的新行为诞生**。
 - `docs/SUBSTRATE.md` — world truth / sensors / private belief / body actions / radio / Club DNA / league ecology / discovery analytics 的工程边界与 hard tests。
 - `docs/ROADMAP.md` — future agent 可直接自走的 Programme A–G phase ledger；E4–E6 = club/league/opponent ecology，G4 = Evolution Discovery Feed。
+- `docs/DISCOVERY-EXPLAINABILITY-CONTRACT.md` — G2–G4 / emergence strong-claim 的专门证据合同：**surface form ≠ causal function；effect ≠ intent；mechanism ≠ evolved mechanism**；定义双空间 discovery、event graph、forkable epistemic replay、communication/convention claim ladder 与 lineage。
+- `docs/EVOLUTION-ECOLOGY-CONTRACT.md` — E5/E6 的专门生态合同：**cycles 是内容而非唯一 gate；优先看 frequency-dependent payoff / runaway style；League 发现 counter、world 提供 counter-payoff surface**；另登记 genetic / cultural / ecological adaptation 分层和长期 scaffold retirement。
+
+这两份新合同**不改变当前施工顺序**；只在未来 E5/E6/G2–G4 或任何“已经学会语言/战术/角色”的 strong claim 时强制读取。
 
 ## Current cursor
 **A0 — Authority + baseline freeze**（authority 已接线，baseline census 尚未做）。
@@ -33,7 +37,7 @@
 4. LOG 一条 `#decision #measure`；
 5. A0 close 后进入 **A1 — Information provenance + leak probes**。
 
-⛔ **不要直接跳 A2 改 observation；不要因为新增 E4–E6/G4 就跳施工顺序。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
+⛔ **不要直接跳 A2 改 observation；不要因为新增 E4–E6/G4/两份专门合同就跳施工顺序。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。
@@ -47,13 +51,18 @@
 - 一次一根承重杠杆；probe-first；预测先冻结；same-seed A/B；不过门就 revert/reframe。
 - 战术术语只能事后 detector / 人类命名；不进入 live policy。
 - Policy 不得读取 engine truth；每个新增信息通道都要过 counterfactual leak tests。
+- **解释不是轨迹分类**：长得像 fake 不代表功能是 deception；重大 discovery 要追合法信息流、receiver/opponent response、fork intervention、lineage、ecology。
+- **产生效果不等于故意传信**：枪声/脚步/动作可以从 cue 长成 convention，但 intentional signalling 需要 sender 对 receiver knowledge/availability/cost 的额外证据。
 - 对手分布本身是选择压力：最终不得把“只会打赢唯一熟悉对手”称为 progress；但当前 A0/A1 不改 trainer。
+- 多样性优先靠真实 counter-payoff + frequency dependence；不先加 style/novelty reproduction bonus。
 - 声称“语言/战术/角色已涌现”要有 discovery + lineage + intervention，不能只看录像脑补。
-- 回退实现 ≠ 回退现实中的现象；旧手写战术不得换名字复活。
+- 遗传、文化、生态三条适应通道未来要分清；当前不得把局部 RNN memory 偷叙述成跨比赛 club culture。
+- analytics/discovery read-only；不要把 motif / novelty / style embedding 偷回流 fitness。
+- 回退实现 ≠ 回退现实中的现象；旧手写战术不得换名字复活；成熟通用底座上线后要重新审视并拆除不再承重的旧 scaffold。
 - `README.md` 只在 phase 真 ship 后更新，不提前描述未来世界。
 
 ## 坑
 **全部搬到 `GOTCHAS.md`（编号连续，永不重排）——动手前扫一遍。** 这里不再复制，避免两份漂移。
 
 ## 链接
-`docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · `README.md` · `GOTCHAS.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
+`docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · `docs/DISCOVERY-EXPLAINABILITY-CONTRACT.md` · `docs/EVOLUTION-ECOLOGY-CONTRACT.md` · `README.md` · `GOTCHAS.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
