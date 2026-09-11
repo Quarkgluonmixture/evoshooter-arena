@@ -183,14 +183,15 @@ export class World {
     this.lidarOffsets = new Float32Array(cfg.lidarRays);
     {
       const m = Math.floor((cfg.lidarRays - 1) / 2);
+      const span = (cfg.geomFovDeg * Math.PI) / 360; // half-span: structures are seen wider than enemies
       let w = 0;
       this.lidarOffsets[w++] = 0;
       for (let k = 1; k <= m; k++) {
-        const off = this.halfFov * Math.pow(k / m, 1.6);
+        const off = span * Math.pow(k / m, 1.6);
         this.lidarOffsets[w++] = -off;
         if (w < cfg.lidarRays) this.lidarOffsets[w++] = off;
       }
-      while (w < cfg.lidarRays) this.lidarOffsets[w++] = this.halfFov;
+      while (w < cfg.lidarRays) this.lidarOffsets[w++] = (cfg.geomFovDeg * Math.PI) / 360;
     }
     this.heat = opts.heat
       ? [new Float32Array(cfg.heatCells * cfg.heatCells), new Float32Array(cfg.heatCells * cfg.heatCells)]

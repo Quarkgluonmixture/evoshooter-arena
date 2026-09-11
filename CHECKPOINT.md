@@ -30,23 +30,24 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-**A3.3 — 360° lidar → front-biased 几何感知**（验收 = `A1-P7` 翻绿）。
-2026-09-11 夜到 09-12 凌晨连关六刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b。**V2（enemy truth）已关闭**。
+**A4 — Hearing v1（脚步 + 枪声）**。2026-09-11 夜到 09-12 凌晨连关 Programme A 的视觉段：
+A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3 全部关闭。**
 
-- 仪器先行：`npm run leaks` 打印当期信息泄漏矩阵，`tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。
-  ⇒ **每一刀的验收就是看哪几条 probe 该翻绿**，⛔ 别靠读代码自证。
-- 现在的 enemy contact = `c·sin(bearing)` / `c·cos(bearing)` / `c·range` / `quality` / `c` / `staleness`（obsDim **88**、genome **4844**），
-  bearing 相对自己朝向；quality 在视距与视野边缘平滑归零；bearing/range/quality 全部走**量化格 + 确定性 hash 抖动**
-  （⛔ 不碰 `world.rng`，格子本身不能由连续量推出——否则量化会把信息原样漏回去）。
-- ⚠ **五条别踩**：① `coverRatio` 不可跨 **A2** 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
-  ③ bench 前看 `uptime`（#15）；④ ⭐ 性能结论必须 `git stash` **配对交错**量（#16）；
-  ⑤ ⭐⭐ **行为指标变了先做 same-genome 对照**：A3.2b 的 accuracy 6/6 下降，拿同一批冠军在两版代码下重跑，
-  命中率反而略升、逐因子几乎不动 ⇒ 变的是「40 代能进化出什么」，不是「这套感知打不准」。
-- ⭐ 已知遗留：`staleness` 是唯一没被 confidence 缩放的字段 ⇒ 3 秒记忆窗口仍是断崖（`A1-P15`，V6/A5 的活）。
-- ladder（两个方向都 ≥50% 的血统数）：baseline 4/4 → A2 3/6 → A3.1 3/6 → A3.2a 5/6 → A3.2b 3/6。⛔ n=3，别当结论；
-  真要判进步，做 TODO 里的 **cross-play 矩阵**。
+- **仪器先行**：`npm run leaks` 打印当期信息泄漏矩阵，`tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。
+  ⇒ 每一刀的验收就是**哪几条 probe 该翻绿**，⛔ 别靠读代码自证。当前 16 条 probe：11 clean / 5 leak。
+- **现在的世界**：敌情私有（只有我自己看见才算）· contact = `c·sin/cos(bearing)` + `c·range` + `quality` + `c` + `staleness`，
+  bearing 相对自己朝向、全部走量化格 + 确定性 hash 抖动 · 几何 = 13 条跟着头走的射线（±90°、中心密、背后全无）。
+  **obsDim 93**（72 legal / 12 truth-form / 5 hidden）、genome 5044、bench ≈ 54 ms/match。
+- **还开着的账**：V4 自动瞄准（P12/P14）· V6 记忆归 world 管且 3 秒断崖（P15）· V11 `mate*.firing` 不判可见性 ·
+  V12 objective 数不可见的敌人 · V5 无听觉（= A4）· V7/V8/V9/V10。
+- ⚠ **六条别踩**：① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
+  ③ bench 前看 `uptime`（#15）；④ 性能结论必须**交错配对**量（#16）；
+  ⑤ ⭐⭐ 抖动 key 用 **slot** 不用 agent id、量化格建在**自我相对量**上，且**中局**镜像测试要覆盖新通道（#17）；
+  ⑥ ⭐ 行为指标变了先做 **same-genome 对照**再归因（A3.2b 的 accuracy 下降就不是「打不准」）。
+- ladder（两个方向都 ≥50% 的血统数，n=3 ⛔ 别当结论）：baseline 4/4 → A2 3/6 → A3.1 3/6 → A3.2a 5/6 →
+  A3.2b(buggy) 4/6 → A3.2b(fixed) 5/6 → A3.3 4/6。真要判进步，做 TODO 里的 **cross-play 矩阵**。
 
-下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A3.3。
+下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A4（新通道 ⇒ 先 provenance + probe 再写机制）。
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。

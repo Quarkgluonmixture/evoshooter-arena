@@ -31,6 +31,7 @@ export interface SimConfig {
   perceptBucketSeconds: number;  // how long one perception error persists before it is redrawn
   lidarRays: number;        // structured rays inside the field of view, densest at the crosshair
   geomRangeError: number;   // relative error/quantisation of a wall-distance reading
+  geomFovDeg: number;       // angular span of the geometry rays: wider than enemy recognition, still not behind
   lidarRange: number;
   enemySlots: number;
   mateSlots: number;
@@ -68,8 +69,9 @@ export const DEFAULT_SIM: SimConfig = {
   perceptBearingError: 0.12,
   perceptRangeError: 0.25,
   perceptBucketSeconds: 0.4,
-  lidarRays: 9,
+  lidarRays: 13,
   geomRangeError: 0.08,
+  geomFovDeg: 180,
   lidarRange: 15,
   enemySlots: 3,
   mateSlots: 4,

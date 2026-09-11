@@ -185,7 +185,9 @@ accuracy .22–.32 / 首枪 4.8–19 s / kills 1.3–3.5）。⚠ 预注册的�
   obsDim 91 → 88；`A1-P8` 按 0.05 量级判据翻 clean（实测 0.0000）。⚠ bench +6%（trig 比省下的权重贵）。
 - **A3.2b 确定性噪声 + 量化：CLOSED（2026-09-12 00:20）。** hash 抖动 + 量化格（角度绝对格 / 距离与 quality 乘法格），
   `A1-P16` 翻 clean（1/20）；跨进程 determinism 实测；bench +0.3%。⭐ accuracy 6/6 下降但 same-genome 对照证明**不是噪声的机械后果**（见 LOG）。
-- **A3.3 front-biased 几何：NEXT。** 验收 = `A1-P7` 翻 clean。
+- **A3.3 front-biased 几何：CLOSED（2026-09-12 01:00）。** 射线改成跟头走、幂律中心密、背后什么都没有，读数同样量化。
+  ⚠ **第一版（9 条 ±55°）被自己的硬门否决**（首枪 28.9 s、moveFraction .73 = 走不动），按预注册规则加密加宽成
+  **13 条 ±90°**（`geomFovDeg`，几何感知比敌人识别更宽是现实校准）后过门。`A1-P7` 翻 clean，obsDim 93，bench +22%（见 LOG）。
 
 ---
 
@@ -869,16 +871,18 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A3.3 — 360° lidar → front-biased 几何感知。**
+**当前：A4 — Hearing v1（脚步 + 枪声）。**
 
-已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · **A3.2b**（2026-09-11 ~ 09-12）。V2（enemy truth）已关闭。
+已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3 全部关闭**，
+observation = 93 维（72 legal / 12 truth-form / 5 hidden）。当期 matrix 现查 `npm run leaks`。
 
-A3.3 要做的（**只动几何通道**）：
+仍然开着的账：**V4**（target-slot 自动瞄准，`A1-P12`/`A1-P14`）· **V6**（记忆归 world 管且 3 秒是断崖，`A1-P15`）·
+**V11**（`mate*.firing` 不判可见性）· **V12**（`obj.enemyInZone` 数不可见的敌人）· V5 无听觉（本 phase）· V7/V8/V9/V10。
 
-- 8 条均匀 360° 射线 → **前向密、余光疏**的结构化射线/扇区；背后不给墙距；
-- 射线密度中心高于边缘（参考 Justesen 的 crosshair-dense 结构，⛔ 别照抄常数）；
-- 射线读数同样要过 A3.2b 的**量化格**（远处更粗），⛔ 不要再引入一个可逆的精确通道。
+A4 按 Phase A4 的 Intervention 走；本 phase 的额外要求（从前六刀的实盘教训来）：
 
-**验收**：`A1-P7`（背后凭空出现一堵墙）翻 **clean**；`A1-P8`/`A1-P16` 保持 clean；V4 的 `A1-P12`/`A1-P14` 仍 leak。
-⚠ obsDim 会变 ⇒ bench **配对交错**量（GOTCHAS #16）。对照 = `runs/a32b-noise-s{1,2,3}`。
-⚠ 这一刀直接改导航输入，**最可能真的伤到行为**：预注册时写清楚 revert 条件（先降密度/加射线，⛔ 不是放弃 front-bias）。
+- ⭐ 新通道的抖动/量化 **key 必须用 slot、格子必须建在自我相对量上**（GOTCHAS #17），并**同时**给 `tests/world.test.ts`
+  的中局镜像测试加上这条通道的断言——否则又会是「半条通道从没被测过」。
+- ⭐ 声音是**新的 observation 字段** ⇒ 先写 provenance（`obsSchema.ts`）和 probe（能区分「听得见」和「隔墙衰减」），再写机制。
+- ⛔ 不要在这一刀顺手改 V4/V6/V11/V12。
+- 预测先写 LOG 再跑；对照 = `runs/a33b-wide-s{1,2,3}`；bench **交错配对**量（lidar 已经让 observe 变贵，别再叠一层没测的开销）。

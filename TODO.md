@@ -23,6 +23,7 @@
 - [ ] 每代冠军 vs 全部历史冠军的胜率矩阵（小图），观察非传递/循环。
 
 ## 工程
+- [ ] `lidar()` 的 ray-box 求交是 O(射线 × 箱子)（13 × 32），A3.3 之后 bench +22%。加个空间索引（网格/BVH）或按射线方向预筛箱子；先 profile 确认它真是热点再动手。
 - [ ] GitHub Pages 部署（对齐 `../evofootball-arena/.github/workflows/pages.yml`：npm ci + test + build）。
 - [ ] 地图池轮换防单图过拟合——C1 tactical objective topology 稳定后再做，避免为旧 KOTH map 过度工程。
 - [ ] 导入 run 时按 mapSeed 自动重载，而不是弹 alert 让人手改 URL。
