@@ -874,7 +874,7 @@ short headless evolution A/B (same seeds)
 **当前：A4 — Hearing v1（脚步 + 枪声）。**
 
 已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3 全部关闭**，
-observation = 93 维（72 legal / 12 truth-form / 5 hidden）。当期 matrix 现查 `npm run leaks`。
+observation = 93 维；legal / truth-form / hidden 的分布与整张 matrix 一律现查 `npm run leaks`。
 
 仍然开着的账：**V4**（target-slot 自动瞄准，`A1-P12`/`A1-P14`）· **V6**（记忆归 world 管且 3 秒是断崖，`A1-P15`）·
 **V11**（`mate*.firing` 不判可见性）· **V12**（`obj.enemyInZone` 数不可见的敌人）· V5 无听觉（本 phase）· V7/V8/V9/V10。

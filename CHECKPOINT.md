@@ -37,7 +37,7 @@ A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3
   ⇒ 每一刀的验收就是**哪几条 probe 该翻绿**，⛔ 别靠读代码自证。当前 16 条 probe：11 clean / 5 leak。
 - **现在的世界**：敌情私有（只有我自己看见才算）· contact = `c·sin/cos(bearing)` + `c·range` + `quality` + `c` + `staleness`，
   bearing 相对自己朝向、全部走量化格 + 确定性 hash 抖动 · 几何 = 13 条跟着头走的射线（±90°、中心密、背后全无）。
-  **obsDim 93**（72 legal / 12 truth-form / 5 hidden）、genome 5044、bench ≈ 54 ms/match。
+  **obsDim 93**、genome 5044、bench ≈ 54 ms/match；legal / truth-form / hidden 的当期分布**跑 `npm run leaks`**（⛔ 别抄进文档，会漂）。
 - **还开着的账**：V4 自动瞄准（P12/P14）· V6 记忆归 world 管且 3 秒断崖（P15）· V11 `mate*.firing` 不判可见性 ·
   V12 objective 数不可见的敌人 · V5 无听觉（= A4）· V7/V8/V9/V10。
 - ⚠ **六条别踩**：① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
