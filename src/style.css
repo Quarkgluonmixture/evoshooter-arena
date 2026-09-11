@@ -35,7 +35,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 #banner.show { opacity: 1; }
 #banner small { display: block; font-size: 14px; font-weight: 400; color: var(--text-2); margin-top: 4px; }
 
-#view-bar { position: absolute; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; background: rgba(14,16,20,0.72); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(6px); max-width: calc(100% - 24px); }
+/* Everything along the bottom lives in one column so the bars can never overlap each other
+   (they used to be two independently anchored absolutes: the wrapping view-bar grew up into the spec-bar). */
+#bottom-ui { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 12px; pointer-events: none; z-index: 3; }
+#bottom-ui > * { pointer-events: auto; max-width: 100%; }
+#view-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 14px; align-items: center; background: rgba(14,16,20,0.72); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(6px); }
 #view-bar label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
 #view-bar input[type=range] { width: 110px; }
 #legend { position: absolute; right: 12px; top: 12px; max-width: 360px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; color: var(--text-2); }
@@ -78,6 +82,8 @@ label.file { cursor: pointer; border: 1px solid var(--line); border-radius: 7px;
 #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
 #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
 #crosshair.show { display: block; }
+#dmg { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.12s linear;
+  background: radial-gradient(ellipse at center, rgba(190,20,20,0) 42%, rgba(170,14,14,0.55) 82%, rgba(130,8,8,0.8) 100%); }
 #pov { position: absolute; left: 12px; top: 12px; width: 220px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(6px); display: none; }
 #pov.show { display: block; }
 .pov-head { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 6px; }
@@ -86,7 +92,7 @@ label.file { cursor: pointer; border: 1px solid var(--line); border-radius: 7px;
 .pov-hp i { display: block; height: 100%; width: 100%; background: #7ee08a; border-radius: 4px; transition: width 0.1s; }
 .pov-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; color: var(--text-2); font-size: 12px; letter-spacing: 0.1em; }
 #pov-comm { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,0.25); }
-#spec-bar { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; }
+#spec-bar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 14px; }
 .spec-team { display: flex; gap: 6px; }
 .spec-tile { width: 64px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px 4px; cursor: pointer; backdrop-filter: blur(6px); user-select: none; }
 .spec-tile .n { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; display: flex; justify-content: space-between; }
@@ -102,5 +108,4 @@ label.file { cursor: pointer; border: 1px solid var(--line); border-radius: 7px;
 #cam-modes { display: flex; gap: 4px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
 #cam-modes button { padding: 4px 9px; font-size: 12px; border-color: transparent; }
 #cam-modes button.on { background: #2a5a9a; }
-#view-bar { bottom: 12px; }
 kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, monospace; color: var(--text); }

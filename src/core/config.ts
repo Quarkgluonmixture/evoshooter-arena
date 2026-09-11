@@ -10,7 +10,9 @@ export interface SimConfig {
   maxSpeed: number;
   aimSpeedMul: number;      // speed multiplier while in aim mode
   accel: number;
-  turnRate: number;         // rad/s
+  turnRate: number;         // rad/s while engaging a chosen target (flick onto the shot)
+  scanTurnRate: number;     // rad/s while nobody is being engaged (a head sweeps, it does not teleport)
+  lookSmoothSeconds: number;// low-pass on the look action, so per-tick network noise cannot snap the head
   fovDeg: number;
   viewRange: number;
   fireCooldown: number;
@@ -43,7 +45,9 @@ export const DEFAULT_SIM: SimConfig = {
   maxSpeed: 6,
   aimSpeedMul: 0.45,
   accel: 30,
-  turnRate: Math.PI * 3,
+  turnRate: Math.PI * 2,
+  scanTurnRate: 2.6,
+  lookSmoothSeconds: 0.45,
   fovDeg: 110,
   viewRange: 30,
   fireCooldown: 0.25,

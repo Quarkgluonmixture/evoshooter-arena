@@ -18,30 +18,33 @@
       <div id="alive"><div id="alive-red" class="pips red"></div><div id="alive-blue" class="pips blue"></div></div>
       <div id="banner"></div>
       <div id="crosshair"></div>
+      <div id="dmg"></div>
       <div id="pov">
         <div class="pov-head"><span id="pov-name">—</span><span id="pov-state"></span></div>
         <div class="pov-hp"><i id="pov-hp"></i></div>
         <div class="pov-row"><span id="pov-ammo"></span><span id="pov-comm" title="comm signal"></span></div>
       </div>
-      <div id="spec-bar">
-        <div id="spec-red" class="spec-team"></div>
-        <div id="cam-modes">
-          <button data-cam="free" class="on" title="F">free</button>
-          <button data-cam="third" title="click a player">3rd</button>
-          <button data-cam="first" title="V toggles 1st/3rd">1st</button>
-          <button id="cam-director" title="D">director</button>
+      <div id="bottom-ui">
+        <div id="spec-bar">
+          <div id="spec-red" class="spec-team"></div>
+          <div id="cam-modes">
+            <button data-cam="free" class="on" title="F">free</button>
+            <button data-cam="third" title="click a player">3rd</button>
+            <button data-cam="first" title="V toggles 1st/3rd">1st</button>
+            <button id="cam-director" title="D">director</button>
+          </div>
+          <div id="spec-blue" class="spec-team"></div>
         </div>
-        <div id="spec-blue" class="spec-team"></div>
-      </div>
-      <div id="view-bar">
-        <label>speed <input id="speed" type="range" min="0.25" max="8" step="0.25" value="1.5" /> <span id="speed-v">1.5×</span></label>
-        <label><input type="checkbox" id="tg-fov" checked /> view cones</label>
-        <label><input type="checkbox" id="tg-trails" checked /> trails</label>
-        <label><input type="checkbox" id="tg-comm" checked /> comm lights</label>
-        <label><input type="checkbox" id="tg-tracers" checked /> tracers</label>
-        <label><input type="checkbox" id="follow" checked /> follow latest champions</label>
-        <button id="pause-view">pause</button>
-        <button id="replay">replay</button>
+        <div id="view-bar">
+          <label>speed <input id="speed" type="range" min="0.25" max="8" step="0.25" value="1.5" /> <span id="speed-v">1.5×</span></label>
+          <label><input type="checkbox" id="tg-fov" checked /> view cones</label>
+          <label><input type="checkbox" id="tg-trails" checked /> trails</label>
+          <label><input type="checkbox" id="tg-comm" checked /> comm lights</label>
+          <label><input type="checkbox" id="tg-tracers" checked /> tracers</label>
+          <label><input type="checkbox" id="follow" checked /> follow latest champions</label>
+          <button id="pause-view">pause</button>
+          <button id="replay">replay</button>
+        </div>
       </div>
       <details id="legend">
         <summary>how to read the arena</summary>

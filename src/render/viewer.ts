@@ -47,7 +47,8 @@ export class MatchViewer {
     this.hold = 0;
     this.finishedNotified = false;
     this.scene.bindWorld(this.world);
-    this.scene.sync(this.world, false);
+    this.scene.sync(this.world, 1, false);
+    this.rig.reset(this.world);
   }
 
   get busy(): boolean {
@@ -64,12 +65,9 @@ export class MatchViewer {
         this.acc += realDt * this.speed;
         let steps = 0;
         while (this.acc >= this.cfg.dt && steps < 12 && !w.done) {
+          this.scene.captureTick(w); // snapshot the pose we are interpolating FROM
           stepMatch(w, this.red, this.blue);
-          for (const ev of w.events) {
-            if (ev.kind === 'shot') this.scene.addShot(ev, w);
-            else this.scene.addKill(ev, w);
-            this.frameEvents.push(ev);
-          }
+          for (const ev of w.events) this.frameEvents.push(ev);
           this.acc -= this.cfg.dt;
           steps++;
           advanced = true;
@@ -83,7 +81,17 @@ export class MatchViewer {
         }
       }
     }
-    if (w) this.scene.sync(w, advanced);
+    // Render one tick behind the sim, `alpha` of the way into the latest tick: fixed-step sim (15 Hz),
+    // smooth display. Snap to the last tick once the match is over or while paused.
+    if (w) {
+      const alpha = w.done ? 1 : Math.min(1, this.acc / this.cfg.dt);
+      this.scene.sync(w, alpha, advanced);
+      // FX are spawned after sync so they attach to the pose that is actually on screen
+      for (const ev of this.frameEvents) {
+        if (ev.kind === 'shot') this.scene.addShot(ev, w);
+        else this.scene.addKill(ev, w);
+      }
+    }
     this.rig.update(w, realDt, this.frameEvents);
     this.scene.update(realDt);
     this.scene.render();

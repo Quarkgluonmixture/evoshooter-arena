@@ -46,6 +46,9 @@ export interface Agent {
   settleT: number;
   aim: boolean;
   firing: boolean;
+  /** low-passed look intent in the TEAM frame; keeps scanning gradual instead of per-tick jitter */
+  lookX: number;
+  lookZ: number;
   comm: Float32Array;
   dmgRecent: number;
   hitDirX: number;
@@ -190,6 +193,8 @@ export class World {
           settleT: 0,
           aim: false,
           firing: false,
+          lookX: 0,
+          lookZ: 1, // both teams start looking at the enemy half (team frame is mirrored)
           comm: new Float32Array(cfg.commDim),
           dmgRecent: 0,
           hitDirX: 0,
@@ -564,10 +569,18 @@ export class World {
       const tvx = sg * mx * speedCap;
       const tvz = sg * mz * speedCap;
 
+      // look intent is low-passed before it can steer the head (raw action = white noise every tick)
+      {
+        const kl = 1 - Math.exp(-dt / cfg.lookSmoothSeconds);
+        a.lookX += (Math.tanh(act[off + A_LOOK_X]) - a.lookX) * kl;
+        a.lookZ += (Math.tanh(act[off + A_LOOK_Z]) - a.lookZ) * kl;
+      }
+
       // desired facing
       let want = a.yaw;
       let hasWant = false;
-      if ((a.firing || a.aim) && best >= 0) {
+      const engaging = (a.firing || a.aim) && best >= 0;
+      if (engaging) {
         const en = ag[best];
         const vis = this.visible[i * n + best];
         const kn = this.known[a.team][best - (a.team === RED ? cfg.teamSize : 0)];
@@ -576,10 +589,8 @@ export class World {
         want = Math.atan2(pz - a.z, px - a.x);
         hasWant = true;
       } else {
-        const lx = Math.tanh(act[off + A_LOOK_X]);
-        const lz = Math.tanh(act[off + A_LOOK_Z]);
-        if (Math.hypot(lx, lz) > 0.3) {
-          want = Math.atan2(sg * lz, sg * lx);
+        if (Math.hypot(a.lookX, a.lookZ) > 0.3) {
+          want = Math.atan2(sg * a.lookZ, sg * a.lookX);
           hasWant = true;
         } else if (mlen > 0.2) {
           want = Math.atan2(tvz, tvx);
@@ -588,7 +599,9 @@ export class World {
       }
       if (hasWant) {
         const d = wrapAngle(want - a.yaw);
-        const maxTurn = cfg.turnRate * dt;
+        // Flick speed only when actually engaging someone. Otherwise a head SWEEPS: without this cap the
+        // network's per-tick look output made agents snap ±36° every tick, which reads as random jerking.
+        const maxTurn = (engaging ? cfg.turnRate : cfg.scanTurnRate) * dt;
         a.yaw = wrapAngle(a.yaw + Math.max(-maxTurn, Math.min(maxTurn, d)));
       }
 

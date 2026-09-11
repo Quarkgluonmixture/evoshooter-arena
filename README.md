@@ -46,7 +46,9 @@ This is a *watch-and-steer* game, like breeding fighters rather than driving one
 | Zone ring | 1 point/s for the side with more living agents inside. Wiping the enemy banks the remaining time |
 | Tall walls | block sight and movement |
 | Low walls | block movement and hide legs/torso — the head stays exposed |
-| Tracers / sparks | shots; a spark means a hit |
+| Tracer + muzzle flash | a round leaving the gun |
+| Impact spray + white body flash | a hit landing on that agent; a kill throws a bigger burst |
+| Red screen edges (spectator) | the agent you are watching is taking fire |
 
 Right-hand panel:
 
@@ -67,9 +69,14 @@ Right-hand panel:
 |---|---|
 | click a player tile · `1`–`5` (red) · `6`–`0` (blue) | follow that agent in third person |
 | `Tab` / `Space` (`Shift` reverses) | next living agent |
-| `V` | toggle first ↔ third person (first person hides your own body, shows a crosshair and a HP/ammo/comm HUD) |
+| `V` | toggle first ↔ third person (first person hides your own body, draws the weapon, and shows a crosshair + HP/ammo/comm HUD) |
 | `F` | free orbit camera (drag / wheel) |
-| `D` | auto-director: follows whoever is firing, being shot, closest to enemies or holding the zone; cuts after ≥ 3 s when someone else is clearly more interesting, and 1 s after its subject dies |
+| `D` | auto-director: follows whoever is firing, being shot, closest to enemies or holding the zone; cuts after ≥ 2.6 s when someone else is clearly more interesting (never mid-burst), and ~1 s after its subject dies |
+
+The chase camera rises over cover instead of pulling into the subject's back, and both follow cameras track the
+*interpolated* pose: the sim runs at 15 Hz while the display runs at refresh rate, so the pose drawn each frame is
+interpolated between the last two ticks. Rendering the raw sim pose is what made the agents look like they were
+stepping.
 
 ## How it works
 
@@ -85,7 +92,9 @@ src/ui       canvas line charts, heat-map, history store
 scripts      train.ts (headless CLI), bench.ts
 ```
 
-**Simulation.** 15 Hz, 40 s rounds, no respawn. Agents move at 6 m/s (2.7 m/s in aim mode), turn at ≤ 3π rad/s,
+**Simulation.** 15 Hz, 40 s rounds, no respawn. Agents move at 6 m/s (2.7 m/s in aim mode), flick onto a chosen
+target at ≤ 2π rad/s but *sweep* at only 1.6 rad/s when nobody is being engaged — and the look action is low-passed
+over ~0.45 s before it can steer the head, so scanning is gradual instead of per-tick jitter. They
 carry 10-round magazines (1.6 s reload), and deal 26 damage per hit. Hit probability =
 `0.85 × exposure × distance × movement × settle × target-motion`, where exposure is the fraction of three body
 heights (head / chest / legs) visible from the shooter's eye — so low cover really hides your legs, and a
@@ -122,18 +131,19 @@ selves to produce the "are they getting better" curves.
 - Reference bots in `src/brain/scripted.ts` exist only to test that the environment rewards competence (rusher beats
   idle, shooter beats pacifist). Evolving agents never see them.
 
-## Evidence that evolution happens (headless, 2026-09-11)
+## Evidence that evolution happens (headless, 2026-09-11, current turn rules)
 
-Recompute: `npm run train -- --gens 40 --pop 16 --seed <1|2>` (defaults = the values below; ~2.5 min per run on an
-M-series laptop). The final line prints the last champion's win rate against the generation-0 champion on both colours.
+Recompute: `npm run train -- --gens 40 --pop 16 --seed <1|2>` (defaults = the values below; ~3 min per run on an
+M-series laptop, and deterministic — two runs of the same seed print identical rows). The final line prints the
+last champion's win rate against the generation-0 champion on both colours.
 
 | defaults (σ 0.05, mutation rate 2 %, 5 matches/genome) | seed 1 | seed 2 |
 |---|---|---|
-| final red champion vs gen-0 red champion (as red / as blue) | 100 % / 100 % | 100 % / 100 % |
-| final blue champion vs gen-0 blue champion (as red / as blue) | 50 % / 50 % (draws) | 100 % / 100 % |
-| in-cover-while-threatened, gen 0 → gen 39 (population mean) | 0.10 → 0.67 (red), 0.04 → 0.52 (blue) | 0.02 → 0.54, 0.02 → 0.47 |
-| seconds until first shot, gen 0 → gen 39 | 33 → 7.6 | 38 → 5.0 |
-| accuracy, gen 0 → gen 39 | 0.08 → 0.36 (red) | 0.03 → 0.31 (red) |
+| final red champion vs gen-0 red champion (as red / as blue) | 100 % / 100 % | 90 % / 100 % |
+| final blue champion vs gen-0 blue champion (as red / as blue) | 100 % / 100 % | 100 % / 100 % |
+| in-cover-while-threatened, gen 0 → gen 39 (population mean) | 0.09 → 0.69 (red), 0.04 → 0.70 (blue) | 0.02 → 0.57, 0.03 → 0.59 |
+| seconds until first shot, gen 0 → gen 39 | 33 → 6.6 | 37 → 8.8 |
+| accuracy, gen 0 → gen 39 | 0.08 → 0.38 (red) | 0.02 → 0.25 (red) |
 
 What did **not** work, and why the defaults are what they are:
 
@@ -144,6 +154,11 @@ What did **not** work, and why the defaults are what they are:
 - Sequential combat resolution gave red a permanent first-shot edge (red dominated every seed) — fixed by resolving all
   shots of a tick simultaneously; the mirror-match fairness test guards it.
 - An open sight-line from the spawn rows to the zone made "camp at spawn" beat "hold the zone" — the mid walls fix that.
+- Scan turn rate 1.6 rad/s (the first attempt at "sweep, don't snap"): visually identical to 2.6 rad/s on the jitter
+  metrics (>20°/tick in 0.6 % of ticks, direction reversals in 3.7 % — measured over 35 k agent-ticks of random
+  genomes), but it starves the learning signal: seed 2's red champion fell to 45 % / 50 % against gen 0 and first
+  contact stalled at 15 s. 2.6 rad/s costs nothing visually and restores the ladder. The jitter itself is killed by
+  the 0.45 s low-pass on the look action (reversals 14.5 % → 4.3 %), *not* by the cap; the cap only limits jump size.
 
 ## Headless runs
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SIM, DEFAULT_EVO } from '../src/core/config.ts';
 import { Rng } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
-import { World, obsDim } from '../src/sim/world.ts';
+import { World, obsDim, ACT_DIM, A_LOOK_X, A_LOOK_Z, type Agent } from '../src/sim/world.ts';
 import { randomGenome } from '../src/brain/mlp.ts';
-import { NeuralPolicy, shapeFor } from '../src/brain/policy.ts';
+import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
 import { IdlePolicy, RusherPolicy, PacifistRusherPolicy, CamperPolicy } from '../src/brain/scripted.ts';
 import { runMatch, stepMatch } from '../src/evo/match.ts';
 
@@ -113,6 +113,50 @@ describe('World', () => {
     }
     expect(outside).toBe(0);
     expect(inCover).toBe(0);
+  });
+});
+
+/**
+ * A look action that slams to the opposite direction every single tick — i.e. the worst case the network
+ * can produce. The head must SWEEP through it, not follow it.
+ */
+class JitterLookPolicy implements Policy {
+  private flip = 1;
+  act(world: World, agent: number): void {
+    const off = agent * ACT_DIM;
+    world.act.fill(0, off, off + ACT_DIM);
+    world.act[off + A_LOOK_X] = this.flip * 3;
+    world.act[off + A_LOOK_Z] = -this.flip * 3;
+    if (agent === world.n - 1) this.flip = -this.flip as 1 | -1;
+  }
+}
+
+describe('turning', () => {
+  it('sweeps instead of snapping when the look action jitters every tick', () => {
+    const w = new World(cfg, map, 3);
+    const pol = new JitterLookPolicy();
+    const prevYaw = new Map<number, number>();
+    let reversals = 0;
+    let samples = 0;
+    let maxStep = 0;
+    let lastDelta = 0;
+    const a: Agent = w.agents[0];
+    prevYaw.set(a.id, a.yaw);
+    for (let i = 0; i < 200; i++) {
+      stepMatch(w, pol, pol);
+      let d = a.yaw - (prevYaw.get(a.id) as number);
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      prevYaw.set(a.id, a.yaw);
+      maxStep = Math.max(maxStep, Math.abs(d));
+      if (i > 0 && Math.abs(d) > 1e-3 && Math.sign(d) !== Math.sign(lastDelta)) reversals++;
+      lastDelta = d;
+      samples++;
+    }
+    // never faster than the scan cap…
+    expect(maxStep).toBeLessThanOrEqual(cfg.scanTurnRate * cfg.dt + 1e-9);
+    // …and the low-pass means the head does not follow the flip-flop: without it this is ~1 per tick
+    expect(reversals / samples).toBeLessThan(0.2);
   });
 });
 

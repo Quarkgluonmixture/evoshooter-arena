@@ -118,8 +118,11 @@ function updateSpectator(): void {
     (t.querySelector('.hp i') as HTMLElement).style.width = `${Math.max(0, (a.hp / trainer.sim.hp) * 100)}%`;
     (t.querySelector('small') as HTMLElement).textContent = a.kills ? `${a.kills}k` : '';
   }
+  const dmgEl = $('dmg');
   if (viewer.rig.mode !== 'free' && viewer.rig.subject >= 0) {
     const a = w.agents[viewer.rig.subject];
+    // screen-space blood vignette: you should FEEL the round that hit you, not watch a ripple
+    dmgEl.style.opacity = String(a.alive ? Math.min(0.9, a.dmgRecent / 45) : 0.35);
     $('pov-name').textContent = `${a.team === 0 ? 'RED' : 'BLUE'} #${a.slot + 1}`;
     $('pov-name').style.color = TEAM_CSS[a.team];
     $('pov-state').textContent = !a.alive ? 'dead' : a.reloadT > 0 ? 'reloading' : a.firing ? 'firing' : a.aim ? 'aiming' : Math.hypot(a.vx, a.vz) > 0.5 ? 'moving' : 'holding';
@@ -129,6 +132,8 @@ function updateSpectator(): void {
     const mag = Math.min(1, Math.hypot(a.comm[0], a.comm[1]));
     const hue = ((Math.atan2(a.comm[1], a.comm[0]) / (2 * Math.PI) + 1) % 1) * 360;
     ($('pov-comm') as HTMLElement).style.background = `hsl(${hue} 90% ${20 + 45 * mag}%)`;
+  } else {
+    dmgEl.style.opacity = '0';
   }
 }
 
@@ -439,6 +444,28 @@ $('export').onclick = () => {
 };
 
 /* ------------------------------------------------------------------ boot */
+
+// debug handle for headless render verification (CLAUDE.md requires a real-browser check for camera/style work)
+(window as unknown as { evo: unknown }).evo = {
+  viewer,
+  get trainer() { return trainer; },
+  store,
+  probe: () => {
+    const w = viewer.world;
+    const rig = viewer.rig;
+    if (!w) return null;
+    const a = w.agents[rig.subject] ?? null;
+    return {
+      mode: rig.mode, director: rig.director, subject: rig.subject, lastCut: rig.lastCutReason,
+      firstPersonId: viewer.scene.firstPersonId,
+      cam: viewer.scene.camera.position.toArray().map((v) => +v.toFixed(2)),
+      subjectPose: a ? { x: +a.x.toFixed(2), z: +a.z.toFixed(2), yaw: +a.yaw.toFixed(2), alive: a.alive, hp: a.hp } : null,
+      render: viewer.scene.pose(rig.subject),
+      fx: viewer.scene.fxStats(),
+      t: +w.t.toFixed(2),
+    };
+  },
+};
 
 {
   ($('pop') as HTMLSelectElement).value = String(trainer.evo.popSize);
