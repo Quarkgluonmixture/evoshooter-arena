@@ -181,8 +181,10 @@ accuracy .22–.32 / 首枪 4.8–19 s / kills 1.3–3.5）。⚠ 预注册的�
 
 - **A3.1 删真值：CLOSED（2026-09-11 23:00）。** `enemy*.hp` / `exposureToMe` / `facingDot` 已删，obsDim 100 → 91；
   `A1-P4`/`A1-P5` 转绿、`A1-P6` 降到 4 个字段。行为侧无可测差异（细节与教训见 LOG 同日条 + GOTCHAS #14/#15）。
-- **A3.2 位置 → 感知 + 连续化：NEXT。**
-- **A3.3 front-biased 几何：待 A3.2 之后。**
+- **A3.2a 位置 → 感知 + 连续化：CLOSED（2026-09-11 23:20）。** contact = `c·sin/cos(bearing)` + `c·range` + `quality` + `c` + `staleness`，
+  obsDim 91 → 88；`A1-P8` 按 0.05 量级判据翻 clean（实测 0.0000）。⚠ bench +6%（trig 比省下的权重贵）。
+- **A3.2b 确定性噪声 + 量化：NEXT。** 验收 = `A1-P16`（25 m 外 5 cm）翻 clean；⛔ 不许用 `Math.random`。
+- **A3.3 front-biased 几何：待 A3.2b 之后。** 验收 = `A1-P7` 翻 clean。
 
 ---
 
@@ -866,19 +868,17 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A3.2 — 位置换成感知 + 视距连续化。**
+**当前：A3.2b — 确定性感知噪声 + 量化。**
 
-已 CLOSED：**A0** census · **A1** leak matrix · **A2** player-local contacts · **A3.1** 删 enemy truth 字段（均 2026-09-11）。
-数字与 reconcile 在 `LOG.md`；当期 matrix 现查 `npm run leaks`。
+已 CLOSED：A0 census · A1 leak matrix · A2 player-local contacts · A3.1 删 enemy truth · **A3.2a 感知编码 + 连续化**（均 2026-09-11）。
 
-A3.2 要做的（**一刀之内只动“视觉怎么递给我”这一个家族**）：
+A3.2b 要做的（**只动“数值有多精确”这一件事**）：
 
-- exact `enemy*.dx/dz/dist` → **bearing（相对我朝向的角度）+ range cue + quality**；
-- quality 由 eccentricity × distance × visible fraction 产生；远处/余光可以有 contact，但更粗；
-- `viewRange` 硬断崖 → **连续衰减**（可以有物理上限，但不能是突兀真值门）；
-- deterministic perception noise / quantization（⛔ 不许用 `Math.random`，必须走 `Rng` 或纯函数式抖动，否则 T6 determinism 会红）。
+- bearing / range 在写进 observation 之前过一层**量化 + 确定性抖动**，精度随 quality 下降而变粗；
+- 记忆 contact 存**我感知到的位置**（带误差），不是真值坐标；
+- ⛔ 不许 `Math.random`，也不要从 `world.rng` 取数（会和战斗掷骰共用流、污染回放对照）；
+  用 `(observer, target, 时间桶)` 的整数 hash，保证同一 tick 同一对象读数稳定、跨进程可复现。
 
-**验收**：`A1-P6` 应**全 clean**（没有任何 contact 字段与引擎表达式逐位相等）、`A1-P8` 应翻 clean（20 cm 不该让接触消失）；
-`A1-P1`/`A1-P2`/`A1-P3`/`A1-P4`/`A1-P5`/`A1-P9`/`A1-P13` 保持 clean；V3 的 `A1-P7`（背后几何）仍应报 leak（那是 A3.3）。
-obsDim 会再变 ⇒ **bench 前后各一次，跑之前先 `uptime`**（GOTCHAS #15）。对照 = `runs/a31-notruth-s{1,2,3}`。
-⚠ 预注册时注意 GOTCHAS #14：别对零和指标写「双方同向」的预测。
+**验收**：`A1-P16`（25 m 外 5 cm）翻 **clean**；`A1-P8` 保持 clean；`A1-P12`/`A1-P14`（V4 自动瞄准）仍 leak；
+determinism 测试必须绿（这是最容易被噪声写法搞红的一条）。bench 配对交错量（GOTCHAS #16）。
+对照 = `runs/a32a-percept-s{1,2,3}`。

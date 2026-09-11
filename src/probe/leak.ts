@@ -114,9 +114,10 @@ export function counterfactual(cfg: SimConfig, c: Counterfactual): DiffResult {
 function cf(cfg: SimConfig, c: Counterfactual, cleanNote: string, leakNote: string): ProbeResult {
   const d = counterfactual(cfg, c);
   const fields = d.changed.map((f) => f.name);
+  const mag = d.maxDelta >= 0.001 ? d.maxDelta.toFixed(3) : d.maxDelta.toExponential(2);
   return d.changed.length === 0
     ? { status: 'clean', fields, detail: cleanNote }
-    : { status: 'leak', fields, detail: `${leakNote} (max |Δ| ${d.maxDelta.toFixed(3)})` };
+    : { status: 'leak', fields, detail: `${leakNote} (max |Δ| ${mag})` };
 }
 
 /* ----------------------------------------------------------------- scenarios */
@@ -364,8 +365,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     kind: 'truth-identity',
     gap: 'V2',
     title: 'a visible contact is engine truth, not a percept',
-    expect: 'leak',
-    expectFields: ['enemy0.dx', 'enemy0.dz', 'enemy0.dist', 'enemy0.exposure'], // A3.1 deleted the other three
+    expect: 'clean', // A3.2 replaced every field this probe knew how to check; V2 now rides on A1-P16
     run: (cfg) => {
       const w = new World(cfg, labMap(cfg, []), 1);
       standObserver(w);
@@ -392,6 +392,14 @@ export const LEAK_PROBES: LeakProbe[] = [
       const fields = exact
         .filter(([name, v]) => w.obs[off + indexOfField(cfg, name)] === Math.fround(v))
         .map(([name]) => name);
+      if (exact.length === 0) {
+        return {
+          status: 'clean',
+          fields: [],
+          detail: 'RETIRED: every coordinate field this probe checked has been deleted by A3.2. ' +
+            'It is kept so a re-added dx/dz/dist/exposure would light up again — the live V2 question is A1-P16.',
+        };
+      }
       return fields.length === 0
         ? { status: 'clean', fields, detail: 'no contact field equals the engine value bit for bit' }
         : {
@@ -407,8 +415,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     kind: 'discontinuity',
     gap: 'V3',
     title: 'an enemy steps 20 cm across the view-range line',
-    expect: 'leak',
-    expectFields: ['enemy0.present', 'enemy0.dz', 'enemy0.dist', 'enemy0.exposure', 'enemy0.visible'],
+    expect: 'clean', // flipped by ROADMAP A3.2: quality fades to zero instead of being cut off
     run: (cfg) => {
       const d = counterfactual(cfg, {
         setup: (w) => {
@@ -417,14 +424,22 @@ export const LEAK_PROBES: LeakProbe[] = [
         },
         mutate: (w) => place(w, ENEMY, 0, cfg.viewRange - 14.9, -Math.PI / 2), // 30.1 m away
       });
+      // A continuous sensor still moves a little when the target moves; a cliff moves a lot. The
+      // threshold was fixed before the A3.2 run (LOG 2026-09-11 23:05), not chosen after seeing it.
+      const CLIFF = 0.05;
       const fields = d.changed.map((f) => f.name);
-      return d.changed.length === 0
-        ? { status: 'clean', fields, detail: 'perception degrades continuously across the range limit' }
+      return d.maxDelta <= CLIFF
+        ? {
+            status: 'clean',
+            fields: [],
+            detail: `20 cm across the range limit moves the observation by at most ${d.maxDelta.toFixed(4)} ` +
+              `(cliff threshold ${CLIFF}): the contact fades instead of being deleted`,
+          }
         : {
             status: 'leak',
             fields,
             detail: `20 cm of enemy movement flips ${fields.length} observation fields ` +
-              `(max |Δ| ${d.maxDelta.toFixed(3)}): the contact does not fade, it is deleted`,
+              `(max |Δ| ${d.maxDelta.toFixed(3)} > ${CLIFF}): the contact does not fade, it is deleted`,
           };
     },
   },
@@ -535,7 +550,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     gap: 'V6',
     title: 'my memory of a contact is a perfect step function the world keeps for me',
     expect: 'leak',
-    expectFields: ['enemy0.present', 'enemy0.dx', 'enemy0.dz', 'enemy0.dist', 'enemy0.staleness'],
+    expectFields: ['enemy0.bearingSin', 'enemy0.bearingCos', 'enemy0.range', 'enemy0.confidence', 'enemy0.staleness'],
     run: (cfg) => {
       // Both worlds are read at the SAME clock time (so the legal round-time HUD is identical); they differ
       // only in how long ago the sighting happened — see GOTCHAS #11.
@@ -555,16 +570,43 @@ export const LEAK_PROBES: LeakProbe[] = [
       const after = seen(cfg.memorySeconds + 0.1);
       const schema = obsSchema(cfg);
       const fields: string[] = [];
-      for (let k = 0; k < before.length; k++) if (Math.abs(before[k] - after[k]) > 1e-9) fields.push(schema[k].name);
+      let maxDelta = 0;
+      for (let k = 0; k < before.length; k++) {
+        const dd = Math.abs(before[k] - after[k]);
+        if (dd > 1e-9) fields.push(schema[k].name);
+        if (dd > maxDelta) maxDelta = dd;
+      }
       return fields.length === 0
         ? { status: 'clean', fields, detail: 'remembering is the brain’s job and it degrades on its own terms' }
         : {
             status: 'leak',
             fields,
-            detail: `200 ms either side of the ${cfg.memorySeconds} s memory window flips ${fields.length} fields: ` +
-              'the world holds an exact position for me, at full precision, and then deletes it in one tick',
+            detail: `200 ms either side of the ${cfg.memorySeconds} s memory window moves ${fields.length} fields ` +
+              `by up to ${maxDelta.toFixed(4)}: the world, not my brain, decides what I still remember`,
           };
     },
+  },
+  {
+    id: 'A1-P16',
+    kind: 'counterfactual',
+    gap: 'V2',
+    title: 'an enemy 25 m away shifts by 5 cm',
+    expect: 'leak',
+    expectFields: ['enemy0.bearingSin', 'enemy0.bearingCos', 'enemy0.range', 'enemy0.quality', 'enemy0.confidence'],
+    run: (cfg) =>
+      cf(
+        cfg,
+        {
+          setup: (w) => {
+            standObserver(w);
+            place(w, ENEMY, 0, 15, -Math.PI / 2); // 25 m straight ahead, in plain view
+          },
+          mutate: (w) => place(w, ENEMY, 0.05, 15, -Math.PI / 2),
+        },
+        'a shift no human eye could resolve at 25 m does not move the percept',
+        'the percept tracks a 5 cm shift at 25 m exactly: the transform is continuous and noiseless, ' +
+          'so the true position is still recoverable from it',
+      ),
   },
 ];
 

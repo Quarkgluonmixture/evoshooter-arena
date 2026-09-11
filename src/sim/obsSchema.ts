@@ -84,23 +84,23 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     }
   }
 
-  // --- enemies: contact slots
+  // --- enemy contacts: a percept, scaled by how sure of it I am (A3.2)
   for (let s = 0; s < cfg.enemySlots; s++) {
-    push(`enemy${s}.present`, 'enemy', 'truth-form', 'V6',
-      'my own contact since A2, but the world does the remembering for me');
-    push(`enemy${s}.dx`, 'enemy', 'truth-form', 'V2', 'exact relative position, not a bearing/range cue');
-    push(`enemy${s}.dz`, 'enemy', 'truth-form', 'V2');
-    push(`enemy${s}.dist`, 'enemy', 'truth-form', 'V2');
-    push(`enemy${s}.exposure`, 'enemy', 'truth-form', 'V2', 'engine body-point exposure fraction, not a degraded percept');
+    push(`enemy${s}.bearingSin`, 'enemy', 'truth-form', 'V2',
+      'bearing relative to my own facing — but still exact geometry, with no perceptual noise or quantisation (A3.2b)');
+    push(`enemy${s}.bearingCos`, 'enemy', 'truth-form', 'V2');
+    push(`enemy${s}.range`, 'enemy', 'truth-form', 'V2', 'range cue, exact up to the confidence scaling');
+    push(`enemy${s}.quality`, 'enemy', 'legal', undefined,
+      'how good my current look is: visible body fraction x distance falloff x eccentricity falloff');
+    push(`enemy${s}.confidence`, 'enemy', 'legal', undefined, 'best of what I see now and what I remember seeing');
     push(`enemy${s}.staleness`, 'enemy', 'truth-form', 'V6', 'age of the world-managed memory entry');
-    push(`enemy${s}.visible`, 'enemy', 'legal', undefined, 'flag: is this contact my own current vision');
   }
 
   const expected = obsDim(cfg);
   if (f.length !== expected) {
     throw new Error(`obsSchema drift: schema has ${f.length} fields, world.obsDim is ${expected}`);
   }
-  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 7) {
+  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6) {
     throw new Error('obsSchema drift: world.ts feature-group widths changed, re-derive the field names');
   }
   return f;

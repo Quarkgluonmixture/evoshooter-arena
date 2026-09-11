@@ -20,7 +20,7 @@ export const A_COMM0 = 10; // 10..11 comm channel
 
 export const SELF_BASE = 20;
 export const MATE_FEATS_BASE = 6;
-export const ENEMY_FEATS = 7;
+export const ENEMY_FEATS = 6;
 
 export function obsDim(cfg: SimConfig): number {
   return SELF_BASE + cfg.teamSize + 5 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim) + cfg.enemySlots * ENEMY_FEATS;
@@ -61,7 +61,8 @@ export interface Agent {
   deathT: number;
 }
 
-export interface Known { x: number; z: number; t: number }
+/** A remembered sighting: where I believed he was, when, and how good that look was. */
+export interface Known { x: number; z: number; t: number; q: number }
 
 export interface ShotEvent {
   kind: 'shot';
@@ -146,6 +147,7 @@ export class World {
   /** -1 draw / undecided, 0 red, 1 blue */
   winner: -1 | 0 | 1 = -1;
   private readonly cosHalfFov: number;
+  private readonly halfFov: number;
   private readonly cosAimCone: number;
   private readonly lidarDirs: Float32Array;
   private readonly pendingShots: number[] = [];
@@ -165,6 +167,7 @@ export class World {
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
     this.aliveCount = [cfg.teamSize, cfg.teamSize];
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
+    this.halfFov = (cfg.fovDeg * Math.PI) / 360;
     this.cosAimCone = Math.cos((cfg.aimConeDeg * Math.PI) / 180);
     this.lidarDirs = new Float32Array(cfg.lidarRays * 2);
     for (let k = 0; k < cfg.lidarRays; k++) {
@@ -214,7 +217,7 @@ export class World {
     }
     for (let i = 0; i < this.n; i++) {
       const c: Known[] = [];
-      for (let e = 0; e < cfg.teamSize; e++) c.push({ x: 0, z: 0, t: -1e9 });
+      for (let e = 0; e < cfg.teamSize; e++) c.push({ x: 0, z: 0, t: -1e9, q: 0 });
       this.contact.push(c);
     }
   }
@@ -246,6 +249,23 @@ export class World {
       if (this.losClear(viewer.x, this.cfg.eyeHeight, viewer.z, target.x, pts[k], target.z)) vis++;
     }
     return vis / pts.length;
+  }
+
+  /**
+   * How good a look I am getting: visible body fraction x distance falloff x eccentricity falloff.
+   * Both falloffs reach zero smoothly at the physical limits, so a contact fades instead of being
+   * deleted at a threshold (SUBSTRATE V3 / ROADMAP A3.2).
+   */
+  perceptQuality(a: Agent, dx: number, dz: number, exposure: number): number {
+    if (exposure <= 0) return 0;
+    const d = Math.hypot(dx, dz);
+    const R = this.cfg.viewRange;
+    if (d >= R) return 0;
+    const near = 1 - (d / R) * (d / R);
+    const t = Math.abs(wrapAngle(Math.atan2(dz, dx) - a.yaw)) / this.halfFov;
+    if (t >= 1) return 0;
+    const centre = 1 - t * t;
+    return exposure * near * near * centre * centre;
   }
 
   private lidar(a: Agent, out: Float32Array, off: number): void {
@@ -316,10 +336,13 @@ export class World {
       for (let e = 0; e < T; e++) {
         const enemy = ag[enemyBase + e];
         if (!enemy.alive || !this.visible[i * n + enemy.id]) continue;
+        const q = this.perceptQuality(me, enemy.x - me.x, enemy.z - me.z, this.exposure[i * n + enemy.id]);
+        if (q <= 0) continue;
         const k = mine[e];
         k.x = enemy.x;
         k.z = enemy.z;
         k.t = this.t;
+        k.q = q;
       }
     }
 
@@ -360,6 +383,8 @@ export class World {
     const enemyOrder: number[] = [];
     const enemyDist: number[] = [];
     const enemyVis: number[] = [];
+    const enemyConf: number[] = [];
+    const enemyLive: number[] = [];
 
     for (let i = 0; i < n; i++) {
       const a = ag[i];
@@ -448,26 +473,35 @@ export class World {
         }
       }
 
-      // --- enemies: currently visible first (by distance), then my own remembered contacts (by distance)
+      // --- enemy contacts: strongest belief first (own eyes now, or my own recent memory)
       enemyOrder.length = 0;
       enemyDist.length = 0;
       enemyVis.length = 0;
+      enemyConf.length = 0;
+      enemyLive.length = 0;
       for (let e = 0; e < T; e++) {
         const id = enemyBase + e;
         const en = ag[id];
         if (!en.alive) continue;
         const vis = this.visible[i * n + id];
         const k = this.contact[i][e];
-        const fresh = this.t - k.t <= cfg.memorySeconds;
+        const age = this.t - k.t;
+        const fresh = age <= cfg.memorySeconds;
         if (!vis && !fresh) continue;
         const px = vis ? en.x : k.x;
         const pz = vis ? en.z : k.z;
+        const live = vis ? this.perceptQuality(a, en.x - a.x, en.z - a.z, this.exposure[i * n + id]) : 0;
+        const recalled = fresh ? k.q * Math.max(0, 1 - age / cfg.memorySeconds) : 0; // a glimpse I barely got is a memory I barely hold
+        const conf = Math.max(live, recalled);
+        if (conf <= 0) continue;
         enemyOrder.push(id);
         enemyDist.push(Math.hypot(px - a.x, pz - a.z));
         enemyVis.push(vis);
+        enemyConf.push(conf);
+        enemyLive.push(live);
       }
       const idx = enemyOrder.map((_, k) => k);
-      idx.sort((u, v) => (enemyVis[v] - enemyVis[u]) || (enemyDist[u] - enemyDist[v]));
+      idx.sort((u, v) => (enemyConf[v] - enemyConf[u]) || (enemyDist[u] - enemyDist[v]));
       for (let s = 0; s < cfg.enemySlots; s++) {
         if (s < idx.length) {
           const k = idx[s];
@@ -477,19 +511,18 @@ export class World {
           const kn = this.contact[i][id - enemyBase];
           const px = vis ? en.x : kn.x;
           const pz = vis ? en.z : kn.z;
-          const dx = px - a.x;
-          const dz = pz - a.z;
           const d = enemyDist[k];
+          const conf = enemyConf[k];
+          // Everything about a contact is scaled by how sure I am of it, so a fading percept fades the
+          // whole channel instead of handing over a full-strength coordinate right up to a cutoff.
+          const bearing = wrapAngle(Math.atan2(pz - a.z, px - a.x) - a.yaw);
           this.slots[slotBase + s] = id;
-          o[p++] = 1;
-          o[p++] = (sg * dx) / half;
-          o[p++] = (sg * dz) / half;
-          o[p++] = Math.min(1, d / half);
-          // how much of his body I can actually see. His view of me, his facing and his health are HIS
-          // state, not my percept — they were engine truth and A3.1 removed them.
-          o[p++] = vis ? this.exposure[i * n + id] : 0;
+          o[p++] = conf * Math.sin(bearing);
+          o[p++] = conf * Math.cos(bearing);
+          o[p++] = conf * Math.min(1, d / cfg.viewRange);
+          o[p++] = enemyLive[k];
+          o[p++] = conf;
           o[p++] = vis ? 0 : Math.min(1, (this.t - kn.t) / cfg.memorySeconds);
-          o[p++] = vis ? 1 : 0;
         } else {
           for (let c = 0; c < ENEMY_FEATS; c++) o[p++] = 0;
         }

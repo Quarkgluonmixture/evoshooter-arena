@@ -232,3 +232,57 @@ seed 间波动（accuracy ±.07、spread 7.6–13.1、firstContact 4.8–19 s）
 
 **判决：SHIP A3.1。** 下一刀 **A3.2**：exact `dx/dz/dist` → bearing + range cue + quality，并把 `viewRange` 硬断崖连续化
 （`A1-P6` 应全 clean、`A1-P8` 应翻 clean）。
+
+## [2026-09-11 23:05] A3.2a 预注册：contact 从坐标变成感知（先不加噪声）  #decision
+⚠ 写在改代码之前。A3.2 本身还能再拆一层，**这次只做编码 + 连续化，噪声/量化留给 A3.2b**——
+否则「编码换了」和「加了噪声」两件事的后果混在一个 A/B 里没法归因。
+
+**新的 contact 编码**（每个 enemy slot 6 个字段，取代现在的 present/dx/dz/dist/exposure/staleness/visible 七个）：
+`c·sin(bearing)` · `c·cos(bearing)` · `c·rangeCue` · `quality`（当前视觉，看不见时 0）· `c`（confidence，含记忆）· `staleness`。
+- bearing 是**相对我自己朝向**的角度（不再是队伍帧坐标）⇒ 镜像对称自动成立；
+- `quality = 体暴露比例 × distFactor × eccFactor`，`distFactor = (1-(d/R)²)²`、`eccFactor = (1-(|b|/halfFov)²)²`
+  ⇒ **视距断崖和视野边缘都变成平滑衰减**（0 不是突然出现的）；
+- 记忆 contact 的 `c = 看见那一刻的 quality × recency`，⇒ 远处勉强瞥见的东西，记忆也是弱的；
+- ⭐ **所有方向/距离字段都乘 c**：接触变弱时整条通道一起趋零，不会留下一个满幅的坐标。
+- `ENEMY_FEATS` 7 → 6，**obsDim 91 → 88**，genome 4964 → 4844。
+
+**预测**
+1. `A1-P8`（跨视距线走 20 cm）**判据改成量级**：max |Δ| > **0.05** 才算断崖（现在是「有任何字段变化就算」）。
+   ⚠ 阈值**现在**定死，不看结果再调。预期翻 **clean**（平滑衰减下 20 cm 只该带来 ~0.01 量级变化）。
+2. `A1-P6`（逐位等于引擎真值）预期翻 **clean**，但**我不认为这就等于诚实**——2a 只是做了可逆的确定性变换。
+   ⇒ 同刀补一条 `A1-P16`：敌人在 25 m 外移动 **5 cm**（远低于人的感知分辨率），percept 不应变化。
+   2a 预期 **leak**（连续变换会忠实反映 5 cm），A3.2b 加量化后才该翻 clean。这条是 2a/2b 的归因分界。
+3. 其余 probe 状态不变：P1/P2/P3/P4/P5/P9/P13 clean；P7/P10/P11/P12/P14/P15 leak。
+4. 行为面（对照 `runs/a31-notruth-s{1,2,3}`）：**只设不塌硬门**——每 cell accuracy > 0.10、firstContact < 25 s、
+   合计 kills > 1。⛔ 不写方向预测：前三刀实测证明这个预算下行为效应测不出来（且 GOTCHAS #14 的零和陷阱）。
+   真正想看的是**远近行为分化**（engageDist 分布），但那需要 A3.2b 之后再量。
+5. bench：obsDim 再降 3 ⇒ 持平或略快；⭐ 跑前先 `uptime`（GOTCHAS #15）。
+6. determinism / mirror fairness 必须保持绿——bearing 改成自我相对后**镜像对称只会更强**，若反而红了说明编码写错。
+
+## [2026-09-11 23:20] A3.2a reconcile：contact 变成「按把握缩放的感知」  #measure #ship
+每个 enemy slot 现在是 `c·sin(bearing)` / `c·cos(bearing)` / `c·range` / `quality` / `c` / `staleness`；
+bearing 相对**我自己的朝向**；quality = 体暴露 × 距离衰减² × 偏心衰减²，两个衰减在物理极限处平滑归零。
+`ENEMY_FEATS` 7 → 6，**obsDim 91 → 88**、genome 4964 → **4844**。
+
+逐条对 23:05 的预注册：
+1. `A1-P8` 按**预先定死的 0.05 量级判据** → ✅ 翻 clean，实测 max |Δ| = **0.0000**：跨过视距线走 20 cm，观测一动不动
+   （因为到那里 quality 已经衰减到 0，而**所有方向/距离字段都乘了 c**）。
+2. `A1-P6` → ✅ clean，但我在代码里把它标成 **RETIRED** 并写清楚原因：它检查的四个坐标字段已经不存在了，
+   「clean」在这里是**空过**不是修好。V2 的活探针改成新加的 `A1-P16`（25 m 外挪 5 cm）→ ✅ 如预期 **leak**，
+   max |Δ| 1.87e-4 —— 连续无噪的变换会忠实反映人眼根本分辨不出的位移。这就是 A3.2b 要治的。
+3. 其余 probe 状态 → ✅ 全中。⭐ **一条没想到的**：`A1-P15` 仍报 leak 且 max |Δ| = **0.967**，
+   因为 `staleness` 是**唯一没被 c 缩放**的字段 —— 3 秒记忆窗口依旧是断崖。这是 V6（记忆归 world 管）的活，
+   ⛔ A3.2 不顺手改；记在这里给 A5/D 段。
+4. 不塌硬门 → ✅ accuracy .274–.345 · firstContact 5.0–8.7 s · 合计 kills 4.2–4.9。
+5. bench → ❌ **预测错了**：不是持平或略快，而是 **+6%**（配对交错实测 45.3 vs 42.7 ms）。
+   obsDim 少了 3，但每个 contact 多了 `atan2`+`sin`+`cos`，trig 比省下的权重贵。⭐ 这次读数一度漂到 91 ms，
+   是隔壁 build 在一波波压机器（`uptime` 1 分钟值显示很闲、5 分钟值 70）⇒ 性能结论必须**配对交错**量，写进 GOTCHAS #16。
+6. determinism / mirror → ✅ 绿（bearing 改成自我相对后镜像对称只会更强）。
+
+**观察（不是结论）**：accuracy 6 个 cell 里 4 升 1 降 1 平（均值 .286 → .314）；engageDist 4 升 2 降，没有干净信号
+（想看的「远近行为分化」需要分布而不是均值，等 A3.2b 之后再量）。
+`coverRatio` 这次**可以跨刀比**：contact 的登记条件（exposure>0 且在 FOV 和视距内）与 A3.1 等价，只差测度为零的边界。
+ladder 两个方向都 ≥50% 的血统数：baseline 4/4 → A2 3/6 → A3.1 3/6 → **A3.2a 5/6**，是迁移以来最好的一次，
+⚠ 但 n=3，⛔ 不当成「感知编码让进化更好」的结论。
+
+**判决：SHIP A3.2a。** 下一刀 **A3.2b**：确定性噪声 + 量化（`A1-P16` 应翻 clean），之后才是 A3.3 几何。
