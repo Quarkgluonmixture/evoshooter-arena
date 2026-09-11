@@ -1,0 +1,58 @@
+# Build the static bundle and publish it to GitHub Pages on every push to main.
+# The build is self-contained (vite base './', no backend), so Pages serves the
+# whole thing at https://quarkgluonmixture.github.io/evoshooter-arena/
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    # Docs-only pushes do not deploy: the bundle imports nothing under docs/,
+    # and this programme pushes several doc commits per working session.
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # macOS on purpose. The sibling repo (evofootball-arena) measured real
+    # platform libm drift in a float trajectory — the SAME code read 0.9406 on
+    # ubuntu and 0.9161 on macOS — and every behavioural number in this repo,
+    # including the leak-matrix thresholds and the mirror-fairness band, was
+    # calibrated on macOS/arm64. Running the gate on the platform the contracts
+    # were measured on is cheaper than re-baselining them.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # The information-leak matrix is a gate, not a report: it exits non-zero
+      # when a probe disagrees with its registered status.
+      - run: npm run leaks
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

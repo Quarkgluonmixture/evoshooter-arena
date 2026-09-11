@@ -31,3 +31,6 @@ for (const { probe, result } of runLeakMatrix(cfg)) {
 }
 console.log();
 console.log(mismatches === 0 ? 'matrix matches the registry' : `${mismatches} probe(s) disagree with the registry`);
+// This runs as a CI gate, so it has to FAIL when the world stops matching the registry.
+// A gate that prints a complaint and exits 0 is a gate that is always open.
+if (mismatches > 0) process.exitCode = 1;
