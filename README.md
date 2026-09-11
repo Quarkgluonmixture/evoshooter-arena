@@ -7,6 +7,10 @@ bred, and mutated. You watch the champions play in 3D while a dashboard shows *w
 better (win rate against their own past selves) and *how* they play (accuracy, cover use, spread,
 flanking, comm-channel use, time to first shot …).
 
+**▶ Play it in the browser: <https://quarkgluonmixture.github.io/evoshooter-arena/>** — training runs client-side in
+web workers, so the page evolves its own population while you watch. Every push to `main` that touches code
+re-deploys it after the test suite and the information-leak gate pass.
+
 ```
 npm install
 npm run dev        # open the URL, press "start evolving"

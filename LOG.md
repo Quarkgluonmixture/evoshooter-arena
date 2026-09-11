@@ -411,3 +411,20 @@ ladder 两个方向都 ≥50% 的血统数：baseline 4/4 → A2 3/6 → A3.1 3/
 
 **判决：SHIP A3.3 v2。Programme A 的视觉/几何部分（V1/V2/V3）全部关闭。**
 下一段 = ROADMAP **A4（听觉 v1：脚步 + 枪声）**；⚠ 那是新增感知通道，⛔ 不要顺手改 V4 的自动瞄准。
+
+## [2026-09-12 01:10] 上线：仓库转 public + GitHub Pages  #ship
+- **公开前审计**：tracked 文件、git 全历史扫过凭据/公司引用/个人标识 —— 干净；`runs/` 本来就 gitignore；
+  提交身份是个人 noreply。补了 `LICENSE`（MIT，package.json 一直这么声明）。
+  ⚠ 一度顺手删了 `package.json` 的 `"private": true`，随即改回——**仓库可见性和 npm 的 private 是两件事**，
+  那个字段是防误发 npm 的闸，删掉只增加风险。
+- **账号**：gh 的活跃账号是公司号，⛔ 按规矩不 `gh auth switch`（全局共享态、会影响并发 session），
+  改用 `GH_TOKEN=$(gh auth token --user Quarkgluonmixture)` 单次注入。
+- **Pages**：`build_type=workflow`，工作流 `npm ci → npm test → npm run leaks → npm run build → deploy dist/`；
+  `docs/**` 与 `**.md` 走 paths-ignore 不触发部署。CI 跑 **macOS**（姊妹仓实测过 float 轨迹的跨平台 libm 漂移，
+  本仓的 leak 阈值和镜像公平带也都是在 macOS/arm64 上标定的）。
+- ⭐⭐ **接 CI 前先问这个闸失败时返回什么**：`scripts/leaks.ts` 原本打印「N probe(s) disagree」然后 **exit 0** ——
+  照原样接进 CI 就是一个**永远开着的闸**。改成 `process.exitCode = 1` 并**实测验证**：篡改一条登记状态 → exit 1，
+  还原 → exit 0。（同 [[project-redteam-under-test]] 那次 fail-open 的教训。）
+- **外部读回确认**（⛔ 不拿自己写的文档当证据）：run 34659365530 success，日志里 **60 tests passed**、
+  leak matrix 93 字段、build 1.39 s；`curl` 站点 **http 200 / 6195 B**，title 正确，bundle **639 KB / 200**。
+  站点：<https://quarkgluonmixture.github.io/evoshooter-arena/>

@@ -53,6 +53,11 @@ A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。
   - 页面上有 `window.evo.probe()`（模式/主体/相机/插值位姿/FX 计数）和 `evo.viewer.scene.fxStats()`，⭐ 无头验证走它们（见坑 8）。
   - 布局类改动**跨宽度量**（坑 7）；可以用 `page.addStyleTag` 还原旧规则做 A/B，不必动 git。
+- **线上**：仓库 **public**，GitHub Pages 已接 Actions（`.github/workflows/pages.yml`：`npm ci` → `npm test` → `npm run leaks` → `npm run build` → 部署 `dist/`）。
+  站点 = <https://quarkgluonmixture.github.io/evoshooter-arena/>；⚠ 只有动了代码才部署（`docs/**` 与 `**.md` 被 paths-ignore 跳过），要手动发就 `workflow_dispatch`。
+  CI 跑 **macOS**（float 轨迹的跨平台 libm 漂移，姊妹仓实测过）。⭐ `npm run leaks` 现在**会返回非零**，它是闸不是报告。
+- ⚠ **gh 的活跃账号可能是公司号**：⛔ 不要 `gh auth switch`（全局共享态）。要用个人号调 API 就
+  `GH_TOKEN=$(gh auth token --user Quarkgluonmixture) gh ...` 单次注入。
 - **推送**：个人号 Quarkgluonmixture；仓库本地 git config 已设身份 + **钉死个人号的 token helper**（`git config --local --get-all credential.helper` 可看），所以直接 `git push` 即可。⛔ 不要 `gh auth switch`（全局共享态）；⛔ 不要换回 `gh auth git-credential`——它按全局活跃账号发 token，公司号活跃时会鉴权失败（LOG `#ship` 条）。
 - Node ≥ 22.6 直跑 TS：源码只用可擦除语法（`erasableSyntaxOnly`），import 带 `.ts` 后缀。
 - `npm run bench` 量 ms/match；改网络尺寸或观测维度前后都跑。
