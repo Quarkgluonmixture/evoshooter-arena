@@ -16,6 +16,24 @@ npm run train -- --gens 40 --pop 16 --seed 1   # headless training in the termin
 
 Node ≥ 22.6 (TypeScript runs directly in Node; the browser build uses Vite).
 
+## How to actually play it (10 minutes)
+
+This is a *watch-and-steer* game, like breeding fighters rather than driving one.
+
+1. `npm run dev`, open the page, leave **population 24** and **workers** at the default, press **start evolving**.
+   The 3D view shows the newest red champion vs the newest blue champion; the right panel updates every generation.
+2. For the first ~20 generations just watch the arena: agents wander, shoot at nothing, bump into walls. Then watch
+   **Seconds until first shot** collapse and **Accuracy** climb in the charts — that is the first thing evolution finds.
+3. Around generation 30–60 look for **In cover while threatened** rising and **Teammate spread** changing. Press `D` for the
+   auto-director and let it follow the fights; press `V` to sit in a fighter's eyes.
+4. Use **Time travel → "gen 0 vs latest"** whenever you want to *feel* the difference instead of reading it.
+5. Watch the head **lights**: if the comm channel is still rainbow noise after 100+ generations, nothing has evolved a
+   language yet; if lights turn stable and role-like (e.g. the zone-holder glows one colour), signalling emerged.
+6. Steering levers (all in the panel, reset to apply): **map seed** changes the arena, **seed** re-rolls the initial
+   populations, **population** trades speed for diversity. Export a run before changing anything you might regret.
+7. Long runs: leave a tab evolving for an hour (≈ 1–2 s per generation with 8 workers), then come back and compare
+   "halfway vs latest". The headless CLI does the same without graphics and prints the win rates.
+
 ## What you are looking at
 
 | Visual | Meaning |
