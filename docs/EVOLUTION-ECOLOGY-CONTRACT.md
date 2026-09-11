@@ -177,30 +177,47 @@ When a dominant meta appears, the default diagnosis order is:
 
 ---
 
-## 6. Genetic, cultural and ecological evolution must not be conflated
+## 6. Genetic inheritance, cultural transmission and ecological selection must not be conflated
 
-Long-term EvoShooter may contain three different adaptation channels:
+The long-term architecture may contain **two inheritance / transmission channels under one ecological selector**:
 
-### 6.1 Genetic / inherited evolution
+```text
+genetic inheritance + cultural transmission
+                  │
+                  ▼
+          ecological selection
+                  │
+                  ▼
+               evolution
+```
 
-Player and team/coach parameters passed through reproduction/mutation/recombination.
+### 6.1 Genetic inheritance
 
-### 6.2 Cultural / learned adaptation
+Player and team/coach parameters passed through reproduction / mutation / recombination.
 
-Conventions, protocol meanings, pair chemistry or club habits acquired through repeated shared experience and retained according to explicit persistence rules.
+This is what E1–E6 are allowed to build first.
+
+### 6.2 Cultural transmission — future E7 only
+
+Conventions, protocol meanings, pair chemistry or club habits may later be acquired through repeated shared experience and transmitted socially without changing the recipient genotype.
+
+This is governed by [`CULTURAL-TRANSMISSION-CONTRACT.md`](CULTURAL-TRANSMISSION-CONTRACT.md).
 
 ### 6.3 Ecological selection
 
-The opponent distribution determines which inherited and learned behaviours remain valuable.
+The opponent distribution determines which inherited and culturally acquired behaviours remain valuable.
 
-These timescales should be visible and separately testable.
+**Ecology is not itself a transmission channel.** It is the pressure that filters both channels.
 
-Current E1–E6 should **not** silently add cultural persistence. If all hidden/recurrent state resets each round/match, documentation must not narrate stable cross-season learning as culture.
+These timescales must be visible and separately testable.
 
-A future cultural layer must define:
+Current D1 / E1–E6 must **not** silently add cultural persistence. If hidden/recurrent state resets each round/match, documentation must not narrate stable cross-season learning as culture.
+
+A future cultural layer must explicitly define:
 
 - what state persists across rounds/matches/seasons;
 - whether it belongs to a player, pair, coach or club;
+- how another agent can learn it through legal interaction;
 - how transfer / coach change affects it;
 - how it is reset/relearned;
 - how its contribution is separated from inherited genotype.
@@ -209,10 +226,10 @@ Possible mature ontology:
 
 ```text
 Club
-├─ club culture / conventions
-├─ coach philosophy
-├─ five player genotypes
-├─ five player learned/adaptive states
+├─ inherited team / club block
+├─ club culture / conventions             # emergent, not automatically a shared vector
+├─ Coach: inherited philosophy + acquired experience
+├─ Player 1..5: genotype + acquired state
 └─ pair/shared-history chemistry
 ```
 
