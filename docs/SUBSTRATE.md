@@ -88,6 +88,12 @@
 
 目标：policy 控制 view/aim；是否把枪口带到敌人身上是执行结果。
 
+⚠ **拆这个抽象时连带要重做转头手感**：当前 `turnRate`（交战 2π rad/s）与 `scanTurnRate`（扫视 2.6 rad/s）
+两档是**按 `targetId >= 0` 切换**的，look 动作的 0.45 s 低通也建立在"动作是绝对方向向量"这个参数化上
+（§5.1 的目标动作是 `lookYawDelta`）。V4 之后没有"是否交战"这个位，这两条会**静默失效**——不报错，
+只会退回每 tick 抽搐或变得过钝。正确落点是角速度限幅 + 感知/执行误差，**重新推导，不要照搬常数**。
+（来历与实测：LOG 2026-09-11 21:30，`GOTCHAS.md` #10。）
+
 ### V5 — No real hearing
 
 当前枪声主要是 viewer event，不是 agent observation；脚步也不是感知通道。

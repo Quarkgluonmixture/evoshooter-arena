@@ -15,7 +15,7 @@
 - 无头训练输出在 `runs/`（gitignore），浏览器端用「export run」拿 JSON。
 - 观战体验做过一轮五修（底栏布局 / 转头平滑 / 射击命中特效 / 三个跟随镜头 / 渲染插值），实测数字与取舍在 LOG 2026-09-11 21:30。
   其中**转头是仿真机制改动**（`turnRate` 交战 2π + `scanTurnRate` 扫视 2.6 rad/s + look 动作 0.45 s 低通），⚠ 它踩在 SUBSTRATE **V4 要删掉的 `targetId` 抽象**上 ⇒ A2/V4 动手时必须重新推导，不能照搬（LOG 同条末尾）。
-  ⚠ **A0 census 若现在落数，冻的是这次改动之后的值**。
+  ⭐ **A0 census 就冻改动后的值**（改动后才是 main 上的现实，A1/A2 从这里出发；改动前的 run 留在 `runs/post-turnfix-s*.json` 仅作历史）。⛔ 别再重议这一条。
 
 ## 新 docs（先读）
 - `docs/VISION.md` — Gold Standard；决定“什么值得做、什么绝不能写死”。

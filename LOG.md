@@ -77,3 +77,9 @@
   ⇒ 教训：**用场景图里"可见的 Sprite 数"当特效证据是假信号**——血条也是 Sprite，数出来 29 个里全是血条。要数就数特效池本身（`fxStats()`）。
 - **与新 authority 的关系**（rebase 后补记）：这一轮是 baseline 级观感修复，不属于 ROADMAP 的承重杠杆，A0 baseline census 尚未落数 ⇒ **census 会冻住改动后的值**（若你想冻改动前的，说一声，pre-change 的 run 在 `runs/post-turnfix-s*.json`，pre-turnfix 的旧数字在 git 里 README 的上一版）。
 - ⚠ **这个修法踩在 SUBSTRATE 计划删掉的抽象上**：交战/扫视两档转速是按 `targetId >= 0` 判定的，而 `targetId` 正是 V4（target-slot auto-aim）要拿掉的东西；look 低通也建立在"动作是绝对方向向量"这个参数化上，而 §5.1 的目标动作是 `lookYawDelta`（角速度）。⇒ **V4 / A2 动手时这两条必须重新推导，不能照搬**（那时没有"是否交战"这个位，平滑应该落在角速度限幅与感知执行误差里）。这条值不值得写进 `docs/SUBSTRATE.md` V4 一行，是你的文档、你定。
+
+## [2026-09-11 19:27] 文档归位：坑拆出 GOTCHAS；census 与 V4 埋雷定案  #decision
+- 坑从 CHECKPOINT 拆到 `GOTCHAS.md`（触发条件：加到 10 条，把快照顶过 1-2 页硬上限）。编号 1–10 原样搬走**不重排**——LOG 与 commit message 按号引用。CHECKPOINT 只留指针不留副本；`CLAUDE.md` 接手顺序第 1 条同笔加上 GOTCHAS（否则子 agent 读不到它）。
+- **A0 baseline census 冻改动后的值**（转头规则改动之后）。理由：改动后才是 main 上的现实，A1/A2 从这里出发；改动前的世界没人会回去。改动前的 run 留在 `runs/post-turnfix-s*.json` 仅作历史。⛔ 别再重议。
+- 在 `docs/SUBSTRATE.md` V4 条目下加了一条**前瞻警告**：当前交战 / 扫视两档转速按 `targetId` 切换、look 低通建立在动作=绝对方向向量上，而 V4 要删 `targetId`、§5.1 的目标动作是 `lookYawDelta` ⇒ V4 落地时这两条会**静默失效**（不报错，只是退回抽搐或变钝），必须重新推导不能照搬常数。
+- 下一步 = ROADMAP **A0**（authority 读回检查 · `npm test` · `npm run bench` · 记 obsDim / 参数量 / ms-match · LOG 一条 #measure），A0 关掉才进 A1 leak probes。⛔ 不跳 A2。
