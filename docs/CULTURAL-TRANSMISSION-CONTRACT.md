@@ -26,6 +26,11 @@ genetic inheritance + cultural transmission
 
 The long-term goal is not to hard-code a `ClubCultureVector` containing tactics. It is to create a world where conventions can be invented by agents, learned by other agents through legal interaction, outlive their original inventor, travel or fail to travel with people, drift in meaning, and be selected by the opponent ecology.
 
+Two binding clarifications:
+
+1. **Cultural independence does not require a culture object detached from all carriers.** A convention may live distributively across player/coach acquired states plus observable history. What matters is an independent causal transmission path, not a special `CultureGenome` data structure.
+2. **The strongest persistence test is serial carrier turnover, not magical persistence after instantaneous total replacement.** Culture may require continuity of carriers while still surviving 100% turnover of the original carriers over time.
+
 ---
 
 ## 1. Four state categories must remain distinct
@@ -81,6 +86,20 @@ But “club culture” is first an **emergent population-level fact**, not neces
 
 A preferred mature implementation is that compatible learned conventions live across multiple players / coaches and are reproduced socially through interaction. If a future institutional carrier exists — training demonstrations, review, briefing, public symbols — it must act through legal learning experiences, not directly reveal hidden semantics or teammate intent.
 
+A culture can therefore be **distributed**:
+
+```text
+P1 acquired state
+P2 acquired state
+P3 acquired state
+P4 acquired state
+P5 acquired state
++ lawful shared interaction/history
+→ population-level convention
+```
+
+There need not be any simulator field called `clubCulture` for the culture to be real.
+
 ---
 
 ## 2. The hard distinction: learning is not transmission
@@ -96,6 +115,8 @@ Examples:
 The key test is not “do several agents know the same thing?” but:
 
 > **Can information / convention move socially from agents who already possess it to agents who did not, without changing the recipient's inherited genotype and without a world-level semantic copy operation?**
+
+This is the independence criterion. Culture does not have to survive with zero carrier continuity; it has to propagate **without genetic reproduction being the propagation mechanism**.
 
 ---
 
@@ -117,6 +138,8 @@ Also forbidden in spirit:
 - using analytics labels (`FAKE`, `ROTATE`, `B_CONTACT`) as cultural training targets in the live world.
 
 Culture may improve **inference and expectations**. It never improves information permissions.
+
+A future explicit institutional carrier is allowed only if it behaves like a lawful medium — demonstrations, recordings, shared symbols, coaching interactions — that agents must interpret/learn from. It must not be a semantic oracle.
 
 ---
 
@@ -196,16 +219,34 @@ A naive newcomer with no prior exposure joins agents already using the conventio
 
 Claim allowed: `social transmission candidate`.
 
-### Level C3 — founder removal persistence
+### Level C3 — serial carrier turnover persistence
 
-Remove the original inventor / earliest carrier. The convention remains and can still be transmitted among remaining members / later newcomers.
-
-Claim allowed: **club culture / persistent convention**.
-
-The load-bearing criterion is conceptually:
+Do **not** stop at “remove the original inventor once”. Repeatedly replace carriers while preserving only lawful social continuity:
 
 ```text
-cultural lifetime > original individual's membership lifetime
+original carriers: P1 P2 P3 P4 P5
+replace P1 → newcomer N1 learns from P2-P5
+replace P2 → newcomer N2 learns from N1/P3-P5
+...
+replace P5 → none of P1-P5 remain
+```
+
+The strong criterion is:
+
+```text
+original-carrier turnover = 100%
+AND convention remains functionally recognizable
+AND transmission occurred without genotype copying or semantic assignment
+```
+
+Culture is allowed to require **carrier continuity** during the replacement chain. It does not need to survive an instantaneous wipe where every knowledgeable carrier and every lawful external record disappears at once.
+
+Claim allowed: **persistent cultural lineage / club culture**.
+
+A useful conceptual inequality is:
+
+```text
+cultural lineage lifetime > lifetime/membership of every original carrier
 ```
 
 ### Level C4 — mobility / diffusion
@@ -255,13 +296,17 @@ Question:
 
 > Does the newcomer learn the convention through legal interaction?
 
-### Stage C — founder removal
+### Stage C — serial replacement / 100% original-carrier turnover
 
-- identify the earliest / strongest carrier post-hoc;
-- remove them;
-- observe whether the convention persists and continues to be learnable.
+- identify a stable convention by functional signature;
+- replace one knowledgeable carrier at a time with a naive newcomer;
+- require each newcomer to acquire the convention only through lawful interaction with current carriers / lawful external cultural media;
+- continue until **all original carriers have left**;
+- verify the convention remains functionally recognizable and transmissible.
 
-This is the minimum convincing cultural-transmission story.
+This is stronger and cleaner than a one-shot founder-removal test.
+
+Do **not** require culture to survive an instantaneous total wipe with no knowledgeable carrier and no lawful external record. That tests institutional storage under zero continuity, not cultural independence from genes.
 
 ---
 
@@ -281,7 +326,7 @@ Interpretation examples:
 - `A genotype + reset` rapidly re-discovers the convention → strong inherited learning bias / canalization candidate;
 - foreign genotype learns after exposure → social transmission evidence;
 - transferred A player retains behaviour but nobody else adopts it → individual carryover, not yet club culture;
-- club convention survives complete turnover through lawful teaching / institutional carriers → strong institutional continuity evidence.
+- club convention survives complete **original-carrier** turnover through lawful serial teaching / institutional carriers → strong cultural continuity evidence.
 
 Do not collapse these into one “culture score”.
 
@@ -399,9 +444,9 @@ Add the smallest cross-match player-owned learned state with explicit persistenc
 
 Freeze genomes and test whether repeated shared experience creates stable learned coordination.
 
-### E7c — Newcomer + founder-removal transmission
+### E7c — Newcomer + serial-replacement transmission
 
-Run the minimum culture proof from §7.
+Run the culture proof from §7 through **100% original-carrier turnover**.
 
 ### E7d — Transfer / coach separation
 
@@ -423,8 +468,10 @@ If cultural evolution eventually exists, the spectator should be able to watch a
 Gen 120 — Signal C17 first appears in Club A
 Gen 134 — newcomer P5 begins responding to C17
 Gen 146 — original carrier leaves; C17 persists
-Gen 171 — P3 transfers to Club B; B initially ignores C17
-Gen 190 — B adopts a modified C17b meaning
+Gen 171 — second-generation newcomer teaches a later newcomer
+Gen 190 — all original carriers are gone; C17 lineage persists
+Gen 205 — P3-descendant carrier transfers to Club B; B initially ignores C17
+Gen 224 — B adopts a modified C17b meaning
 Gen 241 — defenders adapt; C17 payoff falls
 Gen 263 — C22 replaces C17 in Club A
 ```
@@ -439,9 +486,11 @@ The interesting object is not only “a tactic was learned”, but **how a conve
 
 As of the creation of this contract:
 
-- **nothing in current A0/A1 is authorized to implement cultural persistence**;
+- **nothing in the current A–E migration is authorized to implement cultural persistence unless E7 is explicitly opened**;
 - no current recurrent hidden state should be re-described as culture;
 - E1–E6 remain the prerequisite architecture/ecology path;
+- cultural independence means an independent **social causal transmission path**, not a mandatory `ClubCultureVector`;
+- future cultural proof should target **serial social transmission through 100% original-carrier turnover**, not an unrealistic instantaneous wipe test;
 - this file reserves the design boundary now so future implementation does not accidentally conflate genotype, memory, culture and ecology.
 
 **Now: define the door. Later: walk through it.**
