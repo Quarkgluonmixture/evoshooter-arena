@@ -14,7 +14,7 @@
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（见坑 5）。
-- **推送**：个人号 Quarkgluonmixture；仓库本地 git config 已设身份 + `gh auth git-credential` helper + 远端 URL 带用户名。⛔ 不要 `gh auth switch`（全局共享态）。若 helper 仍拿到公司号 token，用 LOG `#ship` 条里的单命令覆盖法。
+- **推送**：个人号 Quarkgluonmixture；仓库本地 git config 已设身份 + **钉死个人号的 token helper**（`git config --local --get-all credential.helper` 可看），所以直接 `git push` 即可。⛔ 不要 `gh auth switch`（全局共享态）；⛔ 不要换回 `gh auth git-credential`——它按全局活跃账号发 token，公司号活跃时会 鉴权失败（LOG 2026-09-11 `#ship` 条）。
 - Node ≥ 22.6 直跑 TS：源码只用可擦除语法（`erasableSyntaxOnly`），import 带 `.ts` 后缀。
 - `npm run bench` 量 ms/match；改网络尺寸或观测维度前先跑一次。
 
