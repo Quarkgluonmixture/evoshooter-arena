@@ -5,7 +5,9 @@
   "description": "Self-evolving 3D red-vs-blue tactical shooter: deterministic simulation, neuroevolution with adversarial co-evolution, and a Three.js viewer that lets you watch tactics emerge.",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=22.6" },
+  "engines": {
+    "node": ">=22.6"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -24,5 +26,8 @@
     "typescript": "^5.9.0",
     "vite": "^6.2.0",
     "vitest": "^3.0.5"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
   }
 }

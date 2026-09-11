@@ -38,6 +38,12 @@ export function generateMap(seed: number, cfg: SimConfig): ArenaMap {
   const pillar: Box = { minX: 4.2, minZ: -0.9, maxX: 5.8, maxZ: 0.9, h: 2.6 };
   boxes.push(pillar, rotateBox(pillar));
 
+  // Mid walls: the zone must not be visible from the spawn rows, otherwise "camp at spawn" beats "hold the zone"
+  // and both sides learn to hide. Two segments per side leave a narrow central door → three lanes.
+  const midL: Box = { minX: -9, minZ: -11.6, maxX: -1.2, maxZ: -10.4, h: 2.6 };
+  const midR: Box = { minX: 1.2, minZ: -11.6, maxX: 9, maxZ: -10.4, h: 2.6 };
+  boxes.push(midL, midR, rotateBox(midL), rotateBox(midR));
+
   const targetPairs = 13;
   let pairs = 0;
   let tries = 0;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SIM } from '../src/core/config.ts';
 import { generateMap, rotateBox } from '../src/sim/map.ts';
-import { pointBoxDist } from '../src/sim/geom.ts';
+import { pointBoxDist, segmentHitsBox } from '../src/sim/geom.ts';
 
 describe('generateMap', () => {
   const map = generateMap(7, DEFAULT_SIM);
@@ -24,6 +24,23 @@ describe('generateMap', () => {
         expect(pointBoxDist(sp.x, sp.z, b)).toBeGreaterThan(DEFAULT_SIM.agentRadius);
       }
     }
+  });
+  it('mostly hides the zone from the spawn rows (only the central door leaks a sliver)', () => {
+    const eye = DEFAULT_SIM.eyeHeight;
+    let blocked = 0;
+    let total = 0;
+    for (const team of map.spawns) for (const sp of team) {
+      for (let k = 0; k < 24; k++) {
+        const ang = (k / 24) * Math.PI * 2;
+        for (const r of [0.3, 0.9]) {
+          const zx = map.zoneX + Math.cos(ang) * DEFAULT_SIM.zoneRadius * r;
+          const zz = map.zoneZ + Math.sin(ang) * DEFAULT_SIM.zoneRadius * r;
+          total++;
+          if (map.boxes.some((b) => segmentHitsBox(sp.x, eye, sp.z, zx, 1.0, zz, b))) blocked++;
+        }
+      }
+    }
+    expect(blocked / total).toBeGreaterThan(0.75);
   });
   it('produces a reasonable amount of cover and is seed-stable', () => {
     expect(map.boxes.length).toBeGreaterThanOrEqual(16);

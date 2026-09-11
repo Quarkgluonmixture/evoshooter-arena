@@ -11,7 +11,10 @@ const num = (k: string, d: number) => (args.has(k) ? Number(args.get(k)) : d);
 
 const gens = num('gens', 20);
 const trainer = new Trainer(
-  { popSize: num('pop', 16), pairings: num('pairings', 2), hofMatches: num('hof', 1), ladderGap: num('gap', 10) },
+  {
+    popSize: num('pop', 16), pairings: num('pairings', 3), hofMatches: num('hof', 2), ladderGap: num('gap', 10),
+    mutSigma: num('sigma', 0.05), mutRate: num('rate', 0.02), resetProb: num('reset', 0.002), elite: num('elite', 2),
+  },
   { matchSeconds: num('seconds', 40) },
   num('seed', 1),
 );
@@ -20,13 +23,13 @@ const f = (x: number, w = 6) => x.toFixed(3).padStart(w);
 const pct = (x: number | null) => (x === null ? '   -  ' : (x * 100).toFixed(0).padStart(5) + '%');
 
 console.log(`obs=${trainer.shape.inputs} genome=${trainer.pops[0][0].length} pop=${trainer.evo.popSize} map=${trainer.map.boxes.length} boxes`);
-console.log('gen | bestR  meanR | bestB  meanB | ladderR ladderB | accR  accB | zoneR zoneB | coverR coverB | spreadR spreadB | 1stShot | ms');
+console.log('gen | bestR  meanR | bestB  meanB | vsG0-R vsG0-B | vs-10R vs-10B | accR  accB | zoneR zoneB | coverR coverB | spreadR spreadB | 1stShot | ms');
 const t0 = Date.now();
 for (let g = 0; g < gens; g++) {
   const r = await trainer.runGeneration(ev);
   const [R, B] = r.teams;
   console.log(
-    `${String(r.gen).padStart(3)} | ${f(R.best)} ${f(R.mean)} | ${f(B.best)} ${f(B.mean)} | ${pct(r.ladder[0])} ${pct(r.ladder[1])} | ` +
+    `${String(r.gen).padStart(3)} | ${f(R.best)} ${f(R.mean)} | ${f(B.best)} ${f(B.mean)} | ${pct(r.ladder0[0])} ${pct(r.ladder0[1])} | ${pct(r.ladder[0])} ${pct(r.ladder[1])} | ` +
       `${f(R.popMetrics.accuracy, 5)} ${f(B.popMetrics.accuracy, 5)} | ${f(R.popMetrics.zoneShare, 5)} ${f(B.popMetrics.zoneShare, 5)} | ` +
       `${f(R.popMetrics.coverRatio, 6)} ${f(B.popMetrics.coverRatio, 6)} | ${f(R.popMetrics.spread, 7)} ${f(B.popMetrics.spread, 7)} | ` +
       `${f(R.popMetrics.firstContact, 7)} | ${r.elapsedMs}`,
@@ -50,7 +53,7 @@ if (args.has('out')) {
     evo: trainer.evo,
     sim: trainer.sim,
     gens: trainer.history.map((h) => ({
-      gen: h.gen, ladder: h.ladder, redWinShare: h.redWinShare,
+      gen: h.gen, ladder: h.ladder, ladder0: h.ladder0, redWinShare: h.redWinShare,
       red: { best: h.teams[0].best, mean: h.teams[0].mean, metrics: h.teams[0].popMetrics },
       blue: { best: h.teams[1].best, mean: h.teams[1].mean, metrics: h.teams[1].popMetrics },
     })),

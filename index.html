@@ -17,6 +17,22 @@
       </div>
       <div id="alive"><div id="alive-red" class="pips red"></div><div id="alive-blue" class="pips blue"></div></div>
       <div id="banner"></div>
+      <div id="crosshair"></div>
+      <div id="pov">
+        <div class="pov-head"><span id="pov-name">—</span><span id="pov-state"></span></div>
+        <div class="pov-hp"><i id="pov-hp"></i></div>
+        <div class="pov-row"><span id="pov-ammo"></span><span id="pov-comm" title="comm signal"></span></div>
+      </div>
+      <div id="spec-bar">
+        <div id="spec-red" class="spec-team"></div>
+        <div id="cam-modes">
+          <button data-cam="free" class="on" title="F">free</button>
+          <button data-cam="third" title="click a player">3rd</button>
+          <button data-cam="first" title="V toggles 1st/3rd">1st</button>
+          <button id="cam-director" title="D">director</button>
+        </div>
+        <div id="spec-blue" class="spec-team"></div>
+      </div>
       <div id="view-bar">
         <label>speed <input id="speed" type="range" min="0.25" max="8" step="0.25" value="1.5" /> <span id="speed-v">1.5×</span></label>
         <label><input type="checkbox" id="tg-fov" checked /> view cones</label>
@@ -35,6 +51,7 @@
           <li><b>Light</b> on the head = the 2-value comm signal broadcast to teammates (hue = direction, brightness = strength). Random at first — if it becomes stable and role-like, signalling has evolved.</li>
           <li><b>Zone</b> in the middle scores 1 pt/s for the side with more agents inside. Wiping the enemy banks the remaining time.</li>
           <li><b>Tall walls</b> block sight; <b>low walls</b> hide legs and torso but not the head.</li>
+          <li><b>Camera</b>: click a player tile or press <kbd>1</kbd>–<kbd>5</kbd> (red) / <kbd>6</kbd>–<kbd>0</kbd> (blue); <kbd>Tab</kbd>/<kbd>Space</kbd> next player; <kbd>V</kbd> 1st ↔ 3rd person; <kbd>F</kbd> free orbit; <kbd>D</kbd> auto-director follows the action.</li>
         </ul>
       </details>
     </main>
@@ -69,6 +86,7 @@
       </section>
       <section>
         <h2>Are they getting better?</h2>
+        <div class="chart tall"><canvas id="c-ladder0"></canvas></div>
         <div class="chart tall"><canvas id="c-ladder"></canvas></div>
         <div class="chart tall"><canvas id="c-best"></canvas></div>
         <div class="chart"><canvas id="c-mean"></canvas></div>

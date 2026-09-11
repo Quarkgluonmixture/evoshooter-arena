@@ -74,6 +74,90 @@ function updateHud(): void {
   }
 }
 
+/* ------------------------------------------------------------- spectator */
+
+type CamMode = MatchViewer['rig']['mode'];
+const camButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#cam-modes button[data-cam]'));
+const directorBtn = $('cam-director') as HTMLButtonElement;
+function setCam(mode: CamMode): void {
+  if (mode !== 'free' && viewer.rig.subject < 0) viewer.rig.cycle(viewer.world);
+  viewer.rig.setMode(mode);
+  syncCamUi();
+}
+function syncCamUi(): void {
+  for (const b of camButtons) b.classList.toggle('on', b.dataset.cam === viewer.rig.mode);
+  directorBtn.classList.toggle('on', viewer.rig.director);
+  $('crosshair').classList.toggle('show', viewer.rig.mode === 'first');
+  $('pov').classList.toggle('show', viewer.rig.mode !== 'free');
+}
+for (const b of camButtons) b.onclick = () => setCam(b.dataset.cam as CamMode);
+directorBtn.onclick = () => { viewer.rig.setDirector(!viewer.rig.director, viewer.world); syncCamUi(); };
+
+const specTiles: HTMLDivElement[] = [];
+{
+  const T = trainer.sim.teamSize;
+  for (let id = 0; id < T * 2; id++) {
+    const team = id < T ? 0 : 1;
+    const tile = document.createElement('div');
+    tile.className = `spec-tile ${team === 0 ? 'red' : 'blue'}`;
+    tile.innerHTML = `<div class="n"><span>${team === 0 ? 'R' : 'B'}${(id % T) + 1}</span><small></small></div><div class="hp"><i></i></div>`;
+    tile.onclick = () => { viewer.rig.select(id, viewer.world); syncCamUi(); };
+    (team === 0 ? $('spec-red') : $('spec-blue')).appendChild(tile);
+    specTiles.push(tile);
+  }
+}
+function updateSpectator(): void {
+  const w = viewer.world;
+  if (!w) return;
+  for (let id = 0; id < specTiles.length; id++) {
+    const a = w.agents[id];
+    const t = specTiles[id];
+    t.classList.toggle('dead', !a.alive);
+    t.classList.toggle('firing', a.alive && a.firing);
+    t.classList.toggle('sel', viewer.rig.mode !== 'free' && viewer.rig.subject === id);
+    (t.querySelector('.hp i') as HTMLElement).style.width = `${Math.max(0, (a.hp / trainer.sim.hp) * 100)}%`;
+    (t.querySelector('small') as HTMLElement).textContent = a.kills ? `${a.kills}k` : '';
+  }
+  if (viewer.rig.mode !== 'free' && viewer.rig.subject >= 0) {
+    const a = w.agents[viewer.rig.subject];
+    $('pov-name').textContent = `${a.team === 0 ? 'RED' : 'BLUE'} #${a.slot + 1}`;
+    $('pov-name').style.color = TEAM_CSS[a.team];
+    $('pov-state').textContent = !a.alive ? 'dead' : a.reloadT > 0 ? 'reloading' : a.firing ? 'firing' : a.aim ? 'aiming' : Math.hypot(a.vx, a.vz) > 0.5 ? 'moving' : 'holding';
+    ($('pov-hp') as HTMLElement).style.width = `${Math.max(0, (a.hp / trainer.sim.hp) * 100)}%`;
+    ($('pov-hp') as HTMLElement).style.background = `hsl(${120 * (a.hp / trainer.sim.hp)} 70% 55%)`;
+    $('pov-ammo').textContent = `${'▮'.repeat(a.ammo)}${'▯'.repeat(trainer.sim.magSize - a.ammo)}`;
+    const mag = Math.min(1, Math.hypot(a.comm[0], a.comm[1]));
+    const hue = ((Math.atan2(a.comm[1], a.comm[0]) / (2 * Math.PI) + 1) % 1) * 360;
+    ($('pov-comm') as HTMLElement).style.background = `hsl(${hue} 90% ${20 + 45 * mag}%)`;
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  const T = trainer.sim.teamSize;
+  const k = e.key;
+  if (k >= '1' && k <= '9' || k === '0') {
+    const d = k === '0' ? 10 : Number(k);
+    const id = d <= 5 ? d - 1 : T + (d - 6);
+    if (id < T * 2) { viewer.rig.select(id, viewer.world); syncCamUi(); }
+    e.preventDefault();
+  } else if (k === 'Tab' || k === ' ') {
+    viewer.rig.cycle(viewer.world, e.shiftKey ? -1 : 1);
+    syncCamUi();
+    e.preventDefault();
+  } else if (k === 'v' || k === 'V') {
+    if (viewer.rig.subject < 0) viewer.rig.cycle(viewer.world);
+    viewer.rig.toggleView();
+    syncCamUi();
+  } else if (k === 'f' || k === 'F') {
+    setCam('free');
+  } else if (k === 'd' || k === 'D') {
+    viewer.rig.setDirector(!viewer.rig.director, viewer.world);
+    syncCamUi();
+  }
+});
+
 /* -------------------------------------------------------------- watching */
 
 function label(t: 0 | 1, gen: number): string {
@@ -100,6 +184,7 @@ function raf(now: number): void {
   last = now;
   viewer.frame(dt);
   updateHud();
+  updateSpectator();
   requestAnimationFrame(raf);
 }
 requestAnimationFrame(raf);
@@ -118,8 +203,8 @@ function fmtStatus(r: GenReport | null): string {
   const lad = (v: number | null) => (v === null ? '–' : `${(v * 100).toFixed(0)}%`);
   return (
     `<b>generation ${r.gen}</b> · ${r.matches} matches · ${secs} s/gen · ${workers} workers\n` +
-    `red  best <b>${R.best.toFixed(2)}</b> mean ${R.mean.toFixed(2)} · vs 10 gens ago <b>${lad(r.ladder[0])}</b>\n` +
-    `blue best <b>${B.best.toFixed(2)}</b> mean ${B.mean.toFixed(2)} · vs 10 gens ago <b>${lad(r.ladder[1])}</b>\n` +
+    `red  best <b>${R.best.toFixed(2)}</b> mean ${R.mean.toFixed(2)} · vs gen 0 <b>${lad(r.ladder0[0])}</b> · vs −10 <b>${lad(r.ladder[0])}</b>\n` +
+    `blue best <b>${B.best.toFixed(2)}</b> mean ${B.mean.toFixed(2)} · vs gen 0 <b>${lad(r.ladder0[1])}</b> · vs −10 <b>${lad(r.ladder[1])}</b>\n` +
     `head-to-head balance: red wins ${(r.redWinShare * 100).toFixed(0)}%`
   );
 }
@@ -245,6 +330,7 @@ $('tt-half').onclick = () => { const l = store.latest(); if (l) watch(Math.floor
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 const two = (v: number) => v.toFixed(2);
 const one = (v: number) => v.toFixed(1);
+const chartLadder0 = new LineChart($('c-ladder0') as HTMLCanvasElement, { title: 'Champion vs generation-0 champion — win rate', format: pct, yMin: 0, yMax: 1, refLine: 0.5 });
 const chartLadder = new LineChart($('c-ladder') as HTMLCanvasElement, { title: 'Champion vs its own 10-gen-older self — win rate', format: pct, yMin: 0, yMax: 1, refLine: 0.5 });
 const chartBest = new LineChart($('c-best') as HTMLCanvasElement, { title: 'Champion fitness (zone + damage margin)', format: two, refLine: 0 });
 const chartMean = new LineChart($('c-mean') as HTMLCanvasElement, { title: 'Population mean fitness', format: two, refLine: 0 });
@@ -308,6 +394,7 @@ function redraw(): void {
   const xs = store.gens();
   const rb = { name: 'red', color: TEAM_CSS[0] };
   const bb = { name: 'blue', color: TEAM_CSS[1] };
+  chartLadder0.setData(xs, [{ ...rb, values: store.ladder0(0) }, { ...bb, values: store.ladder0(1) }]);
   chartLadder.setData(xs, [{ ...rb, values: store.ladder(0) }, { ...bb, values: store.ladder(1) }]);
   chartBest.setData(xs, [{ ...rb, values: store.team(0, (r) => r.teams[0].best) }, { ...bb, values: store.team(1, (r) => r.teams[1].best) }]);
   chartMean.setData(xs, [{ ...rb, values: store.team(0, (r) => r.teams[0].mean) }, { ...bb, values: store.team(1, (r) => r.teams[1].mean) }]);

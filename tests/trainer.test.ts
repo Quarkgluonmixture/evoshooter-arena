@@ -13,12 +13,16 @@ describe('Trainer', () => {
     const r0 = await t.runGeneration(ev);
     expect(r0.gen).toBe(0);
     expect(r0.ladder).toEqual([null, null]);
+    expect(r0.ladder0).toEqual([null, null]);
     expect(r0.matches).toBe(4); // pairings only: no hall of fame yet
     const r1 = await t.runGeneration(ev);
     expect(r1.gen).toBe(1);
-    expect(r1.matches).toBe(4 + 8 + 4); // pairings + hof(1 match × both sides) + ladder both sides
+    expect(r1.matches).toBe(4 + 8 + 4 + 4); // pairings + hof(1 match × both sides) + gap ladder + gen-0 ladder
     expect(r1.ladder[0]).toBeGreaterThanOrEqual(0);
     expect(r1.ladder[0]).toBeLessThanOrEqual(1);
+    expect(r1.ladder0[1]).toBeGreaterThanOrEqual(0);
+    expect(r1.ladder0[1]).toBeLessThanOrEqual(1);
+
     expect(t.hof[0].length).toBe(2);
     expect(t.hof[1].length).toBe(2);
     expect(t.hof[0][1].genome.length).toBe(genomeLength(t.shape));

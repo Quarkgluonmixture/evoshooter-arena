@@ -691,8 +691,8 @@ export class World {
       const mySpeed = Math.hypot(a.vx, a.vz);
       const tgtSpeed = Math.hypot(tgt.vx, tgt.vz);
       const distF = d <= 8 ? 1 : Math.max(0.25, 1 - ((d - 8) / 22) * 0.75); // 1.0 inside 8u → 0.25 at view range
-      const moveF = a.aim ? 1 : mySpeed > 1 ? 0.55 : 1;
-      const settleF = 0.5 + 0.5 * Math.min(1, a.settleT / cfg.settleSeconds);
+      const moveF = a.aim ? 1 : mySpeed > 1 ? 0.6 : 1;
+      const settleF = 0.65 + 0.35 * Math.min(1, a.settleT / cfg.settleSeconds);
       const tgtF = tgtSpeed > 3 ? 0.85 : 1;
       const prob = cfg.baseAccuracy * expo * distF * moveF * settleF * tgtF;
       const hit = this.rng.next() < prob;

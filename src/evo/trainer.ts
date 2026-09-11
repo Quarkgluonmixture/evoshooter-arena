@@ -85,6 +85,8 @@ export interface GenReport {
   teams: [TeamGenStats, TeamGenStats];
   /** win-rate of this generation's champion vs the champion `ladderGap` generations ago (null until available) */
   ladder: [number | null, number | null];
+  /** win-rate of this generation's champion vs the generation-0 champion (null at gen 0) */
+  ladder0: [number | null, number | null];
   /** share of pairing matches won by red (0.5 = balanced arms race) */
   redWinShare: number;
   heat: [Float32Array, Float32Array];
@@ -232,33 +234,40 @@ export class Trainer {
       } satisfies TeamGenStats;
     }) as [TeamGenStats, TeamGenStats];
 
-    // ladder: champion now vs champion `ladderGap` generations ago (same colour lineage, past self plays the other side)
+    // ladders: champion now vs (a) champion `ladderGap` generations ago and (b) the very first champion.
+    // Same-colour lineage; the past self plays the other side (any genome can play either colour).
     const ladder: [number | null, number | null] = [null, null];
+    const ladder0: [number | null, number | null] = [null, null];
     let ladderMatches = 0;
     const gap = this.evo.ladderGap;
-    if (this.gen >= gap && this.evo.ladderMatches > 0) {
+    const L = this.evo.ladderMatches;
+    if (this.gen >= 1 && L > 0) {
       const lg: Float32Array[] = [];
       const lj: MatchJob[] = [];
-      for (let t = 0; t < 2; t++) {
-        const now = this.hof[t][this.hof[t].length - 1].genome;
-        const past = this.hof[t][this.hof[t].length - 1 - gap].genome;
-        const a = lg.push(now) - 1;
-        const b = lg.push(past) - 1;
-        for (let m = 0; m < this.evo.ladderMatches; m++) {
-          lj.push({ red: a, blue: b, seed: hashSeed(this.gen, 0x1ad, t, m), credit: 0, kind: 'ladder' });
+      const plan: { team: 0 | 1; slot: 'gap' | 'first' }[] = [];
+      for (const t of [0, 1] as const) {
+        const h = this.hof[t];
+        const now = lg.push(h[h.length - 1].genome) - 1;
+        const first = lg.push(h[0].genome) - 1;
+        plan.push({ team: t, slot: 'first' });
+        for (let m = 0; m < L; m++) lj.push({ red: now, blue: first, seed: hashSeed(this.gen, 0x1ad0, t, m), credit: 0, kind: 'ladder' });
+        if (this.gen >= gap) {
+          const past = lg.push(h[h.length - 1 - gap].genome) - 1;
+          plan.push({ team: t, slot: 'gap' });
+          for (let m = 0; m < L; m++) lj.push({ red: now, blue: past, seed: hashSeed(this.gen, 0x1ad, t, m), credit: 0, kind: 'ladder' });
         }
       }
       const lr = await evaluator.run(lg, lj, false);
       ladderMatches = lj.length;
-      for (let t = 0; t < 2; t++) {
+      plan.forEach((p, k) => {
         let w = 0;
-        for (let m = 0; m < this.evo.ladderMatches; m++) {
-          const r = lr[t * this.evo.ladderMatches + m];
+        for (let m = 0; m < L; m++) {
+          const r = lr[k * L + m];
           if (r.winner === 0) w += 1;
           else if (r.winner === -1) w += 0.5;
         }
-        ladder[t] = w / this.evo.ladderMatches;
-      }
+        (p.slot === 'gap' ? ladder : ladder0)[p.team] = w / L;
+      });
     }
 
     this.evolve(fitness);
@@ -269,6 +278,7 @@ export class Trainer {
       matches: jobs.length + ladderMatches,
       teams,
       ladder,
+      ladder0,
       redWinShare: pairCount ? redWins / pairCount : 0.5,
       heat,
     };
