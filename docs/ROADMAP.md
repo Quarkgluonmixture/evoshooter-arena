@@ -67,7 +67,7 @@
 - `npm run bench` 数字落 LOG；
 - 记录 current obs dimension / genome size / default throughput。
 
-**当前状态：docs + authority pointers 已在 main；baseline census 尚未做。**
+**当前状态：CLOSED（2026-09-11 22:15）。** test / bench / census 实测数字见 `LOG.md` 同日 `#measure` 条；census artifact = `runs/a0-census-s{1,2}.txt|json`（gitignored，本机）。⛔ 别把数字抄进本文件。
 
 ⚠ 最新 main 的转头/观战修复已经改变 baseline 的 turn/look 数字；A0 冻结**当前 main 的 post-change reality**。旧 runs 只作历史，不把世界退回去。见 CHECKPOINT / GOTCHAS #10。
 
@@ -849,22 +849,16 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A0 — Authority + baseline freeze。**
+**当前：A1 — Information provenance + leak probes。**
 
-A0 已完成：
+A0 已 CLOSED（2026-09-11 22:15）：authority 接线 + `GOTCHAS.md` 拆分 + baseline census（`npm test` 33 绿 · bench · obsDim/genome/ms-match · 两 seed × 40 代 evolution census）。数字在 `LOG.md`。
 
-- VISION / SUBSTRATE / ROADMAP 起草；
-- `CLAUDE.md` / `CHECKPOINT.md` authority pointers 接线；
-- durable gotchas 已拆到 `GOTCHAS.md`。
+A1 下一最小可关闭单元：
 
-A0 下一最小可关闭单元仍然只有 baseline census：
+1. observation provenance 分解：每个 obs index 属于哪个 channel（self / objective / geometry / teammate / comm / enemy），以及它是 legal percept、truth-form 还是 hidden-state；
+2. counterfactual leak probes：改一个观察者**合法感知不到**的量，看 obs 是否变化；
+3. leak matrix：每条 probe 登记**当前预期状态**（clean / leak + 对应 V 编号），测试断言「实测 == 登记」——修好了会红、退化了也会红；
+4. ⛔ 本 phase **不修机制**，只把病量出来。A2 才动 observation。
+5. LOG 一条 `#measure`，然后进入 **A2 — Player-local knowledge**。
 
-1. `npm test`；
-2. `npm run bench`；
-3. 记录当前 `obsDim`、network parameter count、ms/match；
-4. LOG 一条 `#decision #measure`；
-5. 满足 A0 Exit 后进入 **A1 — Information provenance + leak probes**。
-
-⭐ census 冻结**当前 main 的 post-viewer/turn-fix 数值**；旧 run 只作历史，不回退 baseline。
-
-⛔ **不要直接跳 A2 改 observation，也不要因为本轮新增 League/G4 就跳施工顺序。** A1 的红灯 leak probes 是后续每刀的验收尺。
+⭐ A0 census 冻结的是**当前 main 的 post-viewer/turn-fix 数值**；旧 run 只作历史，不回退 baseline。

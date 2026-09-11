@@ -83,3 +83,16 @@
 - **A0 baseline census 冻改动后的值**（转头规则改动之后）。理由：改动后才是 main 上的现实，A1/A2 从这里出发；改动前的世界没人会回去。改动前的 run 留在 `runs/post-turnfix-s*.json` 仅作历史。⛔ 别再重议。
 - 在 `docs/SUBSTRATE.md` V4 条目下加了一条**前瞻警告**：当前交战 / 扫视两档转速按 `targetId` 切换、look 低通建立在动作=绝对方向向量上，而 V4 要删 `targetId`、§5.1 的目标动作是 `lookYawDelta` ⇒ V4 落地时这两条会**静默失效**（不报错，只是退回抽搐或变钝），必须重新推导不能照搬常数。
 - 下一步 = ROADMAP **A0**（authority 读回检查 · `npm test` · `npm run bench` · 记 obsDim / 参数量 / ms-match · LOG 一条 #measure），A0 关掉才进 A1 leak probes。⛔ 不跳 A2。
+
+## [2026-09-11 22:15] A0 baseline census：冻住当前 main 的现实  #measure #decision
+按 `docs/ROADMAP.md` A0 exit 逐条做完，**冻的是转头/观战五修之后的 main**（GOTCHAS #10 的裁决，不重议）。
+
+- `npm test`：6 文件 **33 测试全绿**，1.4 s（含 fairness 镜像对打 0.51 s）。
+- `npm run bench`（20 场随机基因组，同一台机、连跑三次）：**43.9 / 45.4 / 44.7 ms/match**，600 ticks/match（40 s × 15 Hz，随机基因组一场都没打完就是打满时间）。
+- **Baseline census（这是 A1/A2 的出发点）**：`obsDim = 100` · genome = **5324** 权重（`shapeFor` = 100→40→24→12，含 bias）· map 32 boxes · `DEFAULT_EVO` hidden `[40,24]`。
+  obs 结构（100 = 20 self + 5 slot one-hot + 5 zone + 8 lidar + 4 mate × 8 + 3 enemy × 10）。
+- **Evolution census**：`--gens 40 --pop 16`，seed 1 / seed 2 各一次 → `runs/a0-census-s{1,2}.txt|json`。
+  4.6 / 4.8 s/gen（≈180–195 s 全程）；末代冠军对第 0 代冠军：seed 1 红 100%/100%、蓝 100%/100%，seed 2 红 90%/100%、蓝 100%/100%。
+  gen 39 行为指标：accuracy 0.25–0.38 · **zoneShare 0.006–0.044（占区依旧极低，胜负仍靠淘汰）** · coverRatio 0.57–0.70 · spread 8–13 · 首枪 6.6–8.8 s。
+- ⭐ **顺手测到一条 T6 证据**：a0-census-s1/s2 与 19:0x 跑的 scan26-s1/s2 **40 代所有指标列逐字节相同**（只有 ms 列与总耗时不同）⇒ 跨进程、跨时间的 determinism 在 40 代尺度上成立，不只是单场 replay。
+- A0 close。下一步 A1（information provenance + leak probes）。⛔ 不跳 A2。

@@ -30,14 +30,13 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-**A0 — Authority + baseline freeze**（authority 已接线，baseline census 尚未做）。
+**A1 — Information provenance + leak probes**（A0 已 CLOSED 2026-09-11 22:15）。
 
-下一个最小可关闭单元严格按 `docs/ROADMAP.md` A0：
-1. `npm test`；
-2. `npm run bench`；
-3. 记录当前 `obsDim`、network parameter count、ms/match；
-4. LOG 一条 `#decision #measure`；
-5. A0 close 后进入 **A1 — Information provenance + leak probes**。
+A0 结论一句话：`obsDim=100` / genome 5324 / ~44 ms per 40 s match / 40 代两 seed 都能打赢第 0 代；
+⭐ 跨进程 determinism 在 40 代尺度实测成立。数字只在 `LOG.md`（⛔ 别抄到别处）。
+
+下一个最小可关闭单元严格按 `docs/ROADMAP.md` Current Cursor 的 A1 五步：obs provenance 分解 → counterfactual leak probes →
+leak matrix（登记 clean/leak + V 编号，测试断言「实测 == 登记」）→ ⛔ 不修机制 → LOG 后进 **A2**。
 
 ⛔ **不要直接跳 A2 改 observation；不要因为新增 E4–E6/G4/文化 E7 预留合同就跳施工顺序。** A1 要先把当前 privileged leaks 变成可重复的红灯测试；它们以后是每一刀的验收尺。
 
