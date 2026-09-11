@@ -266,8 +266,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     test: 'T3',
     gap: 'V3',
     title: 'a wall appears behind my head',
-    expect: 'leak',
-    expectFields: ['geom.lidar5', 'geom.lidar6', 'geom.lidar7'],
+    expect: 'clean', // flipped by ROADMAP A3.3: rays live inside the field of view now
     run: (cfg) =>
       cf(
         cfg,

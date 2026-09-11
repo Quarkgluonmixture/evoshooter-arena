@@ -335,3 +335,44 @@ ladder 两个方向都 ≥50% 的血统数：baseline 4/4 → A2 3/6 → A3.1 3/
 
 **判决：SHIP A3.2b。** V2（enemy truth）到此关闭：不再有任何 contact 字段是引擎真值的可逆函数。
 下一刀 **A3.3**：360° lidar → front-biased 几何感知，验收 = `A1-P7` 翻绿。
+
+## [2026-09-12 00:25] A3.3 预注册：360° lidar → 前向密的几何感知  #decision
+⚠ 写在改代码之前。A3 的最后一刀，只动几何通道。
+
+**现状问题**：8 条射线均匀铺满 360°，而且是**队伍帧**方向（跟头朝哪看无关）——等于一个不受朝向影响的全向墙距雷达，
+背后的几何无条件可读（`A1-P7` 一直报 leak）。
+
+**做法**
+- 射线改成**相对自己朝向**，只覆盖 ±halfFov（110° 视野的一半 = 55°），按幂律分布：
+  `offset_k = halfFov × (k/m)^1.6`，中心密、边缘疏（参考 crosshair-dense 结构，⛔ 不照抄常数）。
+- `lidarRays` 8 → **9**（奇数，留一条正中）⇒ obsDim 88 → **89**。
+- 射线读数同样过**乘法量化格 + hash 抖动**（新 knob `geomRangeError` = 0.08），⛔ 不再留一条精确可逆的通道。
+
+**预测**
+1. `A1-P7`（背后凭空出现一堵墙）→ **clean**；`A1-P8`/`A1-P16` 保持 clean；V4 的 P12/P14、V6 的 P15、V11/V12 不变。
+2. schema binding 测试（前方加墙 ⇒ 只有 `geom.lidar*` 变化）保持绿——它现在顺便守住「前向还看得见」。
+3. 不塌硬门：每 cell accuracy > 0.10、firstContact < 25 s、合计 kills > 1。
+   ⚠ 这刀最可能真伤行为（导航输入直接变了）。**revert 条件**：若破门，先**加射线数 / 放宽角度跨度**再试，
+   ⛔ 不是放弃 front-bias（VISION 不因为行为难看而降）。
+4. bench：射线 8 → 9，预期 **≤ +8%**（配对交错量）。
+5. determinism / mirror 保持绿（射线改成自我相对后镜像对称只会更强）。
+
+## [2026-09-12 00:35] A3.2b 的镜像对称 bug：A3.3 第一刀就把它照出来了  #incident #decision
+做 A3.3 时 `World > mirrored teams identical observations at kickoff` 突然红了。追下去发现**问题不在 A3.3，在 10 分钟前
+刚推上 main 的 A3.2b**：
+
+- 抖动 key 用了**绝对 agent id**（`viewer*31+target`）⇒ 红方 slot s 和它的镜像蓝方 slot s 抽到**不同**的误差；
+- bearing 的量化格建在**世界绝对角**上 ⇒ 镜像相差 π，而 π/bErr 不是整数 ⇒ 镜像的一对**落进不同的格子**。
+⇒ 红蓝不再解同一个问题，而「冠军对自己的过去」之所以公平**正是建立在这条对称性上**（T7 / GOTCHAS #2）。
+
+⭐⭐ **为什么没被抓住**：唯一的对称性测试只测**开局**，而开局谁也看不见谁 —— observation 里整个 enemy-contact 半边是零。
+那半边的对称性**从来没有被测过**，A3.2b 的 A/B 全绿地跑完并推上了 main。是 A3.3 改了 lidar（每 tick 都有读数）
+才让同一个 bug 撞上断言。
+
+**修法**：抖动 key 改成 `(viewer.slot, target.slot)`（镜像不变），bearing 量化改在**观察者自己的帧**里做（同样镜像不变）。
+新增 `keeps the mirror symmetry once contacts exist` 回归测试：把红蓝放进**同一处境的镜像**、带同龄记忆，逐特征对比。
+修完 60 测试全绿，leak matrix 不变（`A1-P16` 仍 1/20）。教训进 GOTCHAS #17。
+
+⚠ **连带影响**：`runs/a32b-noise-s{1,2,3}` 是在**有 bug 的构建**上跑的 ⇒ 不能当 A3.3 的对照。
+已用修好的构建重跑 `runs/a32b-fixed-s{1,2,3}` 作为新基线；A3.2b 的结论（P16 翻绿、不塌、accuracy 下降是「进化出什么」
+而非「打不准」）仍成立——same-genome 对照本身不依赖镜像性——但**数字以 fixed 版为准**。

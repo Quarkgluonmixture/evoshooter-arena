@@ -66,8 +66,8 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
 
   // --- geometry sensing
   for (let k = 0; k < cfg.lidarRays; k++) {
-    push(`geom.lidar${k}`, 'geometry', 'hidden', 'V3',
-      '360° wall distance: rays behind the head report geometry the player cannot see');
+    push(`geom.lidar${k}`, 'geometry', 'legal', undefined,
+      'structured ray inside the field of view, densest at the crosshair, quantised like a visual contact');
   }
 
   // --- teammates: HUD + body cue, with no visibility test at all

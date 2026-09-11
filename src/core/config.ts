@@ -29,7 +29,8 @@ export interface SimConfig {
   perceptBearingError: number;   // worst-case angular error of a visual contact (rad); also the quantisation step
   perceptRangeError: number;     // worst-case relative range error of a visual contact; also the quantisation step
   perceptBucketSeconds: number;  // how long one perception error persists before it is redrawn
-  lidarRays: number;
+  lidarRays: number;        // structured rays inside the field of view, densest at the crosshair
+  geomRangeError: number;   // relative error/quantisation of a wall-distance reading
   lidarRange: number;
   enemySlots: number;
   mateSlots: number;
@@ -67,7 +68,8 @@ export const DEFAULT_SIM: SimConfig = {
   perceptBearingError: 0.12,
   perceptRangeError: 0.25,
   perceptBucketSeconds: 0.4,
-  lidarRays: 8,
+  lidarRays: 9,
+  geomRangeError: 0.08,
   lidarRange: 15,
   enemySlots: 3,
   mateSlots: 4,

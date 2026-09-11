@@ -158,7 +158,7 @@ export class World {
   private readonly cosHalfFov: number;
   private readonly halfFov: number;
   private readonly cosAimCone: number;
-  private readonly lidarDirs: Float32Array;
+  private readonly lidarOffsets: Float32Array;
   private readonly pendingShots: number[] = [];
 
   constructor(cfg: SimConfig, map: ArenaMap, seed: number, opts: { heat?: boolean } = {}) {
@@ -178,11 +178,19 @@ export class World {
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
     this.halfFov = (cfg.fovDeg * Math.PI) / 360;
     this.cosAimCone = Math.cos((cfg.aimConeDeg * Math.PI) / 180);
-    this.lidarDirs = new Float32Array(cfg.lidarRays * 2);
-    for (let k = 0; k < cfg.lidarRays; k++) {
-      const a = (k * 2 * Math.PI) / cfg.lidarRays;
-      this.lidarDirs[k * 2] = Math.cos(a);
-      this.lidarDirs[k * 2 + 1] = Math.sin(a);
+    // Angular offsets from where the agent is looking: one down the crosshair, then progressively
+    // sparser out to the edge of the field of view. Nothing behind the head is sensed at all.
+    this.lidarOffsets = new Float32Array(cfg.lidarRays);
+    {
+      const m = Math.floor((cfg.lidarRays - 1) / 2);
+      let w = 0;
+      this.lidarOffsets[w++] = 0;
+      for (let k = 1; k <= m; k++) {
+        const off = this.halfFov * Math.pow(k / m, 1.6);
+        this.lidarOffsets[w++] = -off;
+        if (w < cfg.lidarRays) this.lidarOffsets[w++] = off;
+      }
+      while (w < cfg.lidarRays) this.lidarOffsets[w++] = this.halfFov;
     }
     this.heat = opts.heat
       ? [new Float32Array(cfg.heatCells * cfg.heatCells), new Float32Array(cfg.heatCells * cfg.heatCells)]
@@ -321,11 +329,13 @@ export class World {
 
   private lidar(a: Agent, out: Float32Array, off: number): void {
     const cfg = this.cfg;
-    const sg = World.sgn(a.team);
     const half = cfg.arenaHalf;
+    const bucket = Math.floor(this.t / cfg.perceptBucketSeconds);
+    const lg = Math.log1p(cfg.geomRangeError);
     for (let k = 0; k < cfg.lidarRays; k++) {
-      const dx = sg * this.lidarDirs[k * 2];
-      const dz = sg * this.lidarDirs[k * 2 + 1];
+      const ang = a.yaw + this.lidarOffsets[k];
+      const dx = Math.cos(ang);
+      const dz = Math.sin(ang);
       let best = cfg.lidarRange;
       // arena walls
       if (dx > 1e-9) best = Math.min(best, (half - a.x) / dx);
@@ -337,7 +347,12 @@ export class World {
         const t = rayBoxDist2D(a.x, a.z, dx, dz, boxes[i]);
         if (t < best) best = t;
       }
-      out[off + k] = Math.max(0, best) / cfg.lidarRange;
+      // same treatment as a visual contact: blurred, then snapped to a multiplicative lattice, so the
+      // reading cannot be inverted back into an exact wall distance
+      // keyed by slot + ray index, never by agent id: mirrored players must read the same wall (GOTCHAS #17)
+      const noisy = Math.max(0.05, best * (1 + jitter(a.slot * 131 + k, bucket, 0x27d4eb2d) * cfg.geomRangeError));
+      const q = Math.exp(Math.round(Math.log(noisy) / lg) * lg);
+      out[off + k] = Math.min(1, q / cfg.lidarRange);
     }
   }
 
