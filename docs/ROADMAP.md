@@ -17,9 +17,12 @@
 4. 队内可以通过身体 cue + 有限 radio + opening prior 协作；
 5. 世界本身支持像职业 CS 那样的信息争夺、双目标转点、人数变化后的再规划；
 6. trade / crossfire / lurk / fake / rotate / anchor / secondary calling 等只从录像/metrics 中**事后发现**；
-7. 多支队伍能长出不同、互相反制的打法；
-8. evolution throughput 仍足够做长期 co-evolution；
-9. 所有因果故事有 probe / ablation，而不是看录像脑补。
+7. player DNA 与 team/coach DNA 分层，主要选择压力来自整支 club 的比赛结果；
+8. 最终训练生态不是两个永久 red/blue 物种，而是 side-neutral clubs 面对 current peers + diverse styles + history + exploiters；
+9. 多支队伍能长出不同、互相反制、甚至非传递循环的打法；
+10. evolution throughput 仍足够做长期 co-evolution / league evolution；
+11. 所有因果故事有 probe / ablation，而不是看录像脑补；
+12. 用户不仅能看到“更强”，还能看到一个新行为/词汇/战术**何时出生、如何稳定、为什么有效**。
 
 ---
 
@@ -34,11 +37,12 @@
 - **Hard gates**：determinism / mirror / leak / unit tests；
 - **Evolution gate**：至少 short A/B；影响 optimizer/genome 时再 long-run；
 - **Watchability gate**：录像/POV 不得更像机器人乱走；
+- **Interpretability gate（声称 emergence 时）**：必须能指出出生/稳定证据，并至少有一个 causal intervention，不能只凭故事；
 - **Reconcile**：结果与预注册预测对照；
 - **Ship or revert**：不过门则回退实现，不软化 VISION；
 - **Docs**：ship 后更新 README / CHECKPOINT / 本账本。
 
-任何 agent 不得同时“换 observation + 换 RNN + 拆五个 genome + 加 A/B map”后再用一个胜率解释一切。
+任何 agent 不得同时“换 observation + 换 RNN + 拆五个 genome + 加 A/B map + 换 league scheduler”后再用一个胜率解释一切。
 
 ---
 
@@ -63,7 +67,9 @@
 - `npm run bench` 数字落 LOG；
 - 记录 current obs dimension / genome size / default throughput。
 
-**当前状态：docs 已起草；authority 接线与 baseline census 尚待完成。**
+**当前状态：docs + authority pointers 已在 main；baseline census 尚未做。**
+
+⚠ 最新 main 的转头/观战修复已经改变 baseline 的 turn/look 数字；A0 冻结**当前 main 的 post-change reality**。旧 runs 只作历史，不把世界退回去。见 CHECKPOINT / GOTCHAS #10。
 
 ---
 
@@ -176,13 +182,16 @@
 - short recency；
 - 不给 identity / exact coordinate。
 
-必须同时引入产生脚步的 movement condition；如果所有移动永远发同样声，silent movement 还没有策略自由度。
+必须同时引入**运动→声音发射**的底层关系；如果所有移动永远发同样声，silent movement 还没有策略自由度。
+
+注意：本 phase 先建立“不同运动状态能产生不同响度/频率”的物理接口；什么时候减速不是规则，不写 `if enemyNear -> silent`。
 
 ### Probes
 
 - same visual obs + sound on/off；
 - distance sweep；
 - wall occlusion sweep；
+- movement speed/gait → emitted loudness sweep；
 - teammate/enemy 声源不携带自动阵营标签。
 
 ### Evolution gate
@@ -206,11 +215,15 @@
 
 可以临时保留 target slots 仅作 debug/attention readout，但**不能影响物理**；最终删除。
 
+⚠ 当前 baseline 的交战/扫视 turn-rate 分档是靠 `targetId` 区分，0.45s look low-pass 也假设 action 是 absolute direction vector。
+B1/V4 删除 target abstraction 时必须把它们重新推导成**角速度限幅 + 感知/执行误差**，不能把现行 2π / 2.6 / 0.45 常数机械搬过去。
+
 ### Probe
 
 - 静止 dummy：不同初始偏角下 acquisition time；
 - peripheral target 必须经历 turn 才能精确开火；
-- hidden memory contact 不能被自动 aim。
+- hidden memory contact 不能被自动 aim；
+- 新 look parameterization 的 reversal/jitter 与 acquisition trade-off。
 
 ### Risk
 
@@ -240,16 +253,18 @@ B2d. 评估是否需要 projectile，若概率模型已能诚实表达则不为�
 
 ---
 
-## Phase B3 — Movement repertoire：silent walk / crouch 等一次一个
+## Phase B3 — Movement repertoire：速度 / gait / crouch 等一次一个
 
 **Question**：职业 FPS 的信息博弈需要哪些缺失身体自由度？
 
 顺序建议：
 
-1. walk / silent movement（直接与 A4 音频闭环）；
+1. continuous speed/gait → footstep loudness/frequency（直接与 A4 音频闭环）；
 2. acceleration/stop accuracy calibration；
 3. crouch；
 4. jump/landing only if map geometry gives it real use。
+
+**不要做 `SILENT_WALK` 战术按钮。** 工程上可以有 `walk/gait` 控制量，但它只改变速度、声音和执行代价；“什么时候静步”必须由 evolution 发现。
 
 每个动作必须证明“新增收益面”，不能只因为 CS2 有这个键就复制。
 
@@ -362,13 +377,16 @@ scripted/reference agents 能证明：
 - entropy；
 - MI with percept/events；
 - radio-off ablation；
-- message-shuffle ablation；
+- message-shuffle / token-permutation ablation；
 - team-crossplay：把 A 队 speaker 配 B 队 listener，看语言是否 team-specific；
-- long-run 是否出现稳定 token usage。
+- long-run 是否出现稳定 token usage；
+- token usage 的 birth / stabilization / drift timeline。
 
-### Non-claim
+### Strong-claim gate
 
-“token 3 常在见敌时出现”不等于已经证明 token 3 = enemy。需要 intervention/ablation。
+“token 3 常在见敌时出现”不等于已经证明 token 3 = enemy。
+
+只有当 sender-state relation + receiver response + intervention 三层证据齐，才能把“语言系统已形成”当成 discovery 展示。
 
 ---
 
@@ -396,7 +414,7 @@ vision channel 对 teammate 提供合法外显 cue：
 
 ---
 
-# Programme E — 五个真正不同的人 + 一支真正的队
+# Programme E — 五个真正不同的人 + 一支真正的队 + 一个真正的对手生态
 
 ## Phase E1 — Player identity split
 
@@ -418,6 +436,10 @@ vision channel 对 teammate 提供合法外显 cue：
 - swap player identities 会改变局部打法；
 - team performance 仍可共同选择。
 
+### Fitness rule
+
+个人 K/D / damage 默认**不是 reproduction fitness**。先按整队比赛结果选择，个人统计只做 identity / diagnosis。
+
 ### Exit
 
 analytics 能从行为识别同一队不同 player，而不是只靠 slot id。
@@ -433,7 +455,8 @@ analytics 能从行为识别同一队不同 player，而不是只靠 slot id。
 - team-level genotype / context generator；
 - round-start `openingPrior`；
 - every player receives same prior + own state；
-- prior 不能包含 waypoint/timed action script。
+- prior 不能包含 waypoint/timed action script；
+- team/coach layer 不获得额外 engine truth。
 
 ### Probe
 
@@ -472,9 +495,121 @@ analytics 能从行为识别同一队不同 player，而不是只靠 slot id。
 
 ---
 
+## Phase E4 — Club genotype：把 player + team DNA 变成一个可遗传的俱乐部
+
+**Question**：我们能否让“这个人是谁”和“这支队怎么踢”分别遗传/突变，同时仍用整队胜负筛选？
+
+### Target representation
+
+```text
+ClubGenome
+├─ Team/Coach block
+├─ Player 1 block
+├─ Player 2 block
+├─ Player 3 block
+├─ Player 4 block
+└─ Player 5 block
+```
+
+不要求 player block 等大；先用 E1/E2 已验证的最小结构。
+
+### Mutation / reproduction
+
+一次 child club 可以：
+
+- 主要继承 parent club；
+- mutation 命中 team block 或某个 player block；
+- crossover 若保留，必须有清楚的 block provenance，不能把五个人随机搅成不可解释噪声。
+
+### Selection
+
+- primary fitness = side-balanced club match results；
+- individual stats = diagnostics only；
+- 保留 lineage：哪次跃迁来自 team mutation / player mutation 要能追。
+
+### Probes
+
+- fixed team block, mutate one player → 能形成局部可遗传差异；
+- fixed players, mutate team block → opening/team-level behavior 系统变化；
+- swap one player between otherwise identical clubs → performance / coordination 可测改变。
+
+### Exit
+
+club identity 不再等于“一张共享网 + slot one-hot”，且参数规模/突变率经过重新 sensitivity calibration。
+
+---
+
+## Phase E5 — Side-neutral League：红蓝从物种退化成比赛 sides
+
+**Question**：是否可以不再靠两个永久 population 定义进化，而让多支 club 在同一个 league 里竞争？
+
+### Migration
+
+- 建 `ClubPopulation / League`；
+- match 临时分配 sides；
+- fitness 使用 side-swapped / mirrored evaluation；
+- 同一 club 可以在两侧出赛；
+- red/blue population identity 从 genetics 移除，但 mirror/fairness tests 保留。
+
+### Baseline bridge
+
+迁移前先用当前 red/blue genomes 包成“legacy clubs”，证明新 scheduler 在等价对局集上不改变旧结果；然后才让 club reproduction 接管。
+
+### Probes
+
+- same clubs side swap：相对实力不应因颜色系统性翻转；
+- league round-robin 小样本能复现 pairwise duel；
+- club identity / style 在换 side 后仍可识别。
+
+### Exit
+
+“Red champion / Blue champion”不再是最终进化本体；UI 可以继续用红蓝显示一场比赛，但遗传对象是 club。
+
+---
+
+## Phase E6 — Opponent ecology：对手分布才是老师
+
+**Question**：club 面对哪些对手，才能避免两队 co-adaptation、遗忘和假强？
+
+### Opponent pool arms（逐个加入，不一次全开）
+
+E6a. **current peers**：rating/strength 邻近，对抗难度自然递进；
+
+E6b. **historical archive**：跨时代抽样，防 forgetting；
+
+E6c. **style-diverse contemporaries**：从 read-only style embedding / behavioural distance 抽样，防只会打主流镜像；
+
+E6d. **exploiters / challengers**：专门寻找强 club 当前最容易被击穿的策略。它们是训练角色，不是游戏内职业。
+
+### 不写死比例
+
+不要直接拍 `50/20/20/10`。先用 probe 回答：加哪一臂真正减少 exploitability / forgetting，成本多少，再定采样权重。
+
+### Required evaluation
+
+- current cross-play matrix；
+- held-out opponents；
+- history-vs-current matrix；
+- exploitability/challenger win share；
+- opponent-style coverage；
+- non-transitive cycle detection；
+- population/team style diversity。
+
+### Strong rule
+
+**不要把“打赢唯一熟悉对手”称为 progress。**
+
+若 A 克 B、B 克 C、C 克 A，允许它作为真实 meta 内容存在；用矩阵/谱系展示，不硬压成单一 Elo 神话。
+
+### Diversity policy
+
+先靠生态位 + 资源/能力 trade-off 维持多样性；不先加 `styleNoveltyBonus`。只有证据显示生态仍塌缩，才 reopen explicit diversity mechanism。
+
+---
+
 # Programme F — 职业 CS 的更厚世界（后续，不阻塞核心底座）
 
-只有 A–E 稳定后再做。每项单独 phase。
+只有 A–E 核心腿稳定后再做。每项单独 phase。
 
 ## F1 — Utility substrate
 
@@ -517,7 +652,7 @@ smoke / flash / incendiary-like mechanics 的价值是改变：
 
 ---
 
-# Programme G — 让进化“看得见”
+# Programme G — 让进化“看得见、看得懂、证得出”
 
 ## G1 — Information-flow debug
 
@@ -529,7 +664,11 @@ POV overlay：
 - memory confidence（debug only）；
 - 与 omniscient spectator truth 可切换对照。
 
-## G2 — Read-only tactic detectors
+目标：能回答“这个 player 当时合法知道什么”。
+
+---
+
+## G2 — Read-only known tactic detectors
 
 逐个建立 detector + precision sanity check：
 
@@ -543,19 +682,94 @@ POV overlay：
 
 detector 结果禁止进入 live sim。
 
+这些 detector 的作用是拿职业 CS 当尺子，不是限制 discovery 只能发现这些词。
+
+---
+
 ## G3 — Style space / lineage
 
 展示：
 
-- generation style embedding；
-- team clusters；
+- generation / era style embedding；
+- club/team clusters；
 - player identity cards；
 - pair chemistry；
-- champion-vs-history matrix；
+- club-vs-history / cross-play matrix；
 - communication vocabulary evolution；
-- tactic frequency over generations。
+- tactic frequency over generations；
+- team/player mutation lineage。
 
-目标是用户能够**肉眼看见“这队学会了什么”**。
+目标是用户能够**肉眼看见“这队学会了什么、谁改变了这支队、这个时代为什么克上一个时代”**。
+
+---
+
+## G4 — Evolution Discovery Feed：发现“以前不存在的东西”
+
+**Question**：系统能否主动把进化中真正值得看的新行为浮出来，而不是只给 fitness 曲线？
+
+### G4a — Novel structure detection
+
+在不预设战术名字的 feature space 里找：
+
+- 代际突然出现并稳定的 trajectory motif；
+- 新的 message→action dependency；
+- 新 pair/team coordination motif；
+- 新 spatial/tempo/communication cluster；
+- tactic detector frequency 的结构突变。
+
+输出只说“这里出现了新结构”，不急着命名。
+
+### G4b — Candidate interpretation
+
+把 discovery 对齐到：
+
+- sender 合法 percept / public events；
+- receiver 后续动作；
+- opponent response；
+- match outcome；
+- lineage / first appearance。
+
+可以给人类可读 candidate label + confidence，例如：
+
+- `trade-like`
+- `possible B-contact radio symbol`
+- `pressure → switch pattern`
+
+### G4c — Causal validation
+
+重大 discovery 至少自动/半自动生成一个判别实验：
+
+- radio-off；
+- message shuffle / token permutation；
+- cue mask；
+- history reset；
+- same-seed counterfactual replay；
+- player/team block swap。
+
+只有 intervention 支持，才从 `candidate` 升为 `validated emergence`。
+
+### G4d — Product surface
+
+理想卡片：
+
+```text
+Gen 217 — Communication structure emerged
+Token 6 与 speaker 的 B-side visual contact 强相关；
+receiver 收到后 3 秒内显著改变空间分布；
+message shuffle 后效应消失。
+Candidate meaning: B-side contact / pressure cue.
+```
+
+或：
+
+```text
+Gen 391 — New team pattern
+A pressure → defender rotation → disengage → B commitment
+过去 50 场稳定出现；radio ablation 后完成率下降。
+Candidate tactic: fake A → B.
+```
+
+**这不是叙事生成器。每张卡必须能下钻到录像、统计和干预证据。**
 
 ---
 
@@ -573,7 +787,7 @@ short headless evolution A/B (same seeds)
 
 - 至少 2 seeds；
 - inheritance / mutation sensitivity；
-- champion-vs-gen0 / past-self；
+- champion-vs-gen0 / past-self（在 club league 上线前）；
 - population mean 不得只靠单个 lucky champion。
 
 影响 rendering：
@@ -588,10 +802,25 @@ short headless evolution A/B (same seeds)
 
 影响 map/objective：
 
-- colour/side fairness；
+- side fairness；
 - route accessibility；
 - spawn sightline；
 - scripted competence reference probes。
+
+影响 club/league evolution：
+
+- side-swapped evaluation；
+- cross-play matrix；
+- history held-out check；
+- optimizer/genome scale sensitivity；
+- 不能用一个 scalar rating 掩盖明显非传递循环。
+
+声称“新语言 / 新战术 / 新角色已涌现”：
+
+- detector / discovery evidence；
+- lineage / first-appearance evidence；
+- 至少一个 mechanism-relevant intervention；
+- analytics firewall 仍绿。
 
 ---
 
@@ -599,7 +828,7 @@ short headless evolution A/B (same seeds)
 
 拿到 repo 后：
 
-1. 读 `CHECKPOINT.md`；
+1. 读 `CHECKPOINT.md` + `GOTCHAS.md`；
 2. 读 `docs/VISION.md`；
 3. 读 `docs/SUBSTRATE.md`；
 4. 来本文件找 **Current Cursor**；
@@ -614,19 +843,28 @@ short headless evolution A/B (same seeds)
 - 更新 SUBSTRATE/ROADMAP 的受影响部分；
 - 不为了已经写的代码降低 exit。
 
+⚠ E4–E6 / G4 是本轮新增的 future target；**不得绕过当前 A0/A1 直接开工**。它们解决“最终进化生态和可解释观赏性”，不是当前 cursor。
+
 ---
 
 # 4. Current Cursor
 
 **当前：A0 — Authority + baseline freeze。**
 
-A0 下一最小可关闭单元：
+A0 已完成：
 
-1. 把 `CLAUDE.md` / `CHECKPOINT.md` 指向 VISION → SUBSTRATE → ROADMAP；
-2. baseline `npm test`；
-3. baseline `npm run bench`；
-4. 记录当前 `obsDim`、network parameter count、ms/match；
-5. LOG 一条 `#decision #measure`；
-6. A0 close 后进入 **A1 — Information provenance + leak probes**。
+- VISION / SUBSTRATE / ROADMAP 起草；
+- `CLAUDE.md` / `CHECKPOINT.md` authority pointers 接线；
+- durable gotchas 已拆到 `GOTCHAS.md`。
 
-不要直接跳 A2 改 observation；A1 的红灯 leak probes 是后续每刀的验收尺。
+A0 下一最小可关闭单元仍然只有 baseline census：
+
+1. `npm test`；
+2. `npm run bench`；
+3. 记录当前 `obsDim`、network parameter count、ms/match；
+4. LOG 一条 `#decision #measure`；
+5. 满足 A0 Exit 后进入 **A1 — Information provenance + leak probes**。
+
+⭐ census 冻结**当前 main 的 post-viewer/turn-fix 数值**；旧 run 只作历史，不回退 baseline。
+
+⛔ **不要直接跳 A2 改 observation，也不要因为本轮新增 League/G4 就跳施工顺序。** A1 的红灯 leak probes 是后续每刀的验收尺。
