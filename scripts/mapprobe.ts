@@ -162,7 +162,7 @@ function corridor(g: Grid, ds: Float64Array, dt: Float64Array, shortest: number)
 }
 
 /** Widest split of the corridor into distinct ways through, and the narrowest slice (the choke). */
-function shape(g: Grid, cells: Set<number>, ds: Float64Array, shortest: number): { routes: number; choke: number } {
+function shape(g: Grid, cells: Set<number>, ds: Float64Array, shortest: number): { routes: number; mid: number; midWide: number; choke: number } {
   const byDepth = new Map<number, number[]>();
   for (const c of cells) {
     const k = Math.round(ds[c] / 4) * 4; // 2 m bands at cell 0.5
@@ -170,13 +170,23 @@ function shape(g: Grid, cells: Set<number>, ds: Float64Array, shortest: number):
     byDepth.get(k)!.push(c);
   }
   let routes = 0;
+  let mid = Infinity;
+  let midWide = Infinity;
   let choke = Infinity;
   for (const [k, band] of byDepth) {
     if (k === 0 || k >= shortest) continue; // ignore the slices sitting on top of spawn and site
-    routes = Math.max(routes, components(g, band));
+    const c = components(g, band);
+    routes = Math.max(routes, c);
     choke = Math.min(choke, band.length);
+    // C1's exit asks whether a single path dominates. Slices near the site are one component no matter how
+    // open the map is — every approach has to arrive somewhere — so the question is only meaningful in the
+    // middle of the journey, where an alternative could exist.
+    if (k > 0.25 * shortest && k < 0.75 * shortest) {
+      if (c < mid) { mid = c; midWide = band.length; }
+      else if (c === mid) midWide = Math.min(midWide, band.length);
+    }
   }
-  return { routes, choke: choke === Infinity ? 0 : choke };
+  return { routes, mid: mid === Infinity ? 0 : mid, midWide: midWide === Infinity ? 0 : midWide, choke: choke === Infinity ? 0 : choke };
 }
 
 const SITE_NAMES = ['A', 'B', 'C', 'D'];
@@ -187,7 +197,7 @@ for (const seed of SEEDS) {
   const walkable = g.walk.reduce((a, b) => a + b, 0);
   const dSite = map.sites.map((s) => bfs(g, [g.idx(s.x, s.z)]));
   console.log(`map seed ${seed} — ${walkable} walkable cells, ${map.sites.length} site(s) at ${map.sites.map((s) => `(${s.x}, ${s.z})`).join(' ')}`);
-  console.log(`  ${padr('side', 6)}${padr('site', 6)}${pad('dist', 7)}${pad('routes', 8)}${pad('choke', 7)}${pad('corridor', 10)}${pad('spawnLOS', 10)}`);
+  console.log(`  ${padr('side', 6)}${padr('site', 6)}${pad('dist', 7)}${pad('routes', 8)}${pad('mid', 8)}${pad('choke', 7)}${pad('corridor', 10)}${pad('spawnLOS', 10)}`);
   const union: Set<number>[] = [];
   const perSide: Set<number>[][] = [];
   for (const team of [0, 1] as const) {
@@ -201,17 +211,17 @@ for (const seed of SEEDS) {
       const cells = corridor(g, ds, dt, shortest);
       mine.push(cells);
       for (const c of cells) all.add(c);
-      const { routes, choke } = shape(g, cells, ds, shortest);
+      const { routes, mid, midWide, choke } = shape(g, cells, ds, shortest);
       const blocked = spawns.filter((s) => losBlocked(map, s.x, s.z, site.x, site.z)).length;
       console.log(
         `  ${padr(si === 0 ? (team === 0 ? 'red' : 'blue') : '', 6)}${padr(SITE_NAMES[si], 6)}` +
-        `${pad((shortest * CELL).toFixed(1), 7)}${pad(String(routes), 8)}${pad(String(choke), 7)}` +
+        `${pad((shortest * CELL).toFixed(1), 7)}${pad(String(routes), 8)}${pad(`${mid}/${midWide}`, 8)}${pad(String(choke), 7)}` +
         `${pad(`${((cells.size / walkable) * 100).toFixed(0)}%`, 10)}${pad(`${blocked}/${spawns.length}`, 10)}`,
       );
     });
     perSide.push(mine);
     union.push(all);
-    console.log(`  ${padr('', 6)}${padr('all', 6)}${pad('', 7)}${pad('', 8)}${pad('', 7)}${pad(`${((all.size / walkable) * 100).toFixed(0)}%`, 10)}`);
+    console.log(`  ${padr('', 6)}${padr('all', 6)}${pad('', 7)}${pad('', 8)}${pad('', 8)}${pad('', 7)}${pad(`${((all.size / walkable) * 100).toFixed(0)}%`, 10)}`);
   }
   if (map.sites.length >= 2) {
     // the geometric floor on defender rotation latency: how far it is from one site to the other on foot
@@ -232,6 +242,9 @@ for (const seed of SEEDS) {
 }
 console.log('dist      = shortest spawn→site distance in metres');
 console.log('routes    = most connected components any 2 m slice of that corridor splits into (1 = a single lane)');
+console.log('mid       = over the MIDDLE HALF of the journey: fewest components / how many cells wide that slice is.');
+console.log('            ⭐ one component is only a dominating path if it is also NARROW. A single wide slice is an open');
+console.log('            field everyone crosses, which is not the same thing as a corridor everyone is funnelled into.');
 console.log('choke     = cells in the narrowest slice');
 console.log('corridor  = share of walkable area on a viable route to that site; `all` is the union over sites');
 console.log('spawnLOS  = spawn points whose sight-line to the site is blocked (high is intended: GOTCHAS tombstone 3)');

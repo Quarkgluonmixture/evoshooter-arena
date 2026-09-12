@@ -388,8 +388,14 @@ side-fairness 仍由镜像赛程保证，`red/blue` 依旧只是 sides —— �
     ⚠ **observation 有意没动** —— 点位位置 / armed / 倒计时都是公开回合状态，**属于 C2**；
     所以 genome 与 obsDim 不变，但 `siteCount: 2` 下 `obj.*` 仍只指向 site 0。
     ⛔ **C2 之前不要在双点位地图上训练并解读结果。**
-- **C1c — Exit 证明。** 用 reference bot 跑出本 phase Exit 的四条（A 可打、B 可打、假打 A 真打 B 在某些
-  defender response 下有收益、defender 早 rotate 留空间、没有单一路径支配）。
+- **C1c — Exit 证明（CLOSED 2026-09-12）。** `npm run c1exit`，3 张地图 × 8 seed × 两种角色分配：
+  **E1** 全压 A 88% / 全压 B 67%（对 3/2 固守）✅；
+  **E2** 假打对**反应型**守方 **+31pp**、对**固守型** −21pp ⇒ 正是 phase 要的条件式收益 ✅；
+  **E3** 五人守 A 时攻方 50%，同样五人 t=4 早走后 77% ⇒ **早走代价 27pp** ✅；
+  **E4** 几何：必经中段切片宽 20–63 格（旧图 12–31）⇒ 不存在**窄的**必经走廊，
+  ⚠ 但严格说没有干净证否，⛔ 别读成 PASS。
+  ⚠ **前四版 exit 全读 FAIL，四次都是工具不是世界**（bot 走直线撞墙 / 假打把假点位 arm 了 /
+  早 rotate 设得太晚 / 基线天花板），细节与教训见 LOG + GOTCHAS #26。
   ⛔ reference bot 不进 evolving population。
 
 ⚠ **C1a 之后 evolving agent 暂时看不见 armed / 倒计时**——公开的回合状态是 **C2** 的活。
@@ -1002,13 +1008,23 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：Phase C1 —— objective 拓扑。** （2026-09-12 更新）
+**当前：Phase C2 —— round state / kill feed / objective public info。** （2026-09-13 更新）
+
+⭐ **C1 已 CLOSED**（C1a 机制 · C1b 双点位与路网 · C1c reference-bot exit 3/3）。
+⇒ 现在挡路的是**进化 agent 看不见回合状态**：点位在哪、哪个 armed、倒计时剩多少，全是 C2 的公开信息。
+⛔ **在 C2 之前不要在双点位地图上训练并解读结果** —— 它们还没被告知比赛规则。
+⚠ C2 之后要做的第一件事是**重跑 baseline**：胜负条件和地图都换了，`README` Evidence 表、坑 #23 的 0%、
+所有 `runs/*.json` 的 cross-play 胜率都是**旧规则下的数**（坑 #12）。
+
+<details><summary>C1 的当时记录（2026-09-12）</summary>
 
 D1 已经走完并给出判决：实现 ship、开关保留、**默认不翻**、行为侧 exit 未过，而且失败的原因**指向世界而不是脑子**
 （见 Phase D1 的「当前状态」）。同一晚 `npm run yardstick` 独立测到目标压力已经归零（12 个冠军对 rusher 全 0%）。
 两条独立证据指向同一个根：**这个世界现在既不奖励占点，也不奖励信息博弈。** ⇒ 下一根承重杠杆是 C1。
 
 ⛔ 不要在 C1 之前回头换 GRU、加宽 recurrent state、或调 fitness 系数——那是在一个不付钱的世界里调参。
+
+</details>
 
 已 CLOSED（2026-09-11 ~ 09-12）：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · **V6a**。
 **信息层全部关闭**（V1/V2/V3/V5/V11/V12）；observation 100 维、97 legal / 3 truth-form / **0 hidden**。

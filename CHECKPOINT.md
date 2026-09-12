@@ -66,8 +66,18 @@ attacker 独占站点累积 capture meter → armed → **倒计时按自己的�
 - ⚠ **observation 有意没动**（点位位置 / armed / 倒计时都是 **C2** 的公开回合状态）⇒ genome 与 obsDim 不变，
   但 `siteCount: 2` 下 `obj.*` 仍只指向 site 0。⛔ **C2 之前不要在双点位地图上训练并解读结果。**
 
-**下一刀 = C1c（reference bot 证 exit）。第一件事：一个会「选点位」的 reference bot** ——
-现在 `RusherPolicy` 只认识 `map.zoneX`，所以双点位冒烟里 24 个 armed 回合**全在 site A**。
+**C1c 也过了 ⇒ ⭐⭐ C1 CLOSED（2026-09-12）。** `npm run c1exit`（3 图 × 8 seed × 两种角色分配）：
+E1 全压 A 88% / 全压 B 67% ✅ · E2 假打对**反应型**守方 **+31pp**、对**固守型** −21pp（正是 phase 要的
+条件式收益）✅ · E3 五人早走代价 **27pp** ✅ · E4 几何上必经中段切片 20–63 格（旧图 12–31）⇒ 无**窄**走廊，
+⚠ 但没干净证否，⛔ 别读成 PASS。
+⚠⚠ **前四版 exit 全读 FAIL，四次都是工具不是世界**（bot 走直线撞 screen / 假打把假点位 arm 了 /
+早 rotate 设得比 arm 还晚 / 基线天花板）⇒ 新坑 **#26**，新模块 `src/sim/nav.ts`
+（BFS 导航场，**reference/analysis 专用**，⛔ evolving policy 永不可 import）。
+
+**下一刀 = Phase C2（公开回合状态）。** 现在挡路的是**进化 agent 看不见回合状态**（点位在哪 / 哪个 armed /
+倒计时）。⛔ C2 之前不要在双点位地图上训练并解读结果。
+⚠ C2 之后第一件事是**重跑 baseline** —— 胜负条件和地图都换了，README Evidence 表、坑 #23 的 0%、
+所有 `runs/*.json` 的 cross-play 胜率都是旧规则下的数（坑 #12）。
 
 ⭐⭐ **C1 的第一约束已经量出来了**：`world.step()` 团灭时把剩余时间**按占区费率直接记成占区分**。
 实测团灭只占 13% 的比赛却贡献 3.13 分/场，而真正站在区里赚到的只有 2.22 分/场 —— **白送的多 1.4 倍**。
