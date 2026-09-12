@@ -110,8 +110,8 @@ freshly acquired target is harder to hit than one you have been tracking for hal
 **Team frame.** Blue perceives the world rotated 180°, so both populations solve the *same* problem and any genome
 can play either colour. That is what makes "champion vs its own past self" and "gen 0 vs latest" fair comparisons.
 
-**Observation (93 inputs).** Own state + slot one-hot, zone vector and occupancy, 13 geometry rays, 4 teammate slots
-(relative position, health, firing, comm), 3 enemy contact slots.
+**Observation (101 inputs).** Own state + slot one-hot, zone vector and occupancy, 13 geometry rays, 4 teammate slots
+(relative position, health, firing, comm), 3 enemy contact slots, and 4 hearing sectors.
 
 A contact is a *percept*, not a coordinate: bearing relative to where I am looking, a range cue, and a quality —
 visible body fraction × distance falloff × eccentricity falloff — with every directional number multiplied by how sure
@@ -126,6 +126,11 @@ his facing, and how exposed *I* am to *him* are his state, not my percept, so th
 The geometry rays follow the head: densest down the crosshair, thinning towards ±90°, nothing at all behind. Structures
 are sensed wider than enemies are recognised, which is both realistic and, measurably, the difference between agents
 that can navigate and agents that walk into walls.
+
+**Hearing** is the one sense that works in every direction: four head-relative sectors, footsteps and gunshots kept
+apart, fading with distance and muffled by walls. Footsteps get louder the faster you move — moving slowly is quiet
+because of physics, not because a rule says to sneak. A sound carries no identity and no team label, so telling a
+teammate's steps from an enemy's is an inference the network has to make, not a field it can read.
 
 **Action (12 outputs).** Move vector, look vector, fire, 3 target-slot logits, reload, aim mode, 2 comm values.
 
