@@ -57,7 +57,12 @@ export class Mlp {
     this.buf = this.sizes.map((n) => new Float32Array(n));
   }
 
-  forward(input: Float32Array, inOff: number, out: Float32Array, outOff: number): void {
+  /**
+   * @param trace optional per-layer buffers (one per hidden/output layer, in order) that receive the
+   *        PRE-activation values. Used by the inheritance probe to measure how far a mutation moves a
+   *        layer's pre-activations; there is deliberately no second copy of this forward pass to drift.
+   */
+  forward(input: Float32Array, inOff: number, out: Float32Array, outOff: number, trace?: Float32Array[]): void {
     const s = this.sizes;
     const w = this.w;
     let cur = this.buf[0];
@@ -85,6 +90,7 @@ export class Mlp {
         }
         let acc = w[bias + o] + a0 + a1 + a2 + a3;
         for (; i < nin; i++) acc += w[row + i] * cur[i];
+        if (trace) trace[l - 1][o] = acc;
         next[o] = l === last ? acc : fastTanh(acc);
       }
       p = bias + nout;

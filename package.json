@@ -17,7 +17,8 @@
     "train": "node scripts/train.ts",
     "bench": "node scripts/bench.ts",
     "leaks": "node scripts/leaks.ts",
-    "crossplay": "node scripts/crossplay.ts"
+    "crossplay": "node scripts/crossplay.ts",
+    "inherit": "node scripts/inherit.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
 import { Mlp, fastTanh, genomeLength, randomGenome } from '../src/brain/mlp.ts';
-import { crossover, mutate, tournament } from '../src/evo/genetic.ts';
+import { crossover, mutate, mutationVariance, tournament } from '../src/evo/genetic.ts';
 
 const shape = { inputs: 5, hidden: [4, 3], outputs: 2 };
 
@@ -45,6 +45,31 @@ describe('genetic operators', () => {
     expect(changed / g.length).toBeLessThan(0.065);
     expect(g.every((v) => v === 0)).toBe(true);
   });
+  it('perturbs a weight by exactly the variance mutationVariance predicts', () => {
+    // Every future genome-scale change (V6b's recurrent state, V7's per-player weights) is reasoned about
+    // with this formula, so it has to stay tied to what mutate actually does. Changing the reset scale,
+    // or making a reset nudge instead of replace, moves the measured variance and turns this red — none of
+    // which any other test would notice. Settings are chosen so ~4000 resets land, not ~160.
+    const p = { mutSigma: 0.1, mutRate: 0.3, resetProb: 0.05 };
+    const rng = new Rng(11);
+    const N = 4000;
+    const parent = new Float32Array(N);
+    for (let i = 0; i < N; i++) parent[i] = rng.gauss() * 0.2;
+    let sum = 0;
+    let sq = 0;
+    for (let i = 0; i < N; i++) { sum += parent[i]; sq += parent[i] * parent[i]; }
+    const s = Math.sqrt(sq / N - (sum / N) ** 2);
+    let dsq = 0;
+    const kids = 20;
+    for (let k = 0; k < kids; k++) {
+      const c = mutate(parent, rng, p);
+      for (let i = 0; i < N; i++) dsq += (c[i] - parent[i]) ** 2;
+    }
+    const measured = dsq / (N * kids);
+    expect(measured / mutationVariance(s, p)).toBeGreaterThan(0.93);
+    expect(measured / mutationVariance(s, p)).toBeLessThan(1.07);
+  });
+
   it('crossover copies whole neuron rows from one parent', () => {
     const n = genomeLength(shape);
     const a = new Float32Array(n).fill(1);

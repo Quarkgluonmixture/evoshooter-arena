@@ -7,15 +7,28 @@ export interface MutationParams {
   resetProb: number;
 }
 
+/** Std of the fresh value a reset draws. A reset REPLACES a weight rather than nudging it. */
+export const RESET_SCALE = 0.5;
+
 /** Copy-and-mutate: per-weight Gaussian noise plus rare full resets (lets evolution escape local optima). */
 export function mutate(g: Float32Array, rng: Rng, p: MutationParams): Float32Array {
   const out = new Float32Array(g);
   for (let i = 0; i < out.length; i++) {
     const u = rng.next();
-    if (u < p.resetProb) out[i] = rng.gauss() * 0.5;
+    if (u < p.resetProb) out[i] = rng.gauss() * RESET_SCALE;
     else if (u < p.resetProb + p.mutRate) out[i] += rng.gauss() * p.mutSigma;
   }
   return out;
+}
+
+/**
+ * Variance that one `mutate` call adds to a single weight, for a layer whose weights have std `s`.
+ * A reset replaces the weight, so it contributes `RESET_SCALE² + s²`, not `sigma²` — which is why the
+ * reset probability, not sigma, is what sets inheritance fidelity at the current defaults.
+ * Divide its square root by `s` to get the layer's relative pre-activation disruption (`scripts/inherit.ts`).
+ */
+export function mutationVariance(s: number, p: MutationParams): number {
+  return p.resetProb * (RESET_SCALE * RESET_SCALE + s * s) + p.mutRate * p.mutSigma * p.mutSigma;
 }
 
 /** Neuron-wise crossover: each unit keeps its whole incoming weight vector from one parent. */
