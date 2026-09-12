@@ -799,3 +799,35 @@ ROADMAP C1 写的是「**probe before map build**」，所以这一刀只做探�
 
 `site commitment time / first pressure side / rotate frequency / defender rotation latency / split width /
 post-objective retake paths` 六项**在单目标地图上没有定义**，探针直接印 n/a 而不是印 0 —— 那是 C1 要造出来的东西。
+
+## [2026-09-12 23:30] C1 诊断：世界**用目标的货币给淘汰发工资**  #measure #decision
+
+C1 的 target shape 里有一条「elimination 仍是合法胜法，但**不能永远支配 objective play**」。
+查代码时发现这条已经在 `world.step()` 里被违反了：
+
+```ts
+if (this.aliveCount[RED] === 0 || this.aliveCount[BLUE] === 0) {
+  const remaining = Math.max(0, cfg.matchSeconds - this.t);
+  if (this.aliveCount[RED] > 0) this.score[RED] += remaining * cfg.zonePointsPerSecond;
+```
+
+**团灭一次 = 把剩余时间**按占区费率**直接记成占区分**，一步都不用走进区。
+
+实测（两组跨 run 冠军对打，40 场）：
+- 只有 **13%** 的比赛以团灭结束；
+- 但那些团灭平均给出 **3.13 分/场**，而全部 40 场里**真的靠站在区里**赚到的只有 **2.22 分/场**；
+- ⇒ **白送的那份是所有占区收入的 1.4 倍**。折算下来一次团灭 ≈ 24 分，
+  而一整场正常比赛的占区收入 ≈ 2.2 分 —— **一次团灭约等于十场比赛的占区价值**。
+- 换个说法：一场比赛最多 40 分的目标价值，实际被占区认领掉的只有 **5.5%**。
+
+⇒ 坑 #23（冠军对 rusher 0%）、D1 的空结果（不奖励信息博弈）、mapprobe 的 91–95% 死区，
+现在有了**同一个机制解释**：这个世界的最优「占区」策略是杀光对面。
+
+### ⛔ 但不要顺手把这段删掉
+
+那段代码是个**仿真快捷方式**，替代的是「活下来的人慢慢走过去无人干扰地占满剩下的时间」。
+直接删掉 ⇒ 团灭一分不值，过度矫正，也违反「elimination 仍是合法胜法」。
+
+真正的修法在 C1 target shape 自己那一条：**objective action 要有时间成本和可中断性** ——
+一个你可以提前投入、并且**在你死后仍然继续计时**的目标（职业 CS 的 plant/defuse 就是这个形状）。
+那时杀光对面不再等于拿下目标，因为对面可能已经投入了。⇒ 这条作为 C1 的设计约束记进 ROADMAP。
