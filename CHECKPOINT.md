@@ -57,7 +57,17 @@ attacker 独占站点累积 capture meter → armed → **倒计时按自己的�
 ⭐ 承重断言：**armed 之后杀光全部攻方，守方仍然输**。团灭白送分自然消失；团灭守方也不再结束回合。
 ⚠ 常数（3/15/5 秒）是首版，⛔ 别在 C1b 换掉拓扑之前调。
 ⚠ **evolving agent 还看不见 armed/倒计时**（那是 C2）⇒ ⛔ 别拿种群表现评判这套机制。
-**下一刀 = C1b（双 site 与路网，用 `npm run mapprobe` 验收：通路占比要从 5–9% 显著上升）。**
+**C1b 也 ship 了（2026-09-12，拆成两半）**：
+- **C1b-1 地图**：`siteCount: 2`（默认仍 1，单点位地图逐字节不变）把两个 site 放在 `(±12, 0)`，互为 180° 旋转像。
+  ⭐ 验收线达成：**通路占可走面积 5–9% → 18–20%**；A→B 步行 39.0 m（全速 6.5 s，rotation 的几何下限）；
+  同一侧到 A/B 的通路只重叠 4–19%。side-fairness 由 `mapprobe --self-test` 机械校验（已在 CI）。
+- **C1b-2 world**：每个 site 一条 capture meter，`armedSite` 只能有一个。
+  ⭐ 承重测试 = **守方全站 A，攻方照样拿下 B**。
+- ⚠ **observation 有意没动**（点位位置 / armed / 倒计时都是 **C2** 的公开回合状态）⇒ genome 与 obsDim 不变，
+  但 `siteCount: 2` 下 `obj.*` 仍只指向 site 0。⛔ **C2 之前不要在双点位地图上训练并解读结果。**
+
+**下一刀 = C1c（reference bot 证 exit）。第一件事：一个会「选点位」的 reference bot** ——
+现在 `RusherPolicy` 只认识 `map.zoneX`，所以双点位冒烟里 24 个 armed 回合**全在 site A**。
 
 ⭐⭐ **C1 的第一约束已经量出来了**：`world.step()` 团灭时把剩余时间**按占区费率直接记成占区分**。
 实测团灭只占 13% 的比赛却贡献 3.13 分/场，而真正站在区里赚到的只有 2.22 分/场 —— **白送的多 1.4 倍**。
