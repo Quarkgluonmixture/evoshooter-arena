@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SIM, DEFAULT_EVO } from '../src/core/config.ts';
+import { BRAIN_ONLY_FIELDS, DEFAULT_SIM, DEFAULT_EVO, type SimConfig } from '../src/core/config.ts';
 import { Rng } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
 import { World, obsDim, ACT_DIM, A_LOOK_X, A_LOOK_Z, type Agent } from '../src/sim/world.ts';
@@ -193,6 +193,23 @@ describe('World', () => {
     const live = run(false);
     expect(live.nonzero).toBeGreaterThan(0);
     expect(live.hash).not.toBe(run(true).hash);
+  });
+
+  it('keeps every BRAIN_ONLY_FIELDS entry invisible to a hand-written bot', () => {
+    // scripts/yardstick.ts compares champions across a phase boundary by scoring them against scripted bots,
+    // and that is only valid while the bot is playing the SAME game under both configs. The allowlist is the
+    // load-bearing claim; this checks it mechanically rather than trusting the name.
+    const run = (c: SimConfig) => {
+      const w = new World(c, generateMap(DEFAULT_EVO.mapSeed, c), 17);
+      while (!w.done) stepMatch(w, new RusherPolicy(), new CamperPolicy());
+      return w.hash();
+    };
+    const base = run(cfg);
+    for (const k of BRAIN_ONLY_FIELDS) {
+      const v = cfg[k];
+      expect(typeof v, `${k} is not a number — extend this test before adding it`).toBe('number');
+      expect(run({ ...cfg, [k]: (v as number) + 40 }), `changing ${k} reached the world`).toBe(base);
+    }
   });
 
   it('refuses a recurrent slice wider than the hidden layer it is taken from', () => {

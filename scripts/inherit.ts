@@ -18,7 +18,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import type { EvoConfig, SimConfig } from '../src/core/config.ts';
+import { normalizeSim, type EvoConfig, type SimConfig } from '../src/core/config.ts';
 import { Rng, hashSeed } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
 import { Mlp, layerSizes, randomGenome, genomeLength, type MlpShape } from '../src/brain/mlp.ts';
@@ -52,7 +52,13 @@ const RESET = num('reset', 0.002);
 interface RunHofEntry { gen: number; fitness: number; genome: number[] }
 interface RunFile { evo: EvoConfig; sim: SimConfig; hof: [RunHofEntry[], RunHofEntry[]] }
 
-const runs = files.map((f) => ({ tag: basename(f).replace(/\.json$/, ''), data: JSON.parse(readFileSync(f, 'utf8')) as RunFile }));
+const runs = files.map((f) => {
+  const data = JSON.parse(readFileSync(f, 'utf8')) as RunFile;
+  const tag = basename(f).replace(/\.json$/, '');
+  const norm = normalizeSim(data.sim);
+  if (norm.defaulted.length) console.log(`note: ${tag} predates ${norm.defaulted.join(', ')} — using today's defaults for those`);
+  return { tag, data: { ...data, sim: norm.sim } };
+});
 const ref = runs[0];
 const sim = ref.data.sim;
 const shape = shapeFor(sim, ref.data.evo.hidden);

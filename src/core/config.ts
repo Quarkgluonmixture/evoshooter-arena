@@ -100,6 +100,26 @@ export const DEFAULT_SIM: SimConfig = {
   heatCells: 24,
 };
 
+/**
+ * SimConfig fields that change the BRAIN's interface but not the world itself. Two runs that differ only in
+ * these are still playing the same game, so a hand-written bot's win share against each is comparable
+ * (`scripts/yardstick.ts`). `tests/world.test.ts` checks that claim mechanically: perturbing any key listed
+ * here must leave a scripted-bot match bit-identical. ⛔ Adding a key that reaches the world breaks the one
+ * comparison that survives a phase boundary.
+ */
+export const BRAIN_ONLY_FIELDS: (keyof SimConfig)[] = ['recurrentDim'];
+
+/**
+ * Fill in fields a saved run predates. A run exported before `recurrentDim` existed has `undefined` there,
+ * and `obsDim(cfg) + undefined` is NaN — which surfaced as a genome-length mismatch rather than as a
+ * missing field. Returns the names it had to default so a script can say so out loud instead of pretending
+ * the old run was configured that way.
+ */
+export function normalizeSim(saved: Partial<SimConfig>): { sim: SimConfig; defaulted: (keyof SimConfig)[] } {
+  const defaulted = (Object.keys(DEFAULT_SIM) as (keyof SimConfig)[]).filter((k) => saved[k] === undefined);
+  return { sim: { ...DEFAULT_SIM, ...saved }, defaulted };
+}
+
 /** Evolution hyper-parameters. */
 export interface EvoConfig {
   popSize: number;          // per team

@@ -17,7 +17,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import type { EvoConfig, SimConfig } from '../src/core/config.ts';
+import { normalizeSim, type EvoConfig, type SimConfig } from '../src/core/config.ts';
 import { hashSeed } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
 import { genomeLength } from '../src/brain/mlp.ts';
@@ -61,11 +61,14 @@ interface Entrant {
   genome: Float32Array;
 }
 
-const runs = files.map((f) => ({ path: f, tag: basename(f).replace(/\.json$/, ''), data: JSON.parse(readFileSync(f, 'utf8')) as RunFile }));
-for (const r of runs) {
-  if (!r.data.hof || !r.data.sim) throw new Error(`${r.path}: not a trainer run export (no hof/sim) — re-run train.ts with --out`);
-}
-
+const runs = files.map((f) => {
+  const data = JSON.parse(readFileSync(f, 'utf8')) as RunFile;
+  const tag = basename(f).replace(/\.json$/, '');
+  if (!data.hof || !data.sim) throw new Error(`${f}: not a trainer run export (no hof/sim) — re-run train.ts with --out`);
+  const { sim, defaulted } = normalizeSim(data.sim);
+  if (defaulted.length) console.log(`note: ${tag} predates ${defaulted.join(', ')} — using today's defaults for those`);
+  return { path: f, tag, data: { ...data, sim } };
+});
 // Fail closed on config drift: champions trained under different rules are not comparable, and the
 // resulting matrix would be measuring the rule change, not the lineages (GOTCHAS #12).
 const ref = runs[0];
