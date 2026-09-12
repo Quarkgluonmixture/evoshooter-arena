@@ -15,7 +15,8 @@
  */
 import { DEFAULT_SIM, DEFAULT_EVO } from '../src/core/config.ts';
 import { generateMap, type ArenaMap } from '../src/sim/map.ts';
-import { pointBoxDist, segmentHitsBox } from '../src/sim/geom.ts';
+import { buildNav, bfsFrom, type NavGrid } from '../src/sim/nav.ts';
+import { segmentHitsBox } from '../src/sim/geom.ts';
 
 const flag = (name: string, d: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -27,58 +28,9 @@ const SLACK = Number(flag('slack', '0.15'));
 const SITES = Number(flag('sites', String(DEFAULT_SIM.siteCount)));
 const cfg = { ...DEFAULT_SIM, siteCount: (SITES === 2 ? 2 : 1) as 1 | 2 };
 
-interface Grid { n: number; walk: Uint8Array; xOf: (i: number) => number; zOf: (i: number) => number; idx: (x: number, z: number) => number }
-
-/**
- * Odd cell count with centres at (i - mid) * CELL, so the grid maps onto itself under the 180° rotation the
- * map is built with. An edge-aligned grid does not: x = 8 and x = -8 land in cells centred at 8.25 and
- * -7.75, and the probe then reports a half-metre side asymmetry that exists only in the measurement — on a
- * map whose whole point is being side-fair.
- */
-function buildGrid(map: ArenaMap): Grid {
-  const half = Math.round(cfg.arenaHalf / CELL);
-  const n = 2 * half + 1;
-  const mid = half;
-  const walk = new Uint8Array(n * n);
-  const xOf = (i: number) => ((i % n) - mid) * CELL;
-  const zOf = (i: number) => (Math.floor(i / n) - mid) * CELL;
-  for (let i = 0; i < n * n; i++) {
-    const x = xOf(i);
-    const z = zOf(i);
-    // a body has width: a cell is walkable only if the agent's disc fits
-    let ok = true;
-    for (const b of map.boxes) {
-      if (pointBoxDist(x, z, b) < cfg.agentRadius) { ok = false; break; }
-    }
-    walk[i] = ok ? 1 : 0;
-  }
-  const clamp = (c: number) => Math.min(n - 1, Math.max(0, c));
-  const idx = (x: number, z: number) => clamp(Math.round(z / CELL) + mid) * n + clamp(Math.round(x / CELL) + mid);
-  return { n, walk, xOf, zOf, idx };
-}
-
-/** 4-neighbour BFS in cells; Infinity where unreachable. */
-function bfs(g: Grid, sources: number[]): Float64Array {
-  const d = new Float64Array(g.n * g.n).fill(Infinity);
-  const q: number[] = [];
-  for (const s of sources) if (g.walk[s]) { d[s] = 0; q.push(s); }
-  for (let head = 0; head < q.length; head++) {
-    const c = q[head];
-    const cx = c % g.n;
-    const cz = Math.floor(c / g.n);
-    const step = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
-    for (const [ddx, ddz] of step) {
-      const nx = cx + ddx;
-      const nz = cz + ddz;
-      if (nx < 0 || nz < 0 || nx >= g.n || nz >= g.n) continue;
-      const k = nz * g.n + nx;
-      if (!g.walk[k] || d[k] !== Infinity) continue;
-      d[k] = d[c] + 1;
-      q.push(k);
-    }
-  }
-  return d;
-}
+type Grid = NavGrid;
+const buildGrid = (map: ArenaMap): Grid => buildNav(map, cfg, CELL);
+const bfs = (g: Grid, sources: number[]): Float64Array => bfsFrom(g, sources);
 
 /** Connected components (4-neighbour) among the flagged cells of one depth slice. */
 function components(g: Grid, cells: number[]): number {
