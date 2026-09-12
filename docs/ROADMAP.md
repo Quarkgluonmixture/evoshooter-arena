@@ -378,9 +378,16 @@ side-fairness 仍由镜像赛程保证，`red/blue` 依旧只是 sides —— �
 - **C1a — 目标机制，先不动地图。** 在现有的单一 zone 上做 attacker/defender 角色 + capture/arm/defuse
   倒计时 + 新的终局判定，删掉团灭白送分。文件面窄，改的是 `config/world/match`，
   用 reference bot + `npm run yardstick` 验收「投入有成本、倒计时可中断、团灭不再等于拿下目标」。
-- **C1b — 两个 site 与路网。** 地图生成出双目标与多路径，用 `npm run mapprobe` 验收：
-  通路占可走面积要从 **5–9%** 显著上升，两个 site 的距离/通路数对两侧对称（`--self-test` 先过），
-  而现在印 n/a 的六项开始有读数。
+- **C1b — 两个 site 与路网。** 又拆成两半，因为「改地图」和「改 world 的多点位逻辑」是两个关注点：
+  - **C1b-1 地图与度量（CLOSED 2026-09-12）**：`siteCount: 2` 把两个 site 放在 `(±siteOffset, 0)`（互为 180° 旋转像），
+    四面 screen + 中央隔墙。⭐ 验收线达成：**通路占可走面积 5–9% → 18–20%**；
+    A→B 步行 **39.0 m = 全速 6.5 s**（rotation 的几何下限）；同一侧通往 A/B 的通路**只重叠 4–19%**。
+    side-fairness 由 `mapprobe --self-test` **机械校验**（红→A 与蓝→B 逐格相同，三个 seed），已在 CI。
+  - **C1b-2 world 玩两个点位（CLOSED 2026-09-12）**：每个 site 一条 capture meter，`armedSite` 只能有一个。
+    承重测试 = **守方全站 A，攻方照样拿下 B**。
+    ⚠ **observation 有意没动** —— 点位位置 / armed / 倒计时都是公开回合状态，**属于 C2**；
+    所以 genome 与 obsDim 不变，但 `siteCount: 2` 下 `obj.*` 仍只指向 site 0。
+    ⛔ **C2 之前不要在双点位地图上训练并解读结果。**
 - **C1c — Exit 证明。** 用 reference bot 跑出本 phase Exit 的四条（A 可打、B 可打、假打 A 真打 B 在某些
   defender response 下有收益、defender 早 rotate 留空间、没有单一路径支配）。
   ⛔ reference bot 不进 evolving population。

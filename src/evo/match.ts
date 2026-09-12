@@ -71,7 +71,7 @@ export function deriveMetrics(st: TeamStats, world: World, team: 0 | 1): TeamMet
     firstContact: st.firstContactT < 0 ? cfg.matchSeconds : st.firstContactT,
     sightTicks: st.sightTicks,
     objectiveProgress: cfg.roundMode === 'capture'
-      ? (team === world.attackers ? Math.max(world.capture, world.armed ? 1 : 0) : world.defuse)
+      ? (team === world.attackers ? Math.max(...world.capture, world.armedSite >= 0 ? 1 : 0) : world.defuse)
       : Math.min(1, world.score[team] / (cfg.matchSeconds * cfg.zonePointsPerSecond)),
     reloads: st.reloads,
   };
@@ -109,7 +109,7 @@ export function fitnessOf(world: World, team: 0 | 1): number {
 function captureFitness(world: World, team: 0 | 1): number {
   const cfg = world.cfg;
   const atk = world.attackers;
-  const progress = Math.max(world.capture, world.armed ? 1 : 0);
+  const progress = Math.max(...world.capture, world.armedSite >= 0 ? 1 : 0);
   const attackerObjective = world.winner === atk ? 1 : -1 + 0.6 * progress;
   const objective = team === atk ? attackerObjective : -attackerObjective;
   const st = world.stats[team];

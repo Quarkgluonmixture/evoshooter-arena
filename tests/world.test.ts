@@ -314,20 +314,20 @@ describe('capture rounds (ROADMAP C1a)', () => {
   it('arms only on uncontested attacker occupancy, and the meter decays when they leave', () => {
     const contested = site(1, 2, 2);
     run(contested, 3);
-    expect(contested.capture, 'a defender standing in it should stop the clock').toBe(0);
-    expect(contested.armed).toBe(false);
+    expect(contested.capture[0], 'a defender standing in it should stop the clock').toBe(0);
+    expect(contested.armedSite).toBe(-1);
 
     const clean = site(1, 2, 0);
     run(clean, ccfg.captureSeconds + 0.2);
-    expect(clean.armed).toBe(true);
+    expect(clean.armedSite).toBe(0);
 
     const left = site(1, 2, 0);
     run(left, ccfg.captureSeconds * 0.5);
-    expect(left.capture).toBeGreaterThan(0.2);
+    expect(left.capture[0]).toBeGreaterThan(0.2);
     for (let i = 0; i < T; i++) Object.assign(left.agents[i], { x: -26 + i, z: -26 });
     run(left, ccfg.captureSeconds);
-    expect(left.capture).toBe(0);
-    expect(left.armed).toBe(false);
+    expect(left.capture[0]).toBe(0);
+    expect(left.armedSite).toBe(-1);
   });
 
   it('⭐ killing every attacker AFTER the site is armed does not save the defenders', () => {
@@ -335,7 +335,7 @@ describe('capture rounds (ROADMAP C1a)', () => {
     // zone's own rate — elimination IS the objective. Here the countdown has its own clock.
     const w = site(2, 2, 0);
     run(w, ccfg.captureSeconds + 0.2);
-    expect(w.armed).toBe(true);
+    expect(w.armedSite).toBe(0);
     kill(w, 0);
     run(w, ccfg.armedSeconds + 1);
     expect(w.done).toBe(true);
@@ -356,7 +356,7 @@ describe('capture rounds (ROADMAP C1a)', () => {
   it('keeps elimination a legal win: wiping the attackers BEFORE they arm it ends the round', () => {
     const w = site(4, 2, 0);
     run(w, ccfg.captureSeconds * 0.4);
-    expect(w.armed).toBe(false);
+    expect(w.armedSite).toBe(-1);
     kill(w, 0);
     run(w, 0.2);
     expect(w.done).toBe(true);
@@ -367,12 +367,46 @@ describe('capture rounds (ROADMAP C1a)', () => {
     const w = site(5, 2, 0);
     w.t = cfg.matchSeconds - ccfg.captureSeconds - 0.5;
     run(w, ccfg.captureSeconds + 0.3);
-    expect(w.armed).toBe(true);
+    expect(w.armedSite).toBe(0);
     expect(w.t).toBeGreaterThan(cfg.matchSeconds - 0.5);
     run(w, 0.5);
     expect(w.done, 'the clock ran out but the site is armed, so the round is not over').toBe(false);
     run(w, ccfg.armedSeconds + 1);
     expect(w.winner).toBe(0);
+  });
+
+  it('⭐ cannot be defended everywhere: holding one site does not stop a capture at the other', () => {
+    // The entire reason two sites is a different game. Defenders sit on A in force; attackers walk onto B.
+    const two = { ...ccfg, siteCount: 2 as const };
+    const map2 = generateMap(DEFAULT_EVO.mapSeed, two);
+    const w = new World(two, map2, 7, { attackers: 0 });
+    const [A, B] = map2.sites;
+    for (let i = 0; i < T; i++) {
+      Object.assign(w.agents[i], { x: B.x + (i - 2) * 1.2, z: B.z, vx: 0, vz: 0 });      // attackers on B
+      Object.assign(w.agents[T + i], { x: A.x + (i - 2) * 1.2, z: A.z, vx: 0, vz: 0 });  // defenders on A
+    }
+    for (let i = 0; i < Math.round((two.captureSeconds + 0.2) / cfg.dt) && !w.done; i++) {
+      stepMatch(w, new IdlePolicy(), new IdlePolicy());
+    }
+    expect(w.armedSite, 'site B armed while every defender stood on site A').toBe(1);
+    expect(w.capture[0], 'nobody was capturing A').toBe(0);
+  });
+
+  it('arms one site only — there is one bomb, not one per site', () => {
+    const two = { ...ccfg, siteCount: 2 as const };
+    const map2 = generateMap(DEFAULT_EVO.mapSeed, two);
+    const w = new World(two, map2, 8, { attackers: 0 });
+    const [A, B] = map2.sites;
+    for (let i = 0; i < T; i++) {
+      Object.assign(w.agents[i], { x: (i < 3 ? A.x : B.x) + (i % 3) * 1.2, z: i < 3 ? A.z : B.z, vx: 0, vz: 0 });
+      Object.assign(w.agents[T + i], { x: 26 - i, z: 26, vx: 0, vz: 0 });
+    }
+    for (let i = 0; i < Math.round((two.captureSeconds + 1.5) / cfg.dt) && !w.done; i++) {
+      stepMatch(w, new IdlePolicy(), new IdlePolicy());
+    }
+    expect(w.armedSite).toBeGreaterThanOrEqual(0);
+    const other = w.armedSite === 0 ? 1 : 0;
+    expect(w.capture[other], 'the other site stops mattering the moment one is armed').toBeLessThan(1);
   });
 
   it('pays nothing for time not spent: a wipe adds no score', () => {

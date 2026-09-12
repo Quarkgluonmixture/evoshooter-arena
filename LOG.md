@@ -909,3 +909,22 @@ C1b 本身又太大（改地图 + 改 world 的多点位逻辑 + 改 observation
 `armedSeconds = 15`，而猜错边的守方**最好情况**要 6.5 s 走过去 + 5 s defuse = **11.5 s**。
 ⇒ 猜错边可以救，但只够一次**干净且无人干扰**的 rotation。这是几何和 C1a 常数**碰巧**对上的，
 ⛔ 不是调出来的，也**还没有**被 agent 验证过 —— 真正的裁决在 C1c 的 reference bot。
+
+## [2026-09-12 23:55] C1b-2：world 真的在玩两个点位  #ship
+
+capture 逻辑从「一个 zone」改成「每个 site 一条 meter」：`capture: number[]`、`armedSite`（−1 = 未 armed）。
+⭐ **只可能有一个点位被 armed** —— 是一颗炸弹，不是每个点位一颗；一旦 armed，别处的 capture 不再有意义。
+
+⚠ **有意不做的事：observation 没动。** 两个 site 的位置、哪个被 armed、倒计时还剩多少 ——
+全都是**公开回合状态，属于 C2**。所以这一刀**不作废任何 genome、不改 obsDim**。
+⛔ 代价是：`siteCount: 2` 下 `obj.*` 那组观测仍然只指向 site 0，对进化 agent 是**不完整的**。
+默认 `siteCount: 1` 所以没有任何东西是带着这个缺陷发出去的，但 C2 之前 ⛔ 别在双点位地图上训练并解读结果。
+
+### 验收
+
+- 两条新测试，承重的那条是 ⭐ **「守方五个人全站在 A 上，攻方照样把 B 拿下」** ——
+  这就是两个点位和一个大点位的全部区别。另一条钉住「只有一个点位能被 armed」。85 测试绿。
+- 冒烟（rusher 对 rusher，双点位 capture，48 回合两种角色分配）：攻方角色胜率 **50%**（角色公平），
+  **50%** 的回合被 armed，平均回合 **31.5 s**。
+  ⚠ **armed 的 24 回合全部发生在 site A** —— 因为 `RusherPolicy` 只认识 `map.zoneX/zoneZ`（= site A）。
+  这不是世界的问题，是 reference bot 还不会选点位。⇒ **一个会选点位的 bot 是 C1c 的第一件事。**
