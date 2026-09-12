@@ -341,6 +341,22 @@ B2d. 评估是否需要 projectile，若概率模型已能诚实表达则不为�
 
 ### Probe before map build
 
+**已做（2026-09-12）：`npm run mapprobe`，旧地图基线在下面；`--self-test` 已接进 CI。**
+几何类指标可以在单目标地图上定义并已量到（seeds 7/11/23，红蓝逐项相同）：
+
+| seed | 最短距离 | 最宽切片的通路数 | choke（格） | **通路占可走面积** | 出生点视线被挡 |
+|---|---|---|---|---|---|
+| 7 | 27.0 m | 2 | 14 | **5%** | 4/5 |
+| 11 | 31.0 m | 5 | 12 | **9%** | 5/5 |
+| 23 | 28.0 m | 2 | 16 | **6%** | 4/5 |
+
+⭐⭐ **91–95% 的可走面积不在任何一条通往目标的可行路线上** —— 新拓扑要打败的就是这个数。
+⚠ 第一版把一张 180° 对称的地图读成红蓝不对称，原因在网格离散化不对称（GOTCHAS #25）；
+⇒ 新拓扑的 side-fair 断言必须先过 `--self-test`。
+
+其余六项（site commitment time / first pressure side / rotate frequency / defender rotation latency /
+split width / post-objective retake paths）**在单目标地图上没有定义**，探针印 n/a 不印 0 —— 它们是本 phase 要造出来的。
+
 先定义指标：
 
 - site commitment time；

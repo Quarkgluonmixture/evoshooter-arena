@@ -81,6 +81,10 @@
   ④ `npm run yardstick`（2026-09-12 新增）= **唯一能跨 phase 边界比的尺子**：手写 bot 没有 genome、
   不读 obs ⇒ 在任何规则集下都是同一个对手。`recurrentDim` 可以不同，其余 SimConfig 差异硬报错；
   allowlist `BRAIN_ONLY_FIELDS` 由 `tests/world.test.ts` 机械校验。⭐ 它一上来就抓到了上面那条（坑 #23）。
+  ⑤ `npm run recprobe`（2026-09-12 新增）= 消融要配 **in-distribution 对照**（live/wiped/frozen/alien，
+  只消融被观察的那一队）。只跑「有/无」两档会把「这块输入有用」误读成「它编码了历史」（坑 #24）。
+  ⑥ `npm run mapprobe`（2026-09-12 新增）= 地图拓扑度量（可行通路 / 通路数 / choke / 出生点视线）。
+  ⭐ **`--self-test` 已接进 CI**：给对称性背书的尺子自己必须先对称（坑 #25）。
   ⭐⭐ 它**不只守当期这一刀**：V6a 第一版把 `recency` 在「看得见」时写成恒 1，视距边界又出现满幅断崖，
   被**三刀前**写的 `A1-P8` 抓住 —— 规矩是「这个槽里每个字段都必须乘 confidence」。
   ⭐ 每条修复都要配**正向护栏**（`A1-P22`/`A1-P17`）：把字段改成恒 0 也能让泄漏探针变绿，那是空过。

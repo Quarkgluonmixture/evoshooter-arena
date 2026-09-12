@@ -42,6 +42,9 @@ jobs:
       # The information-leak matrix is a gate, not a report: it exits non-zero
       # when a probe disagrees with its registered status.
       - run: npm run leaks
+      # The map probe certifies that a topology is side-fair, so its own grid has to close under the map's
+      # 180° rotation first. --self-test exits 2 when it does not (GOTCHAS #25).
+      - run: npm run mapprobe -- --self-test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
