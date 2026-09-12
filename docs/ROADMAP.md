@@ -354,6 +354,44 @@ B2d. 评估是否需要 projectile，若概率模型已能诚实表达则不为�
 一个可以提前投入、且**在投入方死后仍继续计时**的目标。那时杀光对面不再等于拿下目标。
 **这是 C1 设计的第一约束，不是可选项。**
 
+### 最小设计（2026-09-12 拟定，逐条对着上面的 target shape 推出来的）
+
+**Round shape**：一方 **attackers**、一方 **defenders**，角色**按比赛分配并成对互换**（同一支队必须两边都打，
+side-fairness 仍由镜像赛程保证，`red/blue` 依旧只是 sides —— 不制造永久物种，和 VISION §11.2 一致）。
+
+**目标动作 = 投入 + 倒计时 + 可反悔**，这是整份设计里唯一真正新的机制：
+
+1. attacker 站在一个 site 里累积 **capture meter**（有时间成本；离开会衰减）。
+2. meter 满 ⇒ **armed**：一个**独立倒计时**开始，**攻方全灭也继续走**。
+3. defender 站在同一个 site 里可以**反向消耗**倒计时（也有时间成本）⇒ 可中断。
+4. 判定：倒计时归零 ⇒ attackers 赢；被反向清空或回合时间耗尽且未 armed ⇒ defenders 赢。
+
+⇒ 这一条同时解决三件事：objective action 有**时间成本**（1、3）与**可中断性**（3）；
+**elimination 不再支配**（armed 之后杀光攻方不解决问题，必须去 defuse）；
+而且**那段白送剩余时间的加分自然消失**——终局由规则判定，不需要再拿占区费率替代「慢慢走过去占满」。
+
+**两个 site** 让「去哪边 / 什么时候转 / 要不要留人 / 骗 rotate」第一次有定义：defenders 人数固定，
+两个 site 不可能同时满防，attackers 的信息优势就是「我选，你猜」。
+
+### 施工拆成三刀（⛔ 不要一次做完，无法归因）
+
+- **C1a — 目标机制，先不动地图。** 在现有的单一 zone 上做 attacker/defender 角色 + capture/arm/defuse
+  倒计时 + 新的终局判定，删掉团灭白送分。文件面窄，改的是 `config/world/match`，
+  用 reference bot + `npm run yardstick` 验收「投入有成本、倒计时可中断、团灭不再等于拿下目标」。
+- **C1b — 两个 site 与路网。** 地图生成出双目标与多路径，用 `npm run mapprobe` 验收：
+  通路占可走面积要从 **5–9%** 显著上升，两个 site 的距离/通路数对两侧对称（`--self-test` 先过），
+  而现在印 n/a 的六项开始有读数。
+- **C1c — Exit 证明。** 用 reference bot 跑出本 phase Exit 的四条（A 可打、B 可打、假打 A 真打 B 在某些
+  defender response 下有收益、defender 早 rotate 留空间、没有单一路径支配）。
+  ⛔ reference bot 不进 evolving population。
+
+⚠ **C1a 之后 evolving agent 暂时看不见 armed / 倒计时**——公开的回合状态是 **C2** 的活。
+这不阻塞 C1：本 phase 的 Exit 本来就写的是「scripted/reference agents 能证明**世界允许**」。
+⛔ 但也因此：C1a–C1c 期间**不要**拿进化种群的表现去评判这套机制，它们还没被告知比赛规则。
+
+⚠ **所有既有 baseline 在 C1a 之后失效**（胜负条件变了）：`runs/*.json` 的冠军仍可加载，但
+`npm run crossplay` 的胜率、README Evidence 表、坑 #23 的 0% 读数都是**旧规则下的数**，⛔ 不可跨 C1 比较（坑 #12）。
+
 ### Probe before map build
 
 **已做（2026-09-12）：`npm run mapprobe`，旧地图基线在下面；`--self-test` 已接进 CI。**
