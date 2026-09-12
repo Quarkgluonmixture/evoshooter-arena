@@ -524,3 +524,13 @@ ladder 两个方向都 ≥50% 的血统数：baseline 4/4 → A2 3/6 → A3.1 3/
 
 **判决：SHIP。V11 / V12 关闭。** 还开着的账：**V4**（自动瞄准）· **V6**（记忆归 world 管 + 3 秒断崖）· V7/V8/V9/V10。
 下一刀按 ROADMAP cursor 的顺序 = **V6**，最后才是 V4（V4 要连带重做转头手感，见 SUBSTRATE V4 前瞻警告 + GOTCHAS #10）。
+
+## [2026-09-12 02:00] 标注漂移订正：V2 关了，schema 标签忘了跟  #incident
+`npm run leaks` 报「0 hidden」时顺手复核，发现 `enemy*.bearingSin/Cos/range` 还挂着 `truth-form / V2`，
+注释甚至写着「still exact geometry, with no perceptual noise or quantisation (A3.2b)」——**A3.2b 已经加了噪声和量化**，
+这三个字段早就不是引擎真值的可逆函数了（`A1-P16` 就是这么翻绿的）。
+⇒ 改成 `legal`。当期分布变成 **97 legal / 3 truth-form / 0 hidden**（剩下 3 个是 `staleness`，属 V6）。
+
+⭐ 教训：**probe 翻绿不会自动更新 provenance 标签**——一个是行为，一个是声明，两份都要在同一刀里改。
+探针没抓住这条是因为探针问的是「值会不会动」，标签问的是「我们说它是什么」。
+⇒ 以后关一条 gap 时，除了看 probe 翻绿，还要 `grep` 一遍 schema 里挂着那个 gap 编号的字段。

@@ -84,10 +84,10 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
 
   // --- enemy contacts: a percept, scaled by how sure of it I am (A3.2)
   for (let s = 0; s < cfg.enemySlots; s++) {
-    push(`enemy${s}.bearingSin`, 'enemy', 'truth-form', 'V2',
-      'bearing relative to my own facing — but still exact geometry, with no perceptual noise or quantisation (A3.2b)');
-    push(`enemy${s}.bearingCos`, 'enemy', 'truth-form', 'V2');
-    push(`enemy${s}.range`, 'enemy', 'truth-form', 'V2', 'range cue, exact up to the confidence scaling');
+    push(`enemy${s}.bearingSin`, 'enemy', 'legal', undefined,
+      'bearing relative to my own facing, blurred and quantised by an amount that grows as the look gets worse');
+    push(`enemy${s}.bearingCos`, 'enemy', 'legal');
+    push(`enemy${s}.range`, 'enemy', 'legal', undefined, 'range cue on a multiplicative lattice, scaled by confidence');
     push(`enemy${s}.quality`, 'enemy', 'legal', undefined,
       'how good my current look is: visible body fraction x distance falloff x eccentricity falloff');
     push(`enemy${s}.confidence`, 'enemy', 'legal', undefined, 'best of what I see now and what I remember seeing');
