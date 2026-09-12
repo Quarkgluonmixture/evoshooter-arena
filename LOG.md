@@ -716,3 +716,56 @@ gen-0 就已经 0%，所以这是**整个训练设置**的性质，和 D1 正交
 新坑 **#23**。
 
 原始输出：`runs/yardstick-v6a.txt`（gitignore）。
+
+## [2026-09-12 23:05] D1 判决：recurrent state 在用，但**不是当记忆用**  #measure #decision #deadend
+
+三臂各 40 代 pop 16 两 seed（A = 基线 rec0/mem3，复用 v6a-fade-s1/s2，前向路径已验证逐列不变；
+B = rec0/**mem0**；C = rec40/**mem0**）。预测冻结在 `runs/d1-predictions.txt`。
+
+### 预测对账
+
+| 预测 | 结果 |
+|---|---|
+| P1 拿掉世界记忆会**变差** | ✅ 首枪 5.82→**9.84**（s1）、5.29→**14.81**（s2）；kills 2.98→0.97、3.29→1.80；accuracy .302→.190、.306→.214 |
+| P2 arm C 补回**一部分** | ✅ 训练指标上补回 **50–80%**（s1 kills 2.05 = 补回 53%；s2 首枪 6.90 = 补回 83%；s2 accuracy .310 已超基线） |
+| P3 yardstick 对 rusher 仍是 ~0% | ✅ **12 个冠军全是 0%**（一个 8%），三臂无差别 |
+| P4 mem0 下 A1-P23 clean | ✅（构造上成立，`npm run leaks --mem 0`） |
+
+### ⭐⭐ 但 P2 的「补回」不是记忆补回来的
+
+`npm run recprobe` 四种模式跑同一批 seed，**只消融被观察那一队**（对手是本 run 的蓝方冠军时它也有脑子，
+两边一起废掉会把「都变弱」读成 null）：
+
+| 模式 | 喂进去的是什么 | 实测 `var` |
+|---|---|---|
+| live | 正常逐 tick 更新 | 0.24–0.75 |
+| wiped | 每 tick 清零 | 0.000 |
+| frozen | 本场第 10 tick 的快照，之后不变 | ~0.01 |
+| **alien** | **另一场比赛**抓来的状态，恒定不变 | **0.000** |
+
+**alien 和 live 打平。** 两个 seed × 三个对手、每一项指标都是：
+s2 own-B kills live 2.58 / alien 2.17、shots 50.7 / 43.3、首枪 5.0 / 5.3、sight 1353 / 1211；
+s2 camper kills **3.00 / 3.00**、shots 46.0 / **56.2**；s1 own-B kills live 2.17 / alien **3.58**、win 25% / **46%**。
+而 wiped 明显更差（s2 own-B kills 2.58→**0.42**、shots 50.7→19.6）。
+
+⇒ 这条通道**承重，但承的不是历史**：拿一个**跟本场毫无关系**的常数喂进去，效果和逐 tick 更新的状态一样好。
+⇒ 40 维 Elman 状态被进化用成了一个**学出来的常数偏置**，arm C 相对 arm B 的进步是**容量**，不是**记忆**。
+
+⭐⭐ **只跑 wiped 会得到相反的结论。** wiped 一口气抹掉 140 个输入里的 40 个，任何训练过的网络都会变差 ——
+「消融有效」证明的是「这块输入有用」，不是「它存的是历史」。是 frozen / alien 这两个
+**in-distribution 对照**把结论翻过来的（新坑 **#24**；也是 DISCOVERY 合同「mechanism ≠ evolved mechanism」的实例）。
+
+### 判决与去向
+
+- **ROADMAP D1 的 exit「确认 RNN 真能利用 history」＝ 没过。** 泄漏侧 exit（A1-P23 clean）过了。
+- ⛔ **默认值不动**（`recurrentDim: 0` / `memorySeconds: 3`）：mem0 有真实能力代价而没有等价补偿，
+  现在翻默认就是纯退步。代码与开关全部保留，`--rec` / `--mem` 可随时复现三臂。
+- **reframe（方向没被否，这版实现被否）**：VISION §8 说记忆属于玩家，这一条没变。真正的疑点是
+  **这个世界现在根本不奖励信息博弈** —— 目标被无视（坑 #23）、交战是近距离乱战，
+  「记住一个看不见的人」根本不付钱。⇒ **D1 的空结果很可能是世界问题不是脑子问题，和 #23 同一个根。**
+  ⇒ 下一根杠杆应该是 **Phase C1（objective 拓扑）**，不是换 GRU。
+
+⚠ 顺带一条口径警告：mem0 两臂的 `coverRatio` 全是 **0.000**，这是**定义变了**不是行为变了
+（威胁判定退化成「此刻看得见」，而看得见通常互相看得见 ⇒ coverTicks 结构性为 0）。⛔ 不可跨 mem 值比较（坑 #12）。
+
+原始输出：`runs/d1-*.txt|json`、`runs/recprobe-s{1,2}.txt`、`runs/yardstick-d1.txt`（gitignore）。

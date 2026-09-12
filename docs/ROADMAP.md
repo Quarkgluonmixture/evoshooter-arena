@@ -403,6 +403,24 @@ scripted/reference agents 能证明：
 - audio→turn delay task；
 - reset hidden state ablation。
 
+### 当前状态：**实现完成、exit 未过（2026-09-12）**
+
+两步都 ship 了，开关都在，默认**都关着**：`recurrentDim`（默认 0，上一 tick 第一隐层激活接回输入，状态在 World 上）
+与 `memorySeconds: 0`（世界不再替玩家记）。泄漏侧 exit **过了**（`A1-P23` clean，`npm run leaks --mem 0`）。
+
+**行为侧 exit「确认 RNN 真能利用 history」＝ 没过。** 三臂 A/B（基线 / 无记忆 / 无记忆+recurrent，40 代 × 2 seed）：
+拿掉世界记忆确实很痛（首枪 5.8→9.8 与 5.3→14.8，kills 腰斩），recurrent 臂**在训练指标上补回 50–80%**——
+但 `npm run recprobe` 的消融证明**补回来的不是记忆**：把**另一场比赛**抓来的常数状态喂进去（`var` = 0.000），
+表现和逐 tick 更新的 live 状态**打平**。⇒ 40 维 Elman state 被用成了**学出来的常数偏置**，
+arm C 的进步是**容量**不是**记忆**（证据与四档对照见 LOG 2026-09-12 23:05，教训进 GOTCHAS #24）。
+
+⛔ **默认值不翻**：mem0 有真实能力代价而没有等价补偿。
+
+**Reframe（方向没被否，这版实现被否）**：VISION §8「记忆属于玩家」不变。真正的疑点是
+**这个世界现在不奖励信息博弈** —— 目标被无视（GOTCHAS #23）、交战是近距离乱战，
+「记住一个看不见的人」不付钱。⇒ ⛔ 不要立刻换 GRU / 加宽状态；**先做 Phase C1**，
+在一个信息与目标真的付钱的世界里重开 D1。
+
 ### Evolution gate
 
 必须跑 optimizer sensitivity：genome size / mutation sigma / inheritance stability。CHECKPOINT 已有突变尺度塌缩前科，不能默认旧 σ 仍合适。
@@ -908,7 +926,13 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：V6b 或 V4。** 前置的「换尺子」已经做完（2026-09-12，见下），两把大刀现在可以动。
+**当前：Phase C1 —— objective 拓扑。** （2026-09-12 更新）
+
+D1 已经走完并给出判决：实现 ship、开关保留、**默认不翻**、行为侧 exit 未过，而且失败的原因**指向世界而不是脑子**
+（见 Phase D1 的「当前状态」）。同一晚 `npm run yardstick` 独立测到目标压力已经归零（12 个冠军对 rusher 全 0%）。
+两条独立证据指向同一个根：**这个世界现在既不奖励占点，也不奖励信息博弈。** ⇒ 下一根承重杠杆是 C1。
+
+⛔ 不要在 C1 之前回头换 GRU、加宽 recurrent state、或调 fitness 系数——那是在一个不付钱的世界里调参。
 
 已 CLOSED（2026-09-11 ~ 09-12）：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · **V6a**。
 **信息层全部关闭**（V1/V2/V3/V5/V11/V12）；observation 100 维、97 legal / 3 truth-form / **0 hidden**。

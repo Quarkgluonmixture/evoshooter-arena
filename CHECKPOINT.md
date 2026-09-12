@@ -49,13 +49,20 @@
 ⚠ 这是**先前就存在**的性质（gen 0 就 0%），和 D1 正交。
 
 ## Current cursor
-⭐⭐ **下一刀 = V6b / ROADMAP Phase D1（记忆搬进 brain 的 recurrent state）。两个前置都已经拆掉：**
-① 尺子换好了（cross-play 矩阵 + ladder 分母，2026-09-12 03:35）；
-② D1 的 optimizer sensitivity gate **提前跑完**（2026-09-12 22:00，`npm run inherit`）——
-结论：**genome 变大本身不需要改 σ**，只看 layer-1 fan-in（H=40 时 D +18%），真要压回去动 `resetProb` 不动 σ，
-但 ⛔ **先别改**，原样上 D1 再在新架构上复测（细节在 ROADMAP Phase D1 的 Evolution gate）。
-⛔ V4 先不动：它改的是**动作的语义**而不是 SimConfig 里的数字，cross-play 的 drift guard 可能静默放行（见 TODO 首条）。
-⛔ 任何 A/B 都不许再用 champion-vs-gen0 的单一数字下行为结论 —— 走 `npm run crossplay`（坑 #20）。
+⭐⭐ **下一刀 = ROADMAP Phase C1（objective 拓扑）。** D1 已经走完并给出判决（下条），
+它失败的原因和 yardstick 那条独立证据指向同一个根：**这个世界既不奖励占点、也不奖励信息博弈**。
+⛔ 不要在 C1 之前回头换 GRU / 加宽 recurrent state / 调 fitness 系数——那是在一个不付钱的世界里调参。
+⛔ V4 也先不动：它改的是**动作的语义**而不是 SimConfig 里的数字，cross-play 的 drift guard 可能静默放行（见 TODO 首条）。
+⛔ 任何 A/B 都不许再用 champion-vs-gen0 的单一数字下行为结论 —— 走 `npm run crossplay` / `npm run yardstick`（坑 #20/#23）。
+
+## D1 已收（2026-09-12）：实现 ship、默认不翻、行为侧 exit 未过
+- 两个开关都在且**默认关**：`recurrentDim: 0`、`memorySeconds: 3`。`--rec` / `--mem` 可复现三臂。
+- 泄漏侧 exit **过了**：mem0 下 `A1-P23` clean（世界不再替玩家存记录）。
+- 行为侧 **没过**：拿掉世界记忆很痛（首枪 5.8→9.8 / 5.3→14.8），recurrent 臂训练指标补回 50–80%，
+  但 `npm run recprobe` 的四档消融证明**补回来的不是记忆**——从**另一场比赛**抓来的常数状态（var 0.000）
+  和逐 tick 更新的 live **打平**。⇒ 学出来的是**常数偏置**，进步来自**容量**（坑 #24）。
+- ⚠ mem0 两臂的 `coverRatio` 全 0.000 是**定义变了**不是行为变了（坑 #12），⛔ 不可跨 mem 值比较。
+- 前一轮的 optimizer sensitivity 结论仍然成立且已用上：genome 变大本身不需要改 σ（坑 #22）。
 
 2026-09-11 夜到 09-12 凌晨连关十一刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · V6a，
 再加 09-12 的**换尺子**一刀（不在 ROADMAP phase 编号里，它是仪器不是迁移）。
