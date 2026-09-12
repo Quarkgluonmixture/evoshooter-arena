@@ -20,7 +20,8 @@
     "crossplay": "node scripts/crossplay.ts",
     "inherit": "node scripts/inherit.ts",
     "yardstick": "node scripts/yardstick.ts",
-    "recprobe": "node scripts/recprobe.ts"
+    "recprobe": "node scripts/recprobe.ts",
+    "mapprobe": "node scripts/mapprobe.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
