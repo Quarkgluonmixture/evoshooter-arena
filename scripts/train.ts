@@ -15,7 +15,7 @@ const trainer = new Trainer(
     popSize: num('pop', 16), pairings: num('pairings', 3), hofMatches: num('hof', 2), ladderGap: num('gap', 10),
     mutSigma: num('sigma', 0.05), mutRate: num('rate', 0.02), resetProb: num('reset', 0.002), elite: num('elite', 2),
   },
-  { matchSeconds: num('seconds', 40), recurrentDim: num('rec', 0) },
+  { matchSeconds: num('seconds', 40), recurrentDim: num('rec', 0), ...(args.has('mem') ? { memorySeconds: num('mem', 3) } : {}) },
   num('seed', 1),
 );
 const ev = trainer.localEvaluator();

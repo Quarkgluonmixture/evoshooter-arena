@@ -107,7 +107,7 @@ export const DEFAULT_SIM: SimConfig = {
  * here must leave a scripted-bot match bit-identical. ⛔ Adding a key that reaches the world breaks the one
  * comparison that survives a phase boundary.
  */
-export const BRAIN_ONLY_FIELDS: (keyof SimConfig)[] = ['recurrentDim'];
+export const BRAIN_ONLY_FIELDS: (keyof SimConfig)[] = ['recurrentDim', 'memorySeconds'];
 
 /**
  * Fill in fields a saved run predates. A run exported before `recurrentDim` existed has `undefined` there,

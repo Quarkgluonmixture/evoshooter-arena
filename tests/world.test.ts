@@ -3,6 +3,7 @@ import { BRAIN_ONLY_FIELDS, DEFAULT_SIM, DEFAULT_EVO, type SimConfig } from '../
 import { Rng } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
 import { World, obsDim, ACT_DIM, A_LOOK_X, A_LOOK_Z, type Agent } from '../src/sim/world.ts';
+import { obsSchema } from '../src/sim/obsSchema.ts';
 import { randomGenome } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
 import { IdlePolicy, RusherPolicy, PacifistRusherPolicy, CamperPolicy } from '../src/brain/scripted.ts';
@@ -149,6 +150,39 @@ describe('World', () => {
     const [oneWayR, oneWayB] = place(Math.PI / 2); // blue looking away, red unchanged
     expect(oneWayR).toBe(mutualR);
     expect(oneWayB).toBe(0);
+  });
+
+  it('empties the contact channel when the world keeps no memory, without poisoning it with NaN', () => {
+    // D1 step 2 is `memorySeconds: 0` = the world holds no record; remembering becomes the brain's job.
+    // The fade is (1 - age/memorySeconds)², so without a guard that config is (1 - 0/0)² = NaN and the
+    // whole enemy channel fills with NaN instead of emptying — every downstream number stays a number-
+    // shaped value and nothing throws. Asserted relationally against the remembering config, so an
+    // inverted guard fails in either direction.
+    const look = (memorySeconds: number) => {
+      const w = new World({ ...cfg, memorySeconds }, map, 3);
+      const T = cfg.teamSize;
+      Object.assign(w.agents[0], { x: 0, z: -4, yaw: Math.PI / 2 });
+      Object.assign(w.agents[T], { x: 0, z: 4, yaw: -Math.PI / 2 });
+      w.observe();                                    // seen, in plain view
+      const seen = w.obs.slice(0, w.obsDim);
+      Object.assign(w.agents[T], { x: 0, z: -28 });    // now behind me and far away
+      w.agents[0].yaw = Math.PI / 2;
+      w.t = 1;
+      w.observe();
+      const slot = obsSchema({ ...cfg, memorySeconds }).filter((f) => f.name.startsWith('enemy0.'));
+      return {
+        seenConf: seen[slot.find((f) => f.name === 'enemy0.confidence')!.index],
+        recalled: slot.map((f) => w.obs[f.index]),
+        finite: w.obs.every((x) => Number.isFinite(x)),
+      };
+    };
+    const remembers = look(3);
+    const forgets = look(0);
+    expect(remembers.seenConf).toBeGreaterThan(0); // the scenario really did produce a sighting
+    expect(forgets.seenConf).toBeGreaterThan(0);
+    expect(remembers.recalled.some((x) => x !== 0)).toBe(true);  // memory holds the contact
+    expect(forgets.recalled.every((x) => x === 0)).toBe(true);   // no memory: the slot is empty, not NaN
+    expect(forgets.finite).toBe(true);
   });
 
   it('keeps the recurrent state on the world, so a reused policy cannot leak one match into the next', () => {

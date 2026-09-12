@@ -565,6 +565,18 @@ export const LEAK_PROBES: LeakProbe[] = [
       const before = seen(cfg.memorySeconds - 0.1);
       const after = seen(cfg.memorySeconds + 0.1);
       const schema = obsSchema(cfg);
+      // Check the denominator first: with no world memory the contact slot is empty on BOTH sides of the
+      // boundary, so "nothing moved" would read as a passing cliff test over an empty channel — a clean
+      // that means the probe had nothing to measure (same trap A1-P23 hit, GOTCHAS族 B).
+      const confIdx = indexOfField(cfg, 'enemy0.confidence');
+      if (before[confIdx] === 0 && after[confIdx] === 0) {
+        return {
+          status: 'clean',
+          fields: [],
+          detail: 'there is no memory window to end — the contact channel is already empty on both sides of ' +
+            'the boundary, so this probe has nothing to measure under this config',
+        };
+      }
       const fields: string[] = [];
       let maxDelta = 0;
       for (let k = 0; k < before.length; k++) {
@@ -817,9 +829,26 @@ export const LEAK_PROBES: LeakProbe[] = [
         const cos = w.obs[off + indexOfField(cfg, 'enemy0.bearingCos')];
         return Math.atan2(sin, cos); // the confidence scaling cancels in the ratio
       };
+      const confAt = (age: number) => {
+        w.t = age;
+        w.observe();
+        return Math.abs(w.obs[OBSERVER * w.obsDim + indexOfField(cfg, 'enemy0.confidence')]);
+      };
       const young = bearingAt(0.2);
       const old = bearingAt(2);
       const drift = Math.abs(wrapAngle(old - young));
+      // Check the denominator before reading the ratio: with no world memory the slot is all zeros, and
+      // atan2(0, 0) is 0 at every age — which would read as "perfectly stable recall" and keep this probe
+      // red for the one reason that means it has nothing to measure (GOTCHAS族 B).
+      if (confAt(0.2) === 0 && confAt(2) === 0) {
+        return {
+          status: 'clean',
+          fields: [],
+          detail: 'there is no recalled contact at all — once he is out of sight the channel is empty, so the ' +
+            'world is not holding a record on my behalf. Whether the BRAIN remembers is a behaviour question, ' +
+            'not a leak question.',
+        };
+      }
       // The confidence scaling cancels in the ratio only up to float32 rounding, which shows up as ~1e-5 rad
       // of fake drift. Real perceptual drift would be degrees over seconds, so the line sits between them.
       const REAL = 1e-3; // rad, about 0.06°
@@ -846,10 +875,18 @@ export function indexOfField(cfg: SimConfig, name: string): number {
   return f.index;
 }
 
-/** Run the whole matrix against the shipped config, in probe-number order. */
-export function runLeakMatrix(cfg: SimConfig = DEFAULT_SIM): Array<{ probe: LeakProbe; result: ProbeResult }> {
+/** The registry in probe-number order — the one place that ordering is decided. */
+export function sortedProbes(): LeakProbe[] {
   const num = (id: string) => Number(id.replace(/^\D+/, ''));
-  return LEAK_PROBES.slice()
-    .sort((a, b) => num(a.id) - num(b.id))
-    .map((probe) => ({ probe, result: probe.run(cfg) }));
+  return LEAK_PROBES.slice().sort((a, b) => num(a.id) - num(b.id));
+}
+
+/**
+ * Run the whole matrix against the shipped config, in probe-number order.
+ * A probe that throws is NOT caught here: several of them assert their own scenario held (an enemy still
+ * being in the contact slot, a wall actually blocking) and a silent catch would turn "my test bench broke"
+ * into an ordinary clean/leak reading. Callers running a deliberately non-default config catch it instead.
+ */
+export function runLeakMatrix(cfg: SimConfig = DEFAULT_SIM): Array<{ probe: LeakProbe; result: ProbeResult }> {
+  return sortedProbes().map((probe) => ({ probe, result: probe.run(cfg) }));
 }

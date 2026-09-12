@@ -679,7 +679,10 @@ export class World {
         const vis = this.visible[i * n + id];
         const k = this.contact[i][e];
         const age = this.t - k.t;
-        const fresh = age <= cfg.memorySeconds;
+        // memorySeconds 0 means the world keeps no record at all (ROADMAP D1 step 2: remembering becomes
+        // the brain's job). Without the > 0 guard the fade below is (1 - 0/0)² = NaN and the whole contact
+        // channel silently fills with NaN rather than emptying.
+        const fresh = cfg.memorySeconds > 0 && age <= cfg.memorySeconds;
         if (!vis && !fresh) continue;
         const qTrue = vis ? this.perceptQuality(a, en.x - a.x, en.z - a.z, this.exposure[i * n + id]) : 0;
         const live = vis ? this.reportQuality(a, en, qTrue) : 0;
