@@ -4,8 +4,8 @@ A self-evolving 3D team shooter. Two populations of neural-network policies — 
 5v5 rounds in a symmetric arena with cover and a central control zone. Nothing tactical is scripted: each
 generation the two sides are scored against each other (and against a hall of fame of past champions),
 bred, and mutated. You watch the champions play in 3D while a dashboard shows *whether* they are getting
-better (win rate against their own past selves) and *how* they play (accuracy, cover use, spread,
-flanking, comm-channel use, time to first shot …).
+better (win rate against their own past selves — with the caveat in *Cross-play* below) and *how* they play
+(accuracy, cover use, spread, flanking, comm-channel use, time to first shot …).
 
 **▶ Play it in the browser: <https://quarkgluonmixture.github.io/evoshooter-arena/>** — training runs client-side in
 web workers, so the page evolves its own population while you watch. Every push to `main` that touches code
@@ -17,6 +17,7 @@ npm run dev        # open the URL, press "start evolving"
 npm test           # vitest: determinism, mirror symmetry, colour fairness, env rewards competence, leak matrix
 npm run train -- --gens 40 --pop 16 --seed 1   # headless training in the terminal
 npm run leaks      # print what each observation field is allowed to know, and where it cheats today
+npm run crossplay -- runs/a.json runs/b.json   # win-rate matrix between saved champions (see below)
 ```
 
 Node ≥ 22.6 (TypeScript runs directly in Node; the browser build uses Vite).
@@ -164,6 +165,12 @@ Recompute: `npm run train -- --gens 40 --pop 16 --seed <1|2>` (defaults = the va
 M-series laptop, and deterministic — two runs of the same seed print identical rows). The final line prints the
 last champion's win rate against the generation-0 champion on both colours.
 
+> ⚠ **Read the ladder rows with *Cross-play* below in hand.** A champion-vs-gen-0 win rate can read a confident
+> 50 % or 100 % for two champions who never once saw each other — co-evolution sometimes settles on mutual
+> avoidance, and then the "win rate" is the scoreboard of a match that never happened. Since 2026-09-12 every
+> ladder number carries its own sighting-tick denominator and prints `·` instead of `%` when that denominator is
+> zero. The table below predates the marker; treat its numbers as unverified on that axis.
+
 | defaults (σ 0.05, mutation rate 2 %, 5 matches/genome) | seed 1 | seed 2 |
 |---|---|---|
 | final red champion vs gen-0 red champion (as red / as blue) | 100 % / 100 % | 90 % / 100 % |
@@ -198,6 +205,32 @@ currently expect, and `tests/leak.test.ts` asserts measured == registered on the
 regression and a half-fix all turn the suite red. Run the command for the current list: the ones still reporting a
 leak are the debts this baseline has not paid yet, and they are meant to be visible rather than quietly edited away.
 The gaps themselves are `V1`–`V12` in `docs/SUBSTRATE.md`.
+
+## Cross-play: the ruler that survives mutual avoidance
+
+```
+npm run crossplay -- runs/v6a-s1.json runs/v6a-s3.json --gens first,last --n 6 --maps 7,11,23 --out runs/xp.json
+```
+
+Takes the hall-of-fame champions out of one or more saved runs and plays them all against each other. What it
+does that a single ladder number cannot:
+
+- **Both colours, same seeds.** Every pair plays each side over the identical seed set, and the reported win
+  share is `(wins as red + 1 − opponent's wins as red) / 2`, so a pair always sums to 100 % and no result can be
+  a colour artefact. The diagonal is a self-match: it reads the *map's* colour bias, not the genome's.
+- **Every cell carries its denominator.** A second table prints mean sighting ticks and shots per match. A cell
+  where the two never saw each other prints `··` — that is a non-measurement, not a draw. Thin cells (under a
+  quarter of the matrix median) print `~`: the result came from the objective clock, not from a fight.
+- **Fails closed on config drift.** Champions trained under different `SimConfig` values are refused
+  (`--allow-sim-drift` to override), because comparing them measures the rule change, not the lineages.
+- **Counts non-transitive cycles** (A beats B beats C beats A) over edges decisive by `--margin`, and can rerun
+  the whole matrix on other map seeds with `--maps`.
+
+What it found on the first run (2026-09-12, six champions from three seeds, 216 matches per map): one lineage's
+champion-vs-gen-0 ladder had been reading 50 % for five straight generations while measuring **zero contact**;
+training fitness does **not** transfer across runs (the second-best-trained champion placed fifth in real
+matches, the worst-trained placed third); and the current meta is fully transitive — 9–10 decisive edges per
+map, **zero** cycles. Details in `LOG.md`, traps in `GOTCHAS.md` #20 and #21.
 
 ## Headless runs
 

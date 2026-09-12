@@ -533,3 +533,70 @@ A4 的「两个冠军 0 次相遇」是同一类现象，三次都出在 seed 3 
   `LOG-archive/LOG-2026-09-11-1730-to-2130.md`，live 文件从 22:15 的 A0 起，标题写明起点。
   定位靠 **档名区间 + 一条 glob**：`grep -n '^## ' LOG.md LOG-archive/*.md`（同时命中 live 与归档，实测 23 + 12 条）。
   ⛔ 没有建第二个索引文件，也没把阈值抄进文件头。
+
+## [2026-09-12 03:35] 换尺子：cross-play 矩阵，以及「冠军 vs gen-0」到底在量什么  #measure #decision #incident
+
+CHECKPOINT / TODO 都把这件事标成 V4·V6b 的前置：champion-vs-gen0 这把单一标量已经三次给出自相矛盾
+或退化的信号。做出来之后发现问题比预想的更硬 —— **那把尺子在红方血统上连续 5 代量的是一场没发生的比赛。**
+
+### 做了什么
+
+1. **先补分母**（`sightTicks`）：`TeamStats` 新增一个计数器，每 tick 累加「我方的眼睛看见敌人」的 (viewer, enemy) 对数，
+   经 `TeamMetrics` 流进 run JSON / 图表 / ladder。它就是 GOTCHAS #18 说的 visible-pair-ticks，从一次性脚本变成常驻仪器。
+   正向护栏在 `tests/world.test.ts`：镜像摆位下红蓝各 20 次（25 对里的 20 对），把蓝方转过去背对红方 ⇒ 红 20 / 蓝 **0**。
+   一次断言同时抓住「根本没加」「记错队伍」「一次看见算两边」三种写法。
+2. **`npm run crossplay`**（`scripts/crossplay.ts`）：任意几个 run 的 hof 冠军互打，每对**两个颜色都打**、所有格子**共用同一批 seed**，
+   胜率按 side 平衡（`(赢作红 + 1 − 对方赢作红) / 2`，成对恒等于 100%）。每个格子自带分母（sighting ticks / shots），
+   零接触印 `··`、低于矩阵中位数 1/4 印 `~`。另有对角线自打（地图颜色偏置）、非传递三环检测、跨地图重跑（`--maps`）。
+   ⭐ 跨 run 的 `SimConfig` 差异**直接报错**（`--allow-sim-drift` 才放行）——不同规则下训出来的冠军放一起比，量的是规则改动不是血统（GOTCHAS #12）。
+3. **把分母接回 trainer**：`GenReport.ladderSight` / `ladder0Sight`、`Trainer.duel()` 改返回 `{win, sight}`，
+   `train.ts` 的 ladder 列零接触印 `·`（不是 `%`），末尾 duel 行直接写「⚠ they never saw each other」。UI 状态行同步。
+
+### 预注册（`runs/xp-predictions.txt`，写在全量跑之前；⚠ 一次 4 entrant / n=2 的烟雾测试在预测之前就跑过，已在文件里写明）
+
+| 预测 | 结果 |
+|---|---|
+| P1a 地图假说：换 map seed 后低接触的对，接触量涨 ≥2× | ❌ **证伪** |
+| P1b 血统假说：同样的对在三张图上都贴地 | ⚠ 方向对，但**主语错了**（见下） |
+| P2a 每个 gen-39 冠军侧平衡胜自己的 gen-0 ≥65% | ❌ **证伪**，且不是因为输 |
+| P2b cross-play 排名不跟随训练 fitness | ✅ **成立，而且是倒挂** |
+| Q3 mirror（自打）红胜率落在 35–65% | ✅ 均值成立（53/43/57%），单格不成立见下 |
+
+### 结果
+
+**① 红方那条 ladder 是空的。** `runs/v6a-fade-s1` 自己印的是 *final red champion vs gen-0 red champion: 50% / 50%*，
+gen 35–39 的 `ladder0[red]` 也是连续五个 0.5。cross-play 一查：**这两个冠军 16 场 0 个 sighting tick**。
+同一次 run 的四个冠军里，R@0 / R@39 / B@0 三者**两两之间全是 0 接触**，只有 B@39 会去找人（491–1699 ticks/场）。
+⇒ 那五个 50% 不是「势均力敌」，是**比赛没发生**，双方各自空转到时间结束判平。
+
+**② 这不罕见。** 加了标记之后重跑一个玩具训练（`--gens 12 --pop 8 --gap 5 --seconds 20`）：
+36 个有数字的 ladder 格里 **5 个（14%）零接触，其中 4 个印的是 100%**。
+⇒ 之前每一次拿 ladder 下的行为结论，都有 1/7 的格子在讲测量而不是讲行为（族 B）。
+
+**③ 不是 seed 3，也不是 map seed 7。** 三张地图（7 / 11 / 23）× 三个 seed 的六个末代冠军，216 场/图：
+entrant 0（s1:R）跟 1 / 2 / 3 有 400–1150 sighting ticks，跟 4（s3:R）只有 11 / 55 / 32，跟 5（s3:B）是 73 / **0** / **0**。
+换地图**没有**让这些对接触起来，有两对反而掉到 0。
+⇒ 低接触是**这一对**的性质（两条策略的走位根本不相交），不是某条血统的性质，也不是某张图的性质。
+CHECKPOINT 里「seed 3 反复滑向互相找不到」的说法要改写：seed 3 只是在**同 run 内**撞上了这种配对。
+
+**④ 训练 fitness 是 run 内货币，跨 run 会倒挂。** 训练 fitness 排 2 的 `s1:B@39`（0.817）cross-play 均值 25%（排 5）；
+训练 fitness **垫底**的 `s3:B@39`（−0.023）cross-play 均值 57%（排 3）。两边都排第 1 的只有 `s2:R@39`（0.858 / 81%）。
+⇒ fitness 是「相对于我这一次 run 里的对手」的分数。s3:B 分低是因为它对面的 s3:R 强，不是因为它弱。
+这正是 VISION 那句「对手分布才是老师」的第一份本仓实测。
+
+**⑤ 当前 meta 是传递的。** 15pp margin 下三张图各 9 / 10 / 9 条 decisive edge，**非传递三环 0 个**。
+⇒ 现在还没有 A 克 B 克 C 克 A 的内容；E5/E6 的生态问题目前是空的，这是事实不是失败。
+
+**⑥ 颜色偏置：均值干净，单格不可读。** mirror 均值 53 / 43 / 57%；但单个 entrant 会读到 17–83%——
+entrant 4 在图 7 是 83%、图 11 是 17%，**方向在图之间翻转** ⇒ 那是 n=6 的噪声，不是偏置。
+⛔ 不要拿单个 mirror 格下结论；`tests/world.test.ts` 的 fairness 测试仍是颜色公平的权威。
+
+### 工程注记
+
+- `npm test` 68 绿；`npm run leaks` 仍 23 probe / 3 leak，矩阵与登记表一致（exit 0）。
+- ⚠ **bench 不下结论**：读到 63.4 ms/match，但 `uptime` 的 1 分钟负载是 **85**（隔壁在压机器），
+  按 GOTCHAS #15/#16 这个数不可比，也**没有**做交错配对 A/B。改动本身是在一个已经执行的分支里加一次 `++`。
+- 矩阵输出留在 `runs/xp-ladder-s1.txt|json`、`runs/xp-maps.txt|json`（gitignore）。
+
+**判决：ship 这把尺子。** V4 / V6b 的前置条件解除，但它们的 A/B 从现在起必须读 cross-play，
+⛔ 不能再拿 champion-vs-gen0 的单一数字下行为结论。新坑 **#20 / #21**。

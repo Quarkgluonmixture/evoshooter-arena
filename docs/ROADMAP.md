@@ -875,7 +875,7 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：V6b 或 V4 —— 但两者都是“大刀”，⭐ 建议先做 cross-play 矩阵再动。**
+**当前：V6b 或 V4。** 前置的「换尺子」已经做完（2026-09-12，见下），两把大刀现在可以动。
 
 已 CLOSED（2026-09-11 ~ 09-12）：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · **V6a**。
 **信息层全部关闭**（V1/V2/V3/V5/V11/V12）；observation 100 维、97 legal / 3 truth-form / **0 hidden**。
@@ -888,7 +888,21 @@ short headless evolution A/B (same seeds)
   ⚠ 要 recurrent brain ⇒ **改 genome 尺度**，动手前重做 mutation/inheritance sensitivity（GOTCHAS #6）。
 - V7/V8/V9/V10 仍在 Programme D–G。
 
-⭐ **为什么建议先插一步 cross-play**：连续十一刀的行为侧结论都停在「seed 间互相矛盾、测不出方向」，
-而 champion-vs-gen0 这把尺子已经三次给出退化信号（其中一次是**两个冠军根本不相遇**，A4/seed 3）。
-V4/V6b 是会真正改变行为的大刀——**先把尺子换好，再动它们**，否则 A/B 结果没法解释。
-做法在 `TODO.md`「每代冠军 vs 全部历史冠军的胜率矩阵」那条。
+### 尺子已经换掉（2026-09-12，CLOSED）
+
+`npm run crossplay`：任意几个 run 的 hof 冠军互打，每对**两个颜色都打**、共用同一批 seed、胜率按 side 平衡，
+**每个格子自带分母**（sighting ticks / shots），零接触印 `··`。入口与用法见 `README.md`「Cross-play」一节。
+
+它立刻推翻了三件之前被当成事实的事（完整证据在 LOG 2026-09-12 03:35）：
+
+1. ⭐⭐ **champion-vs-gen0 在红方血统上量的是一场没发生的比赛。** `v6a-fade-s1` 的红方 `ladder0` 连续五代读 50%，
+   实测是两个冠军 **16 场 0 个 sighting tick**。加上标记后重跑，36 个 ladder 格里 **5 个（14%）零接触，其中 4 个印 100%**。
+   ⇒ ladder 现在带 `ladderSight`/`ladder0Sight` 分母，零接触印 `·`（GOTCHAS #20）。
+   ⛔ V4 / V6b 的 A/B **不许**再用 champion-vs-gen0 的单一数字下行为结论。
+2. **「seed 3 反复失联」的说法是错的。** 三张地图 × 六个冠军：低接触是**成对**性质（两条策略走位不相交），
+   不是血统性质也不是 map seed 7 的性质；换图**没有**让这些对接触起来，有两对反而掉到 0。
+3. **训练 fitness 跨 run 会倒挂**（GOTCHAS #21）：训练排第 2 的冠军实战排第 5，训练垫底的实战排第 3。
+   ⇒ 这是本仓第一份「对手分布才是老师」的实测证据，也是 E4–E6 的动机从推理变成观测的那一刻。
+
+⭐ 顺带一个 E5/E6 的现状读数：15pp margin 下三张图各 9 / 10 / 9 条 decisive edge，**非传递三环 0 个** ——
+当前 meta 是传递的，还没有 A 克 B 克 C 克 A 的内容。这是事实，不是失败。

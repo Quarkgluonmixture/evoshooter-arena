@@ -30,27 +30,36 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-⭐ **建议下一步：先做 cross-play 胜率矩阵（换尺子），再动 V4 / V6b 两把大刀。** 理由与顺序在 `docs/ROADMAP.md` Current Cursor。
+⭐ **尺子已经换好（2026-09-12 03:35，cross-play 矩阵 + ladder 分母），V4 / V6b 的前置解除，下一步就是这两把大刀之一。**
+两者的取舍、连带要重做的东西在 `docs/ROADMAP.md` Current Cursor。
+⛔ 它们的 A/B **不许**再用 champion-vs-gen0 的单一数字下行为结论 —— 走 `npm run crossplay`（坑 #20）。
 
-2026-09-11 夜到 09-12 凌晨连关十一刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · V6a。
+2026-09-11 夜到 09-12 凌晨连关十一刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · V6a，
+再加 09-12 的**换尺子**一刀（不在 ROADMAP phase 编号里，它是仪器不是迁移）。
 ⭐⭐ **信息层已全部关闭**（V1/V2/V3/V5/V11/V12）：observation 100 维、**97 legal / 3 truth-form / 0 hidden** ——
 没有任何一个观测字段是玩家无权知道的。剩下的账只在**动作层**（V4，`A1-P12`/`A1-P14`）和**记忆归属**（V6b，`A1-P23`）。
 
-- **仪器先行**：`npm run leaks` 打印当期矩阵、**不一致时返回非零**（是闸不是报告）；`tests/leak.test.ts` 断言
+- **两把仪器**：
+  ① `npm run leaks` 打印当期泄漏矩阵、**不一致时返回非零**（是闸不是报告）；`tests/leak.test.ts` 断言
   「实测 == 登记的精确字段集」。当前 **23 条 probe / 3 条仍 leak**。
+  ② `npm run crossplay`（2026-09-12 新增）= 强弱判断的唯一合法尺子：任意几个 run 的 hof 冠军互打，
+  每对双色打、共用 seed、胜率按 side 平衡，**每个格子自带分母**（sighting ticks / shots），零接触印 `··`。
+  跨 run 的 `SimConfig` 差异直接报错。用法见 `README.md`「Cross-play」。
   ⭐⭐ 它**不只守当期这一刀**：V6a 第一版把 `recency` 在「看得见」时写成恒 1，视距边界又出现满幅断崖，
   被**三刀前**写的 `A1-P8` 抓住 —— 规矩是「这个槽里每个字段都必须乘 confidence」。
   ⭐ 每条修复都要配**正向护栏**（`A1-P22`/`A1-P17`）：把字段改成恒 0 也能让泄漏探针变绿，那是空过。
 - **现在的世界**：敌情私有 · contact = 按把握缩放的 bearing/range/quality（量化 + 确定性抖动）+ recency ·
   几何 = 13 条跟头走的射线（±90°、背后全无）· 听觉 = 4 扇区脚步/枪声（衰减、隔墙、无身份无阵营）·
   队友 HUD 只剩位置/血量（开火要看得见）· objective 不数敌人。obsDim 100、genome 5324、bench ≈ 61 ms/match（空机器）。
-- ⚠ **八条别踩**：① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
+- ⚠ **十条别踩**：⓪ ⭐⭐ **ladder 的 50%/100% 可能是一场没发生的比赛**（#20，14% 的格子如此），
+  跨 run 比训练 fitness 会倒挂（#21）；① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
   ③ bench 前看 `uptime`（#15）；④ 性能结论必须**交错配对**量（#16）；⑤ ⭐⭐ 抖动 key 用 **slot**、量化格建在
   **自我相对量**上、中局镜像测试要覆盖新通道（#17）；⑥ ⭐ 行为指标变了先做 **same-genome 对照**；
   ⑦ ⭐⭐ 同一 run 的两个冠军可能互相根本不接触（#18）；⑧ ⭐ **contact 槽里的每个字段都要乘 confidence**，
   否则视距边界必然出现断崖（V6a 实盘踩过）。
-- ⚠ **seed 3 反复滑向「互相找不到」**（A3.3 v1 · A4 的 0 次相遇 · V6a 首枪 22 s），三次都是它。
-  cross-play 矩阵做出来后第一件事就是看这个。
+- ✅ **「seed 3 反复滑向互相找不到」这个说法已作废**（2026-09-12 实测推翻，⛔ 别再引用）：
+  三张地图 × 六个冠军的矩阵显示，低接触是**成对**性质（两条策略的走位不相交），不是血统性质，也不是 map seed 7 的性质
+  —— 换图没让这些对接触起来，有两对反而掉到 0。seed 3 只是在**同 run 内**撞上了这种配对。证据在 LOG 2026-09-12 03:35。
 - **线上**：public + Pages 自动部署（见下「Ops 速查」）。
 
 ## Ops 速查
@@ -64,7 +73,9 @@
   `GH_TOKEN=$(gh auth token --user Quarkgluonmixture) gh ...` 单次注入。
 - **推送**：个人号 Quarkgluonmixture；仓库本地 git config 已设身份 + **钉死个人号的 token helper**（`git config --local --get-all credential.helper` 可看），所以直接 `git push` 即可。⛔ 不要 `gh auth switch`（全局共享态）；⛔ 不要换回 `gh auth git-credential`——它按全局活跃账号发 token，公司号活跃时会鉴权失败（LOG `#ship` 条）。
 - Node ≥ 22.6 直跑 TS：源码只用可擦除语法（`erasableSyntaxOnly`），import 带 `.ts` 后缀。
-- `npm run bench` 量 ms/match；改网络尺寸或观测维度前后都跑。
+- `npm run bench` 量 ms/match；改网络尺寸或观测维度前后都跑。⚠ 先看 `uptime`（坑 #15/#16）。
+- `npm run crossplay -- <run.json> [...] --gens first,last --n 6 --maps 7,11,23 --out runs/xp.json`
+  —— 任何「谁更强 / 有没有退步」的判断都从这里出，⛔ 不从 ladder 的单一数字出。
 
 ## 工作纪律摘要
 - 一次一根承重杠杆；probe-first；预测先冻结；same-seed A/B；不过门就 revert/reframe。

@@ -669,6 +669,8 @@ analytics/narrative layer **read-only**。
 - side robustness；
 - non-transitive cycles。
 
+工具入口（哪几项已经有命令、哪几项还没有）以 `README.md` 为准，本文件不复述实现状态。
+
 A 克 B、B 克 C、C 克 A 可以是真实 meta；不要让单一 Elo/ladder 把它压扁成假线性进步。
 
 ### 10.5 Diversity 默认靠生态位，不先靠风格奖励
