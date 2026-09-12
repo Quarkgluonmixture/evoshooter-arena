@@ -11,6 +11,11 @@
 - 四条入口都能跑：`npm run dev`（浏览器训练 + 观战）· `npm test`（vitest，含 leak matrix）· `npm run leaks`（当期信息泄漏矩阵）· `npm run train -- --gens 40 --pop 16 --seed 1`（无头）。
 - 默认超参在 `src/core/config.ts`（`DEFAULT_SIM` / `DEFAULT_EVO`），改之前先看 LOG 里 `#deadend` 为什么现在是这个值。
 - 已知行为：胜负主要靠淘汰，占区时间占比很低；被长期压制的一方偶发滑向躲藏。旧结论与数字见 README Evidence。
+- **D1 step 1 已 ship（2026-09-12）**：`recurrentDim`（`SimConfig`，**默认 0**）把上一 tick 的第一隐层激活
+  接回输入。状态放在 **World 上不是 policy 上**（policy 按 genome 缓存、跨比赛复用，状态放它上面会让
+  一场比赛取决于之前跑过哪些比赛）。`--rec 40`：输入 100→140、genome 5324→**6924**、交错配对 bench **+12.6%**；
+  前向路径逐列不变（`runs/ff-regression-12gen.txt`）。⛔ **step 2（拿掉 world 的完美记忆）还没做**，
+  所以现在的 recurrent state 还没有任何它必须记住的东西。
 - 当前 observation / action 是**baseline，不是 Gold Standard**：enemy truth features、360° lidar、target-slot auto-turn、feed-forward shared team brain 等已在 `docs/SUBSTRATE.md` 登记为承重 gap（V1 team-shared enemy 已在 A2 拿掉）。
 - 当前 trainer 的 **red population vs blue population 也是 bootstrap，不是终局 ontology**：未来 ROADMAP E4–E6 迁成 `Club = team/coach DNA + five player blocks`，red/blue 只作为比赛 sides；对手分布由 peers / diverse contemporaries / history / exploiters 构成。⛔ 这不是当前 cursor，别现在跳过去改 trainer。
 - **文化进化只先落设计边界，不实现。** `docs/CULTURAL-TRANSMISSION-CONTRACT.md` 已预留未来 E7：遗传与文化是两种 transmission，opponent ecology 是 selection；D1 RNN / local memory 默认不跨比赛偷偷持久化，也不能叙述成 club culture。真正 E7 必须等 E1–E6 的 player identity / club genotype / side-neutral league / opponent ecology 能分别测量后再开。
@@ -28,6 +33,15 @@
 - `docs/CULTURAL-TRANSMISSION-CONTRACT.md` — **未来 E7 的预留合同**：genotype / episodic memory / acquired individual state / institutional culture 分层；禁止 telepathy 式文化复制；文化 strong claim 至少要 fixed-genome formation → newcomer uptake → founder-removal persistence，并进一步可做 transfer / semantic drift / cultural lineage。
 
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
+
+## ⛔⛔ 待用户裁决（不挡 D1 的实现，挡的是「进步了」这类结论）
+
+**40 代共演化出来的冠军，对手写 rusher 是 0%**（12 个冠军里 11 个 0%、1 个 6%，**gen 0 与 gen 39 没区别**）。
+逐场：champion zoneShare **0.000**、比分 0:36.5、团灭 0–5。机制是 `winner` 只看占区分、而 fitness 里有
+0.5×伤害差，两边都不进区 ⇒ 占区差恒 0 ⇒ 梯度只剩打架，且**谁都不吃亏，因为对手也不占点**（坑 #23）。
+⛔ **我没有动 fitness、没有把 bot 放进训练对手池** —— 两条都是 VISION 级方向选择（「战术只能涌现」
+vs「课程里能不能有人写的对手」）。证据在 LOG 2026-09-12 22:15 + `npm run yardstick`。
+⚠ 这是**先前就存在**的性质（gen 0 就 0%），和 D1 正交，不是 D1 造成的。
 
 ## Current cursor
 ⭐⭐ **下一刀 = V6b / ROADMAP Phase D1（记忆搬进 brain 的 recurrent state）。两个前置都已经拆掉：**
@@ -52,14 +66,17 @@
   ③ `npm run inherit`（2026-09-12 新增）= 改任何网络/genome 尺度前的闸：量一次 `mutate()` 把每层
   pre-activation 推开多远，配闭式解 `mutationVariance()`（与 `mutate()` 同文件，只有一份）。
   ⭐ 结论已经反直觉两次：旋钮是 **`resetProb` 不是 `mutSigma`**，且看 **fan-in 不看 genome 大小**（坑 #22）。
+  ④ `npm run yardstick`（2026-09-12 新增）= **唯一能跨 phase 边界比的尺子**：手写 bot 没有 genome、
+  不读 obs ⇒ 在任何规则集下都是同一个对手。`recurrentDim` 可以不同，其余 SimConfig 差异硬报错；
+  allowlist `BRAIN_ONLY_FIELDS` 由 `tests/world.test.ts` 机械校验。⭐ 它一上来就抓到了上面那条（坑 #23）。
   ⭐⭐ 它**不只守当期这一刀**：V6a 第一版把 `recency` 在「看得见」时写成恒 1，视距边界又出现满幅断崖，
   被**三刀前**写的 `A1-P8` 抓住 —— 规矩是「这个槽里每个字段都必须乘 confidence」。
   ⭐ 每条修复都要配**正向护栏**（`A1-P22`/`A1-P17`）：把字段改成恒 0 也能让泄漏探针变绿，那是空过。
 - **现在的世界**：敌情私有 · contact = 按把握缩放的 bearing/range/quality（量化 + 确定性抖动）+ recency ·
   几何 = 13 条跟头走的射线（±90°、背后全无）· 听觉 = 4 扇区脚步/枪声（衰减、隔墙、无身份无阵营）·
   队友 HUD 只剩位置/血量（开火要看得见）· objective 不数敌人。obsDim 100、genome 5324、bench ≈ 61 ms/match（空机器）。
-- ⚠ **十一条别踩**：⓪ ⭐⭐ **ladder 的 50%/100% 可能是一场没发生的比赛**（#20，14% 的格子如此），
-  跨 run 比训练 fitness 会倒挂（#21），改尺度时动的旋钮是 `resetProb` 不是 σ（#22）；① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
+- ⚠ **十二条别踩**：⓪ ⭐⭐ **内部指标全绿 ≠ 打得过外面**（#23）· **ladder 的 50%/100% 可能是一场没发生的比赛**
+  （#20，14% 的格子如此）· 跨 run 比训练 fitness 会倒挂（#21）· 改尺度时旋钮是 `resetProb` 不是 σ（#22）；① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
   ③ bench 前看 `uptime`（#15）；④ 性能结论必须**交错配对**量（#16）；⑤ ⭐⭐ 抖动 key 用 **slot**、量化格建在
   **自我相对量**上、中局镜像测试要覆盖新通道（#17）；⑥ ⭐ 行为指标变了先做 **same-genome 对照**；
   ⑦ ⭐⭐ 同一 run 的两个冠军可能互相根本不接触（#18）；⑧ ⭐ **contact 槽里的每个字段都要乘 confidence**，
@@ -85,6 +102,8 @@
   —— 任何「谁更强 / 有没有退步」的判断都从这里出，⛔ 不从 ladder 的单一数字出。
 - `npm run inherit -- <run.json> <yardstick.json> --children 16 --sweep --fanin`
   —— 改网络尺寸 / genome 结构**前后**都跑；⚠ 第二个 run 是必要的（父子对打会 0 接触，见坑 #18/#20）。
+- `npm run yardstick -- <run.json> [...] --gens first,last --n 8`
+  —— 任何「进步了」的结论都要有一个**不参与共演化**的对手作证（坑 #23）。
 
 ## 工作纪律摘要
 - 一次一根承重杠杆；probe-first；预测先冻结；same-seed A/B；不过门就 revert/reframe。

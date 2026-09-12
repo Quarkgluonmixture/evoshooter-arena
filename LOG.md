@@ -670,3 +670,49 @@ genome 从 **3028 → 32780（10.8×）**，layer-1 的实测 D 在 **0.210–0.
    用同一个 `npm run inherit` 在新架构上复测，再决定要不要动 resetProb。
 
 原始输出：`runs/inherit-s1R.txt`（gitignore）。
+
+## [2026-09-12 22:15] 固定标尺：40 代共演化出来的冠军，被 12 行的脚本 bot 打 0%  #measure #incident #decision
+
+做 D1 的 A/B 时撞到一个方法学死角：**rec-on 和 rec-off 的冠军没法互打**（genome 一个 100 输入一个 140 输入，
+crossplay 直接报错，而且它本来就该报错）。凡是改「动作/输入含义」的 phase 都有这个问题 —— V4 也一样。
+
+### 解法：不吃 genome 的对手
+
+`npm run yardstick`（`scripts/yardstick.ts`）：拿 `src/brain/scripted.ts` 里的手写 bot 当固定标尺。
+它们**没有 genome、不读 observation 向量**，只读 world 写 action ⇒ **在任何规则集下都是同一个对手**，
+所以对它的胜率**可以跨 phase 边界比**。这是 crossplay 做不到的那一格。
+⚠ 前提是**世界没变**：`recurrentDim` 允许不同（只加宽 brain 的输入），其余任何 SimConfig 差异一律硬报错。
+这个 allowlist（`BRAIN_ONLY_FIELDS`）是承重声明，所以 `tests/world.test.ts` **机械校验**它：
+把表里任何一个字段改掉，scripted-bot 的比赛哈希必须逐位不变。
+
+顺带修一个会静默的洞：旧 run JSON 没有 `recurrentDim` 字段，`obsDim(cfg) + undefined = NaN`。
+`normalizeSim()` 现在补齐缺字段**并打印补了哪些**（三个脚本都接了），⛔ 不假装旧 run 当初就是这么配的。
+
+### ⭐⭐ 结果：全灭
+
+12 个冠军（3 个 seed × 红蓝 × gen 0 与 gen 39），每格 16 场、双色平衡：
+
+- **对 rusher：11 个读 0%，1 个读 6%。** 大多数格子有真接触（138–1213 sighting ticks/场），不是没打。
+- **gen 0 和 gen 39 没有区别**（都是 0%）⇒ **40 代共演化在真实胜负条件上没有任何进展**。
+- 对 idle（什么都不做的 bot）有一半冠军只打成 **50% 平局** —— 自己也不进区，两边都 0 分。
+
+逐场拆开看（s2:B@39 vs rusher，三场）：**champion zoneShare = 0.000**，rusher 0.50–0.63，
+比分 **0.0 : 36.5**；而且不只是不占区，**团灭 0–5 / 4–5 / 2–5**，被打穿之后 rusher 把剩余时间全部计成分。
+
+### 为什么会这样（机制，不是猜）
+
+`winner` **只看占区分**（团灭则把剩余时间折算成分）；而 fitness = 占区差 + **0.5×伤害差** + 0.2×在区时间差 + 团灭奖惩。
+两个 population 互相都不进区 ⇒ 占区差恒 ≈ 0 ⇒ **梯度全部来自伤害项**，于是双方一起进化成「只打架不占点」，
+而且谁也不会因此吃亏——**因为对手也不占点**。这是共演化滑进**共同盲区**的教科书形态：
+内部指标（best/mean fitness、redWinShare、ladder）全部正常，对外部对手 0%。
+
+⚠ 一句公平话：rusher 不是「弱」baseline —— 它把 target-slot 自动瞄准（V4 那笔账）用到了满，
+而且直取胜负条件。说它「12 行」是说行数，不是说它好打。
+
+### 这不是 D1 造成的，也不该由我顺手修
+
+gen-0 就已经 0%，所以这是**整个训练设置**的性质，和 D1 正交。⛔ 我没有改 fitness、没有把 bot 塞进训练对手池 ——
+两条都是 VISION 级别的方向选择（「战术只能涌现」vs「课程里要不要放人写的对手」），**留给用户定**。
+新坑 **#23**。
+
+原始输出：`runs/yardstick-v6a.txt`（gitignore）。

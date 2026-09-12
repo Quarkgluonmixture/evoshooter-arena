@@ -19,6 +19,7 @@ npm run train -- --gens 40 --pop 16 --seed 1   # headless training in the termin
 npm run leaks      # print what each observation field is allowed to know, and where it cheats today
 npm run crossplay -- runs/a.json runs/b.json   # win-rate matrix between saved champions (see below)
 npm run inherit -- runs/a.json runs/b.json     # does a child still behave like its parent? (see below)
+npm run yardstick -- runs/a.json               # champions vs the hand-written bots (see below)
 ```
 
 Node ≥ 22.6 (TypeScript runs directly in Node; the browser build uses Vite).
@@ -232,6 +233,36 @@ champion-vs-gen-0 ladder had been reading 50 % for five straight generations whi
 training fitness does **not** transfer across runs (the second-best-trained champion placed fifth in real
 matches, the worst-trained placed third); and the current meta is fully transitive — 9–10 decisive edges per
 map, **zero** cycles. Details in `LOG.md`, traps in `GOTCHAS.md` #20 and #21.
+
+## The fixed yardstick, and what it found
+
+```
+npm run yardstick -- runs/a.json runs/b.json --gens first,last --n 8
+```
+
+Cross-play only works while two champions play the same game. A phase that changes what an action means —
+or that widens the brain's inputs — leaves its champions unable to meet the old ones at all. The bots in
+`src/brain/scripted.ts` have no genome and never read the observation vector, so they are the same opponent
+under every rule set, and a win share against them survives a phase boundary. The one SimConfig field
+allowed to differ is `recurrentDim`; `BRAIN_ONLY_FIELDS` lists it and a test checks mechanically that
+changing anything on that list leaves a scripted-bot match bit-identical.
+
+**The first run of it (2026-09-12) is the least comfortable number in this repository.** Twelve champions —
+three seeds, both lineages, generation 0 *and* generation 39 — played 16 matches each against the rusher
+bot. Eleven scored 0 %. One scored 6 %. Generation 39 was no better than generation 0. Several champions
+only draw against `IdlePolicy`, a bot that does nothing at all.
+
+Pulling one match apart: the champion's time-in-zone is 0.000, the rusher's is 0.50–0.63, the score is
+0.0 to 36.5, and the champion's team is wiped 0–5. The mechanism is visible in the rules: a match is won on
+zone points, but fitness also pays 0.5 x damage margin — and when *both* populations ignore the zone, the
+zone term is identically zero for everyone, so the only gradient left is shooting, and no one is ever
+punished for skipping the objective, because the opponent skips it too. Co-evolution walked into a shared
+blind spot while every internal dial — champion fitness, population mean, head-to-head balance, the ladder
+— kept reading normally.
+
+Nothing has been changed in response yet. Both obvious fixes (reshape fitness, or put a non-co-evolving
+opponent in the training pool) are direction decisions about what this project is, not bug fixes, and they
+belong in `docs/VISION.md`'s terms rather than in a quiet patch.
 
 ## Inheritance: does a child still behave like its parent?
 
