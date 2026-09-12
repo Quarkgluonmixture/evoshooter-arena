@@ -304,6 +304,29 @@ B2d. 评估是否需要 projectile，若概率模型已能诚实表达则不为�
 
 当前单一 central KOTH zone **结构上无法**产生 A/B fake/rotate/anchor 博弈。
 
+### ⭐⭐ 2026-09-12 实测证据：目标压力现在是 0，这条 phase 的必要性从推理升级成观测
+
+`npm run yardstick` 的第一次读数：v6a 三个 seed 的 **12 个冠军**（含 gen 0）对手写 rusher **11 个 0%、1 个 6%**，
+逐场 champion 的 zoneShare 是 **0.000**，比分 0:36.5。机制：`winner` 只看占区分，fitness 里有 0.5×伤害差；
+两个 population 都不进区 ⇒ 占区差恒 0 ⇒ 梯度只剩打架，**而且谁都不吃亏，因为对手也不占点**（GOTCHAS #23）。
+
+⇒ 这正是本 phase target shape 里那条「**elimination 仍是合法胜法，但不能永远支配 objective play**」
+在当前世界**已经失守**的直接证据。
+
+两条「顺手能修」的路都被上层 authority 挡住了，记在这里免得后来人再走一遍：
+
+- ⛔ **不能把 scripted bot 放进训练对手池** —— 本 phase 的 Exit 已经写死「reference bot 只验证世界是否允许，
+  **不进入 evolving population**」，E6 的四类对手也全是进化实体。reference bot 的正确用法就是 `npm run yardstick`：
+  **验收镜子，不是课程**。
+- ⚠ **也不该直接去加大占区奖励**。VISION §10 对 shaping 的判据是「只解决搜索冷启动，且**可被结果主导地压过去**」——
+  实测答案是**没有被压过去**，所以现在的 0.5×伤害项确实已经不合规；但
+  `EVOLUTION-ECOLOGY-CONTRACT.md` §5「counter-payoff surfaces belong in the world」说的是**世界要提供收益面**，
+  不是把系数调大。⇒ 正确的修法在本 phase 的 target shape 里（objective 有时间成本、可中断、双目标），
+  ⛔ 不是在 `fitnessOf()` 里调一个数。
+
+⇒ **本 phase 的 exit 应当额外要求一条**：改完 objective 拓扑之后，冠军对 `npm run yardstick` 的 rusher
+不再是 0%（或者能说清为什么 rusher 在新拓扑下依然是强 baseline）。
+
 ### Target shape
 
 设计一个 180°/side-fair 的 tactical round world，至少包含：

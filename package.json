@@ -19,7 +19,8 @@
     "leaks": "node scripts/leaks.ts",
     "crossplay": "node scripts/crossplay.ts",
     "inherit": "node scripts/inherit.ts",
-    "yardstick": "node scripts/yardstick.ts"
+    "yardstick": "node scripts/yardstick.ts",
+    "recprobe": "node scripts/recprobe.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

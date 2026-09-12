@@ -34,14 +34,19 @@
 
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
-## ⛔⛔ 待用户裁决（不挡 D1 的实现，挡的是「进步了」这类结论）
+## ⭐⭐ 目标压力已经归零——归属 Phase C1，不是现在顺手修
 
 **40 代共演化出来的冠军，对手写 rusher 是 0%**（12 个冠军里 11 个 0%、1 个 6%，**gen 0 与 gen 39 没区别**）。
-逐场：champion zoneShare **0.000**、比分 0:36.5、团灭 0–5。机制是 `winner` 只看占区分、而 fitness 里有
-0.5×伤害差，两边都不进区 ⇒ 占区差恒 0 ⇒ 梯度只剩打架，且**谁都不吃亏，因为对手也不占点**（坑 #23）。
-⛔ **我没有动 fitness、没有把 bot 放进训练对手池** —— 两条都是 VISION 级方向选择（「战术只能涌现」
-vs「课程里能不能有人写的对手」）。证据在 LOG 2026-09-12 22:15 + `npm run yardstick`。
-⚠ 这是**先前就存在**的性质（gen 0 就 0%），和 D1 正交，不是 D1 造成的。
+逐场：champion zoneShare **0.000**、比分 0:36.5、团灭 0–5。机制：`winner` 只看占区分、fitness 里有 0.5×伤害差，
+两边都不进区 ⇒ 占区差恒 0 ⇒ 梯度只剩打架，且**谁都不吃亏，因为对手也不占点**（坑 #23）。
+
+**按 VISION / ROADMAP 读出来的归属（2026-09-12，已不再是待裁决项）：**
+- ⛔ **不把 scripted bot 放进训练对手池** —— Phase C1 的 Exit 写死「reference bot 只验证世界是否允许，
+  不进入 evolving population」，E6 的四类对手也全是进化实体。它的正确用法就是 `npm run yardstick`（验收镜子）。
+- ⚠ **也不直接调大占区奖励** —— VISION §10 对 shaping 的判据是「可被结果主导地压过去」，实测没被压过去，
+  所以 0.5×伤害项确实已不合规；但 ecology contract §5 要求 counter-payoff **来自世界**，不是来自系数。
+- ⇒ 正确的修法是 **Phase C1 的 objective 拓扑**。证据与新增的 exit 条件已写进 `docs/ROADMAP.md` Phase C1。
+⚠ 这是**先前就存在**的性质（gen 0 就 0%），和 D1 正交。
 
 ## Current cursor
 ⭐⭐ **下一刀 = V6b / ROADMAP Phase D1（记忆搬进 brain 的 recurrent state）。两个前置都已经拆掉：**
