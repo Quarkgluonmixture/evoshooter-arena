@@ -8,6 +8,10 @@
 - [ ] **run 内的历史 cross-play**：现在 `npm run crossplay` 只吃 hof 里挑出来的几代。把「末代冠军 vs 它自己全部历史冠军」
       做成一条命令（`--gens all` 或抽样），才是 ladder 在 run 内的真正替代品；现在 ladder 只比两个点，
       而那两个点有 14% 的概率互相看不见（GOTCHAS #20）。
+- [ ] ⚠ **cross-play 的漏网之鱼：动作语义变了，但 SimConfig 没变。** 现在的 drift guard 只比 `SimConfig`，
+      V4 那种「target-slot 不再驱动转身」的改动可能一个数字都不动 ⇒ 工具会照跑，把「依赖自动瞄准的冠军
+      打没有自动瞄准的冠军」报成强弱差。⇒ **动 V4 之前先定死它的 A/B 怎么做**（大概率只能比 run 内量，
+      不能把两版冠军放进同一个竞技场）。已写进 `scripts/crossplay.ts` 头部的 KNOWN LIMIT。
 - [ ] **exploitability 探针**：拿一个只针对当前冠军训练的挑战者去打它（SUBSTRATE §10.4 列的五项里唯一还没有工具的）。
 - [ ] 在不干扰 A0/A1 的前提下，保留一次旧 baseline 长跑：pop 24、≥200 代、两 seed；只作为迁移前历史 census，不再把“旧 observation 下更稳定”当未来设计裁决。
 - [ ] 旧 comm channel 的语义 census 可作为 D2 前 baseline：comm 值与「有敌人可见 / 在区内 / 换弹中」相关性；只测现状，不据此保留无限连续通信设计。

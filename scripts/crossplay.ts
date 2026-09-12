@@ -7,6 +7,13 @@
  * Every pair plays BOTH sides over the same seeds (SUBSTRATE 10.3), so no result can be a colour artefact,
  * and every cell carries its own denominator: sighting ticks and shots. A cell where the two champions never
  * saw each other is printed as `··` — a non-measurement, NOT a 50% draw (GOTCHAS #18).
+ *
+ * ⚠ KNOWN LIMIT: the drift guard below compares SimConfig, which catches a rule change that shows up as a
+ * number. It does NOT catch a change in what an action MEANS — take away target-slot auto-turn (V4) while
+ * every SimConfig field happens to stay put, and this tool will happily run a champion that was trained to
+ * rely on auto-aim against one that never had it, and report the difference as strength. A phase that
+ * changes action semantics cannot be evaluated by putting its champions in one arena with the old ones;
+ * compare within-rule-set quantities instead.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
