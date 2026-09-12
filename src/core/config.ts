@@ -42,6 +42,14 @@ export interface SimConfig {
   enemySlots: number;
   mateSlots: number;
   commDim: number;
+  /**
+   * Width of the player's own recurrent state (ROADMAP D1 / SUBSTRATE V6b). 0 = feed-forward brain, the
+   * shipped baseline. When > 0 the previous tick's first-hidden-layer activations are fed back in as extra
+   * inputs, so the brain can carry belief across ticks instead of the world holding a perfect record for it.
+   * Must not exceed `hidden[0]`. The state lives on the World, never on the policy, so it is reset with the
+   * match — a policy object is cached and reused across matches, and state on it would leak between them.
+   */
+  recurrentDim: number;
   heatCells: number;        // heat-map grid resolution per axis
 }
 
@@ -88,6 +96,7 @@ export const DEFAULT_SIM: SimConfig = {
   enemySlots: 3,
   mateSlots: 4,
   commDim: 2,
+  recurrentDim: 0,
   heatCells: 24,
 };
 

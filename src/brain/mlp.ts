@@ -61,8 +61,10 @@ export class Mlp {
    * @param trace optional per-layer buffers (one per hidden/output layer, in order) that receive the
    *        PRE-activation values. Used by the inheritance probe to measure how far a mutation moves a
    *        layer's pre-activations; there is deliberately no second copy of this forward pass to drift.
+   * @param hiddenOut optional buffer that receives the first hidden layer's POST-activations (its first
+   *        `hiddenOut.length` units) — the recurrent state a D1 brain carries to the next tick.
    */
-  forward(input: Float32Array, inOff: number, out: Float32Array, outOff: number, trace?: Float32Array[]): void {
+  forward(input: Float32Array, inOff: number, out: Float32Array, outOff: number, trace?: Float32Array[], hiddenOut?: Float32Array): void {
     const s = this.sizes;
     const w = this.w;
     let cur = this.buf[0];
@@ -95,6 +97,10 @@ export class Mlp {
       }
       p = bias + nout;
       cur = next;
+    }
+    if (hiddenOut) {
+      const h = this.buf[1];
+      for (let o = 0; o < hiddenOut.length; o++) hiddenOut[o] = h[o];
     }
     for (let o = 0; o < s[last]; o++) out[outOff + o] = cur[o];
   }

@@ -153,6 +153,13 @@ export class World {
   readonly contact: Known[][];
   /** audio[(i * audioSectors + sector) * AUDIO_CLASSES + klass]: loudness this listener currently hears. */
   readonly audio: Float32Array;
+  /**
+   * brain[i*recurrentDim + k]: player i's own recurrent state, carried from last tick (ROADMAP D1).
+   * It lives here rather than on the policy on purpose — policies are cached per genome and replayed
+   * across matches, so state held on one would make a match depend on which matches ran before it.
+   * Zeroed at construction, which is what "reset with the match" means in practice.
+   */
+  readonly brain: Float32Array;
   /** audioPath[i*n+j]: this tick's attenuation multiplier between i and j, or 0 when out of earshot. */
   private readonly audioPath: Float32Array;
   /** losPair[i*n+j]: 1 when nothing stands between i's eye and j's eye. Symmetric; one pass per tick. */
@@ -186,6 +193,7 @@ export class World {
     this.slots = new Int16Array(this.n * cfg.enemySlots).fill(-1);
     this.contact = [];
     this.audio = new Float32Array(this.n * cfg.audioSectors * AUDIO_CLASSES);
+    this.brain = new Float32Array(this.n * cfg.recurrentDim);
     this.audioPath = new Float32Array(this.n * this.n);
     this.losPair = new Uint8Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];

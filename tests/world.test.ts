@@ -151,6 +151,54 @@ describe('World', () => {
     expect(oneWayB).toBe(0);
   });
 
+  it('keeps the recurrent state on the world, so a reused policy cannot leak one match into the next', () => {
+    // The whole reason `world.brain` is not a field on NeuralPolicy: evaluateJobs caches one policy per
+    // genome and replays it across every match of a generation. State on the policy would make a match
+    // depend on which matches ran before it — same seed, different answer, and nothing would error.
+    const rcfg = { ...cfg, recurrentDim: 16 };
+    const rshape = shapeFor(rcfg, DEFAULT_EVO.hidden);
+    const rng = new Rng(5);
+    const g1 = randomGenome(rshape, rng);
+    const g2 = randomGenome(rshape, rng);
+    const play = (seed: number, red: Policy, blue: Policy) => {
+      const w = new World(rcfg, map, seed);
+      for (let i = 0; i < 120; i++) stepMatch(w, red, blue);
+      return w.hash();
+    };
+    const fresh = play(11, new NeuralPolicy(rshape, g1), new NeuralPolicy(rshape, g2));
+    const reused = new NeuralPolicy(rshape, g1);
+    const reusedFoe = new NeuralPolicy(rshape, g2);
+    play(12, reused, reusedFoe); // a different match first, on the very same policy objects
+    expect(play(11, reused, reusedFoe)).toBe(fresh);
+  });
+
+  it('actually feeds the recurrent state back — zeroing it every tick changes the match', () => {
+    // Positive guardrail for the same wiring: if the state were never written back, the extra inputs would
+    // sit at a constant 0 and D1 would be a no-op that still passes every other test.
+    const rcfg = { ...cfg, recurrentDim: 16 };
+    const rshape = shapeFor(rcfg, DEFAULT_EVO.hidden);
+    const rng = new Rng(6);
+    const g1 = randomGenome(rshape, rng);
+    const g2 = randomGenome(rshape, rng);
+    const run = (zeroEveryTick: boolean) => {
+      const w = new World(rcfg, map, 21);
+      const red = new NeuralPolicy(rshape, g1);
+      const blue = new NeuralPolicy(rshape, g2);
+      for (let i = 0; i < 90; i++) {
+        stepMatch(w, red, blue);
+        if (zeroEveryTick) w.brain.fill(0);
+      }
+      return { hash: w.hash(), nonzero: w.brain.reduce((n, x) => n + (x !== 0 ? 1 : 0), 0) };
+    };
+    const live = run(false);
+    expect(live.nonzero).toBeGreaterThan(0);
+    expect(live.hash).not.toBe(run(true).hash);
+  });
+
+  it('refuses a recurrent slice wider than the hidden layer it is taken from', () => {
+    expect(() => shapeFor({ ...cfg, recurrentDim: 64 }, [40, 24])).toThrow(/recurrentDim/);
+  });
+
   it('never lets an agent end up inside cover or outside the arena', () => {
     const rng = new Rng(8);
     const r = new NeuralPolicy(shape, randomGenome(shape, rng));
