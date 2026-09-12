@@ -49,6 +49,12 @@ describe('World', () => {
       const x = -6 + 3 * s;
       put(s, x, -4 - s, Math.PI / 2);
       put(T + s, -x, 4 + s, -Math.PI / 2);
+      // moving, so the hearing channel is not all zeros — a silent scenario would leave the whole audio
+      // half of the observation untested, which is how the last symmetry break got through (GOTCHAS #17)
+      w.agents[s].vx = 1 + s;
+      w.agents[s].vz = 2;
+      w.agents[T + s].vx = -(1 + s);
+      w.agents[T + s].vz = -2;
     }
     w.t = 2.5;
     w.observe();

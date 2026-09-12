@@ -220,6 +220,10 @@ accuracy .22–.32 / 首枪 4.8–19 s / kills 1.3–3.5）。⚠ 预注册的�
 
 先只问：radio off 时，audio ablation 是否改变 contact/turning behavior；不要急着宣称“听声辨位战术已经出现”。
 
+**当前状态：CLOSED（2026-09-12 01:35）。** 4 扇区 × 2 类，obsDim 93 → 101；五条新 probe（P17–P21）全 clean。
+⭐ ablation 实测：**首枪时间没有变慢**（一个 seed 完全相同、一个反而更快）⇒ ⛔ 不许说「听觉让人更快找到对手」；
+但聋掉之后开火数与击杀明显下降 ⇒ 只能说**通道携带了策略已经在用的信息**。细节与 seed 3 的互相回避均衡见 LOG / GOTCHAS #18。
+
 ---
 
 # Programme B — 把身体从“target selector”还原成 FPS 身体
@@ -871,18 +875,17 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A4 — Hearing v1（脚步 + 枪声）。**
+**当前：A5 — Player-private belief / memory 的归属（V6）。**
 
-已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3 全部关闭**，
-observation = 93 维；legal / truth-form / hidden 的分布与整张 matrix 一律现查 `npm run leaks`。
+已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · **A4 听觉**（2026-09-11 ~ 09-12）。
+**V1 / V2 / V3 / V5 已关闭**；observation 101 维（分布现查 `npm run leaks`，⛔ 别抄）。
 
-仍然开着的账：**V4**（target-slot 自动瞄准，`A1-P12`/`A1-P14`）· **V6**（记忆归 world 管且 3 秒是断崖，`A1-P15`）·
-**V11**（`mate*.firing` 不判可见性）· **V12**（`obj.enemyInZone` 数不可见的敌人）· V5 无听觉（本 phase）· V7/V8/V9/V10。
+仍然开着的账：**V4** 自动瞄准（`A1-P12`/`A1-P14`）· **V6** 记忆归 world 管、3 秒窗口是断崖（`A1-P15`）·
+**V11** `mate*.firing` 不判可见性（`A1-P10`）· **V12** objective 数不可见的敌人（`A1-P11`）· V7/V8/V9/V10。
 
-A4 按 Phase A4 的 Intervention 走；本 phase 的额外要求（从前六刀的实盘教训来）：
+⭐ **下一刀选哪个，按「便宜且能独立归因」排**：V11/V12 是**小刀**（各改一两个字段、各有现成 probe、
+不动 genome 尺度），V6/V4 是**大刀**（动记忆归属与动作语义、会改 obsDim 和转头手感、GOTCHAS #6/#10 都指向它们）。
+建议顺序：**先 V11 + V12（一刀一个，半小时级）**，再进 V6，最后 V4（V4 要连带重做转头，见 SUBSTRATE V4 的前瞻警告）。
 
-- ⭐ 新通道的抖动/量化 **key 必须用 slot、格子必须建在自我相对量上**（GOTCHAS #17），并**同时**给 `tests/world.test.ts`
-  的中局镜像测试加上这条通道的断言——否则又会是「半条通道从没被测过」。
-- ⭐ 声音是**新的 observation 字段** ⇒ 先写 provenance（`obsSchema.ts`）和 probe（能区分「听得见」和「隔墙衰减」），再写机制。
-- ⛔ 不要在这一刀顺手改 V4/V6/V11/V12。
-- 预测先写 LOG 再跑；对照 = `runs/a33b-wide-s{1,2,3}`；bench **交错配对**量（lidar 已经让 observe 变贵，别再叠一层没测的开销）。
+每刀照旧：预测先写 LOG 再跑 · probe 该翻绿的先说出来 · same-genome 对照再归因 · bench 交错配对 ·
+镜像测试要覆盖新通道 · 对照 = `runs/a4-hearing-s{1,2,3}`。

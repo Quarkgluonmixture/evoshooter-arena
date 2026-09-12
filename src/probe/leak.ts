@@ -626,6 +626,147 @@ export const LEAK_PROBES: LeakProbe[] = [
           };
     },
   },
+  {
+    id: 'A1-P17',
+    kind: 'counterfactual',
+    test: 'T4',
+    title: 'an enemy fires behind a wall',
+    expect: 'clean',
+    run: (cfg) => {
+      const d = counterfactual(cfg, {
+        boxes: [MID_WALL],
+        setup: (w) => {
+          standObserver(w);
+          place(w, ENEMY, 0, 10, -Math.PI / 2);
+        },
+        mutate: (w) => {
+          w.events.push({
+            kind: 'shot', shooter: ENEMY, target: OBSERVER, hit: false,
+            x0: 0, y0: cfg.eyeHeight, z0: 10, x1: 0, y1: cfg.eyeHeight, z1: -10,
+          });
+        },
+      });
+      const names = d.changed.map((f) => f.name);
+      const audio = names.filter((n) => n.startsWith('audio'));
+      // Both halves matter: the shot must be HEARD (an unchanged observation would be a silent world
+      // passing as "no leak"), and it must not move anything except the hearing channel.
+      if (audio.length === 0) {
+        return { status: 'leak', fields: names, detail: 'the gunshot changed nothing at all — the channel is deaf, not clean' };
+      }
+      return audio.length === names.length
+        ? { status: 'clean', fields: [], detail: `the shot is audible through the wall and moves only the hearing channel (${audio.join(', ')})` }
+        : { status: 'leak', fields: names.filter((n) => !n.startsWith('audio')), detail: 'firing moved something outside the hearing channel' };
+    },
+  },
+  {
+    id: 'A1-P18',
+    kind: 'discontinuity',
+    test: 'T4',
+    title: 'the same gunshot at 8, 16, 24 and 32 m',
+    expect: 'clean',
+    run: (cfg) => {
+      const heard = (dist: number) => {
+        const w = new World(cfg, labMap(cfg, []), 1);
+        standObserver(w);
+        place(w, ENEMY, 0, -10 + dist, -Math.PI / 2);
+        w.events.push({
+          kind: 'shot', shooter: ENEMY, target: OBSERVER, hit: false,
+          x0: 0, y0: cfg.eyeHeight, z0: -10 + dist, x1: 0, y1: cfg.eyeHeight, z1: -10,
+        });
+        w.observe();
+        let sum = 0;
+        for (let s = 0; s < cfg.audioSectors; s++) sum += w.obs[OBSERVER * w.obsDim + indexOfField(cfg, `audio${s}.gunshot`)];
+        return sum;
+      };
+      const a = heard(8);
+      const b = heard(16);
+      const c = heard(24);
+      const far = heard(cfg.audioRange + 4);
+      const ok = a > b && b > c && c > 0 && far === 0;
+      const shape = `8 m ${a.toFixed(3)} > 16 m ${b.toFixed(3)} > 24 m ${c.toFixed(3)}, beyond range ${far.toFixed(3)}`;
+      return ok
+        ? { status: 'clean', fields: [], detail: `loudness falls with distance and reaches nothing: ${shape}` }
+        : { status: 'leak', fields: [], detail: `attenuation is not monotone or does not reach zero: ${shape}` };
+    },
+  },
+  {
+    id: 'A1-P19',
+    kind: 'counterfactual',
+    test: 'T4',
+    title: 'the same gunshot, with and without a wall in the way',
+    expect: 'clean',
+    run: (cfg) => {
+      const heard = (boxes: Box[]) => {
+        const w = new World(cfg, labMap(cfg, boxes), 1);
+        standObserver(w);
+        place(w, ENEMY, 0, 6, -Math.PI / 2);
+        w.events.push({
+          kind: 'shot', shooter: ENEMY, target: OBSERVER, hit: false,
+          x0: 0, y0: cfg.eyeHeight, z0: 6, x1: 0, y1: cfg.eyeHeight, z1: -10,
+        });
+        w.observe();
+        let sum = 0;
+        for (let s = 0; s < cfg.audioSectors; s++) sum += w.obs[OBSERVER * w.obsDim + indexOfField(cfg, `audio${s}.gunshot`)];
+        return sum;
+      };
+      const clear = heard([]);
+      const walled = heard([MID_WALL]);
+      return walled < clear && walled > 0
+        ? { status: 'clean', fields: [], detail: `a wall muffles the shot without silencing it: ${clear.toFixed(3)} → ${walled.toFixed(3)}` }
+        : { status: 'leak', fields: [], detail: `occlusion is wrong: clear ${clear.toFixed(3)}, walled ${walled.toFixed(3)}` };
+    },
+  },
+  {
+    id: 'A1-P20',
+    kind: 'counterfactual',
+    test: 'T4',
+    title: 'a walker and a sprinter at the same spot',
+    expect: 'clean',
+    run: (cfg) => {
+      const heard = (speed: number) => {
+        const w = new World(cfg, labMap(cfg, []), 1);
+        standObserver(w);
+        place(w, ENEMY, 0, 0, -Math.PI / 2);
+        w.agents[ENEMY].vz = -speed;
+        w.observe();
+        let sum = 0;
+        for (let s = 0; s < cfg.audioSectors; s++) sum += w.obs[OBSERVER * w.obsDim + indexOfField(cfg, `audio${s}.footstep`)];
+        return sum;
+      };
+      const slow = heard(1.5);
+      const fast = heard(cfg.maxSpeed);
+      return fast > slow
+        ? { status: 'clean', fields: [], detail: `moving fast is louder than moving slowly: ${slow.toFixed(3)} → ${fast.toFixed(3)} (the affordance, not a rule that says when to walk)` }
+        : { status: 'leak', fields: [], detail: `gait does not change loudness: slow ${slow.toFixed(3)}, fast ${fast.toFixed(3)}` };
+    },
+  },
+  {
+    id: 'A1-P21',
+    kind: 'counterfactual',
+    test: 'T4',
+    title: 'a teammate and an enemy making the same noise',
+    expect: 'clean',
+    run: (cfg) => {
+      const heard = (mover: number) => {
+        const w = new World(cfg, labMap(cfg, []), 1);
+        standObserver(w);
+        place(w, mover, 0, 2, -Math.PI / 2);
+        w.agents[mover].vz = -cfg.maxSpeed;
+        w.observe();
+        const out: number[] = [];
+        for (let s = 0; s < cfg.audioSectors; s++) {
+          out.push(w.obs[OBSERVER * w.obsDim + indexOfField(cfg, `audio${s}.footstep`)]);
+        }
+        return out;
+      };
+      const mate = heard(MATE);
+      const enemy = heard(ENEMY);
+      const same = mate.every((v, i) => Math.abs(v - enemy[i]) < 1e-9) && mate.some((v) => v > 0);
+      return same
+        ? { status: 'clean', fields: [], detail: 'the same steps sound the same whoever is making them — telling friend from foe is inference, not a label' }
+        : { status: 'leak', fields: [], detail: `friend and foe are distinguishable in the audio channel: ${mate.map((v) => v.toFixed(3)).join(',')} vs ${enemy.map((v) => v.toFixed(3)).join(',')}` };
+    },
+  },
 ];
 
 /** Wide version of the mid wall, so a contact well off the centre line is still hidden. */

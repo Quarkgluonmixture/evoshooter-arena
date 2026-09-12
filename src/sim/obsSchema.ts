@@ -13,9 +13,9 @@
  *   hidden      the observer cannot legally know it at all — A2/A3 must remove the channel.
  */
 import type { SimConfig } from '../core/config.ts';
-import { SELF_BASE, MATE_FEATS_BASE, ENEMY_FEATS, obsDim } from './world.ts';
+import { SELF_BASE, MATE_FEATS_BASE, ENEMY_FEATS, AUDIO_CLASSES, obsDim } from './world.ts';
 
-export type Channel = 'self' | 'objective' | 'geometry' | 'teammate' | 'comm' | 'enemy';
+export type Channel = 'self' | 'objective' | 'geometry' | 'teammate' | 'comm' | 'enemy' | 'audio';
 export type Legality = 'legal' | 'truth-form' | 'hidden';
 
 export interface ObsField {
@@ -96,11 +96,17 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`enemy${s}.staleness`, 'enemy', 'truth-form', 'V6', 'age of the world-managed memory entry');
   }
 
+  // --- hearing (A4)
+  for (let s = 0; s < cfg.audioSectors; s++) {
+    push(`audio${s}.footstep`, 'audio', 'legal', undefined, 'head-relative sector loudness, no identity, no team label');
+    push(`audio${s}.gunshot`, 'audio', 'legal', undefined, 'head-relative sector loudness, no identity, no team label');
+  }
+
   const expected = obsDim(cfg);
   if (f.length !== expected) {
     throw new Error(`obsSchema drift: schema has ${f.length} fields, world.obsDim is ${expected}`);
   }
-  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6) {
+  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6 || AUDIO_CLASSES !== 2) {
     throw new Error('obsSchema drift: world.ts feature-group widths changed, re-derive the field names');
   }
   return f;

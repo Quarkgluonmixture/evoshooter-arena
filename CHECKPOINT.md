@@ -30,24 +30,22 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-**A4 — Hearing v1（脚步 + 枪声）**。2026-09-11 夜到 09-12 凌晨连关 Programme A 的视觉段：
-A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3。**V1 / V2 / V3 全部关闭。**
+**A5 / 下一刀：先 V11 + V12 两把小刀，再 V6，最后 V4**（理由与顺序在 `docs/ROADMAP.md` Current Cursor）。
+2026-09-11 夜到 09-12 凌晨连关八刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4。
+**V1 / V2 / V3 / V5 已关闭。**
 
-- **仪器先行**：`npm run leaks` 打印当期信息泄漏矩阵，`tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。
-  ⇒ 每一刀的验收就是**哪几条 probe 该翻绿**，⛔ 别靠读代码自证。当前 16 条 probe：11 clean / 5 leak。
-- **现在的世界**：敌情私有（只有我自己看见才算）· contact = `c·sin/cos(bearing)` + `c·range` + `quality` + `c` + `staleness`，
-  bearing 相对自己朝向、全部走量化格 + 确定性 hash 抖动 · 几何 = 13 条跟着头走的射线（±90°、中心密、背后全无）。
-  **obsDim 93**、genome 5044、bench ≈ 54 ms/match；legal / truth-form / hidden 的当期分布**跑 `npm run leaks`**（⛔ 别抄进文档，会漂）。
-- **还开着的账**：V4 自动瞄准（P12/P14）· V6 记忆归 world 管且 3 秒断崖（P15）· V11 `mate*.firing` 不判可见性 ·
-  V12 objective 数不可见的敌人 · V5 无听觉（= A4）· V7/V8/V9/V10。
-- ⚠ **六条别踩**：① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
+- **仪器先行**：`npm run leaks` 打印当期矩阵并**在不一致时返回非零**（它是闸不是报告）；
+  `tests/leak.test.ts` 断言「实测 == 登记的精确字段集」。⇒ 每一刀的验收就是**哪几条 probe 该翻绿**。
+  当前 21 条 probe。
+- **现在的世界**：敌情私有 · contact = 按把握缩放的 bearing/range/quality（量化 + 确定性抖动）·
+  几何 = 13 条跟着头走的射线（±90°，背后全无）· **听觉** = 4 扇区 × 脚步/枪声（衰减、隔墙、无身份无阵营）。
+  **obsDim 101**、genome 5364、bench ≈ 62 ms/match。
+- **还开着的账**：V4 自动瞄准 · V6 记忆归 world 管（3 秒断崖）· V11 `mate*.firing` 不判可见性 · V12 objective 数不可见的敌人 · V7/V8/V9/V10。
+- ⚠ **七条别踩**：① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
   ③ bench 前看 `uptime`（#15）；④ 性能结论必须**交错配对**量（#16）；
-  ⑤ ⭐⭐ 抖动 key 用 **slot** 不用 agent id、量化格建在**自我相对量**上，且**中局**镜像测试要覆盖新通道（#17）；
-  ⑥ ⭐ 行为指标变了先做 **same-genome 对照**再归因（A3.2b 的 accuracy 下降就不是「打不准」）。
-- ladder（两个方向都 ≥50% 的血统数，n=3 ⛔ 别当结论）：baseline 4/4 → A2 3/6 → A3.1 3/6 → A3.2a 5/6 →
-  A3.2b(buggy) 4/6 → A3.2b(fixed) 5/6 → A3.3 4/6。真要判进步，做 TODO 里的 **cross-play 矩阵**。
-
-下一步严格按 `docs/ROADMAP.md` Current Cursor 的 A4（新通道 ⇒ 先 provenance + probe 再写机制）。
+  ⑤ ⭐⭐ 抖动 key 用 **slot**、量化格建在**自我相对量**上，且**中局**镜像测试要覆盖新通道（#17）；
+  ⑥ ⭐ 行为指标变了先做 **same-genome 对照**再归因；
+  ⑦ ⭐⭐ **同一 run 的两个冠军可能互相根本不接触**（seed 3 实测 0 visible-pair-tick）⇒ 用它们做 ablation 会读到全 0 假信号（#18）。
 
 ## Ops 速查
 - **渲染验证**（样式/相机改动必须做）：本仓不装 playwright，借 `../evofootball-arena/node_modules/playwright`；起 `npx vite --port <空闲端口> --strictPort`，⚠ 先 `curl | grep "<title>EvoShooter"` 确认端口上是本项目（`GOTCHAS.md` #5）。

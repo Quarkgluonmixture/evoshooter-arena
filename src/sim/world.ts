@@ -22,8 +22,11 @@ export const SELF_BASE = 20;
 export const MATE_FEATS_BASE = 6;
 export const ENEMY_FEATS = 6;
 
+export const AUDIO_CLASSES = 2; // footstep, gunshot
+
 export function obsDim(cfg: SimConfig): number {
-  return SELF_BASE + cfg.teamSize + 5 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim) + cfg.enemySlots * ENEMY_FEATS;
+  return SELF_BASE + cfg.teamSize + 5 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
+    + cfg.enemySlots * ENEMY_FEATS + cfg.audioSectors * AUDIO_CLASSES;
 }
 
 /* -------------------------------------------------------------------- state */
@@ -145,6 +148,10 @@ export class World {
    * Contacts are private: a teammate's sighting never lands here (ROADMAP A2 / SUBSTRATE V1).
    */
   readonly contact: Known[][];
+  /** audio[(i * audioSectors + sector) * AUDIO_CLASSES + klass]: loudness this listener currently hears. */
+  readonly audio: Float32Array;
+  /** audioPath[i*n+j]: this tick's attenuation multiplier between i and j, or 0 when out of earshot. */
+  private readonly audioPath: Float32Array;
   readonly stats: [TeamStats, TeamStats];
   readonly heat: [Float32Array, Float32Array] | null;
   readonly events: WorldEvent[] = [];
@@ -173,6 +180,8 @@ export class World {
     this.visible = new Uint8Array(this.n * this.n);
     this.slots = new Int16Array(this.n * cfg.enemySlots).fill(-1);
     this.contact = [];
+    this.audio = new Float32Array(this.n * cfg.audioSectors * AUDIO_CLASSES);
+    this.audioPath = new Float32Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
     this.aliveCount = [cfg.teamSize, cfg.teamSize];
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
@@ -314,6 +323,79 @@ export class World {
   }
 
   /**
+   * Decay what everyone is still hearing, then mix in this tick's sounds: footsteps from anyone who is
+   * moving (louder the faster they go) and gunshots from the previous tick's shots. A sound carries no
+   * identity and no team label — a teammate's steps arrive in exactly the same channel as an enemy's.
+   */
+  private hear(): void {
+    const cfg = this.cfg;
+    const S = cfg.audioSectors;
+    const n = this.n;
+    const ag = this.agents;
+    const decay = Math.exp(-cfg.dt / cfg.audioDecaySeconds);
+    for (let k = 0; k < this.audio.length; k++) this.audio[k] *= decay;
+
+    // One geometry pass per PAIR, not per (listener, source): the segment is the same in both
+    // directions, and this loop is the whole cost of hearing.
+    const R = cfg.audioRange;
+    this.audioPath.fill(0);
+    for (let i = 0; i < n; i++) {
+      if (!ag[i].alive) continue;
+      for (let j = i + 1; j < n; j++) {
+        if (!ag[j].alive) continue;
+        const d = Math.hypot(ag[j].x - ag[i].x, ag[j].z - ag[i].z);
+        if (d >= R) continue;
+        const near = 1 - (d / R) * (d / R);
+        let path = near * near;
+        if (!this.losClear(ag[i].x, cfg.eyeHeight, ag[i].z, ag[j].x, cfg.eyeHeight, ag[j].z)) path *= cfg.audioOcclusion;
+        this.audioPath[i * n + j] = path;
+        this.audioPath[j * n + i] = path;
+      }
+    }
+
+    const emit = (source: Agent, klass: number, loud: number) => {
+      if (loud <= 0) return;
+      for (let i = 0; i < n; i++) {
+        const me = ag[i];
+        if (!me.alive || me.id === source.id) continue;
+        const path = this.audioPath[i * n + source.id];
+        if (path <= 0) continue;
+        const energy = loud * path;
+        const dx = source.x - me.x;
+        const dz = source.z - me.z;
+        // spread over neighbouring sectors so a source crossing a sector edge does not jump
+        const b = wrapAngle(Math.atan2(dz, dx) - me.yaw);
+        for (let s = 0; s < S; s++) {
+          const c = Math.cos(b - (2 * Math.PI * s) / S);
+          if (c <= 0) continue;
+          this.audio[(i * S + s) * AUDIO_CLASSES + klass] += (energy * c * c * 2) / S;
+        }
+      }
+    };
+
+    for (let j = 0; j < n; j++) {
+      const src = ag[j];
+      if (!src.alive) continue;
+      const speed = Math.hypot(src.vx, src.vz);
+      const gait = Math.max(0, speed - 0.5) / Math.max(1e-6, cfg.maxSpeed - 0.5);
+      emit(src, 0, cfg.footstepGain * Math.pow(gait, 1.5));
+    }
+    for (const ev of this.events) {
+      if (ev.kind === 'shot') emit(ag[ev.shooter], 1, cfg.gunshotGain);
+    }
+  }
+
+  /** Quantise a heard loudness the same way a visual percept is quantised. */
+  private reportLoudness(listener: Agent, slotKey: number, v: number): number {
+    if (v <= 1e-4) return 0;
+    const bucket = Math.floor(this.t / this.cfg.perceptBucketSeconds);
+    const noisy = v * (1 + jitter(listener.slot * 97 + slotKey, bucket, 0x6a09e667) * 0.2);
+    if (noisy <= 1e-4) return 0;
+    const lq = Math.log(1.15);
+    return Math.min(1, Math.exp(Math.round(Math.log(noisy) / lq) * lq));
+  }
+
+  /**
    * What I would say about how good my look is. Quantised, because an exact quality number is an exact
    * function of the true geometry and would hand back everything the blurred bearing just removed.
    */
@@ -371,6 +453,7 @@ export class World {
     const n = this.n;
     const ag = this.agents;
     const T = cfg.teamSize;
+    this.hear();
 
     // 1. exposure / visibility between opposing agents
     this.exposure.fill(0);
@@ -600,6 +683,14 @@ export class World {
           o[p++] = vis ? 0 : Math.min(1, (this.t - kn.t) / cfg.memorySeconds);
         } else {
           for (let c = 0; c < ENEMY_FEATS; c++) o[p++] = 0;
+        }
+      }
+
+      // --- hearing: head-relative sectors, no identity, no team label
+      for (let s = 0; s < cfg.audioSectors; s++) {
+        for (let c = 0; c < AUDIO_CLASSES; c++) {
+          const idx = (i * cfg.audioSectors + s) * AUDIO_CLASSES + c;
+          o[p++] = this.reportLoudness(a, s * AUDIO_CLASSES + c, this.audio[idx]);
         }
       }
 

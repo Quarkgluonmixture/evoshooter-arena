@@ -29,6 +29,12 @@ export interface SimConfig {
   perceptBearingError: number;   // worst-case angular error of a visual contact (rad); also the quantisation step
   perceptRangeError: number;     // worst-case relative range error of a visual contact; also the quantisation step
   perceptBucketSeconds: number;  // how long one perception error persists before it is redrawn
+  audioSectors: number;     // head-relative sectors of the hearing channel (hearing is omnidirectional)
+  audioRange: number;        // distance at which a sound has faded to nothing
+  audioOcclusion: number;    // multiplier applied to a sound that has to pass through geometry
+  audioDecaySeconds: number; // how fast the heard loudness fades once the source stops
+  footstepGain: number;      // loudness of a full-speed run
+  gunshotGain: number;       // loudness of one round leaving a barrel
   lidarRays: number;        // structured rays inside the field of view, densest at the crosshair
   geomRangeError: number;   // relative error/quantisation of a wall-distance reading
   geomFovDeg: number;       // angular span of the geometry rays: wider than enemy recognition, still not behind
@@ -69,6 +75,12 @@ export const DEFAULT_SIM: SimConfig = {
   perceptBearingError: 0.12,
   perceptRangeError: 0.25,
   perceptBucketSeconds: 0.4,
+  audioSectors: 4,
+  audioRange: 28,
+  audioOcclusion: 0.45,
+  audioDecaySeconds: 0.35,
+  footstepGain: 0.6,
+  gunshotGain: 1,
   lidarRays: 13,
   geomRangeError: 0.08,
   geomFovDeg: 180,
