@@ -23,12 +23,13 @@ export interface TeamMetrics {
   commActivity: number;  // std-dev of the comm channel across agents and time
   firstContact: number;  // seconds until the first shot (matchSeconds if none)
   sightTicks: number;    // (my agent, enemy) pairs in sight, summed over ticks — 0 = the teams never met
+  objectiveProgress: number; // 0..1 of this team's own objective: zone-point share (koth) or capture/defuse (capture)
   reloads: number;
 }
 
 export const METRIC_KEYS = [
   'zoneScore', 'kills', 'deaths', 'survivors', 'damageDealt', 'damageTaken', 'shots', 'accuracy', 'zoneShare',
-  'coverRatio', 'spread', 'engageDist', 'flankRate', 'aimUsage', 'moveFraction', 'commActivity', 'firstContact', 'sightTicks', 'reloads',
+  'coverRatio', 'spread', 'engageDist', 'flankRate', 'aimUsage', 'moveFraction', 'commActivity', 'firstContact', 'sightTicks', 'objectiveProgress', 'reloads',
 ] as const satisfies readonly (keyof TeamMetrics)[];
 
 export interface MatchResult {
@@ -69,6 +70,9 @@ export function deriveMetrics(st: TeamStats, world: World, team: 0 | 1): TeamMet
     commActivity: Math.sqrt(commVar),
     firstContact: st.firstContactT < 0 ? cfg.matchSeconds : st.firstContactT,
     sightTicks: st.sightTicks,
+    objectiveProgress: cfg.roundMode === 'capture'
+      ? (team === world.attackers ? Math.max(world.capture, world.armed ? 1 : 0) : world.defuse)
+      : Math.min(1, world.score[team] / (cfg.matchSeconds * cfg.zonePointsPerSecond)),
     reloads: st.reloads,
   };
 }
@@ -81,6 +85,7 @@ export function deriveMetrics(st: TeamStats, world: World, team: 0 | 1): TeamMet
 export function fitnessOf(world: World, team: 0 | 1): number {
   const cfg = world.cfg;
   const other = team === 0 ? 1 : 0;
+  if (cfg.roundMode === 'capture') return captureFitness(world, team);
   const maxScore = cfg.matchSeconds * cfg.zonePointsPerSecond;
   const zone = (world.score[team] - world.score[other]) / maxScore;
   const st = world.stats[team];
@@ -92,6 +97,24 @@ export function fitnessOf(world: World, team: 0 | 1): number {
   if (world.aliveCount[other] === 0) elim += 0.3;
   if (world.aliveCount[team] === 0) elim -= 0.3;
   return zone + 0.5 * dmg + 0.2 * presence + elim;
+}
+
+/**
+ * ROADMAP C1a fitness. The round is decided by rule, so the outcome carries it; the only shaping is that an
+ * attack that nearly armed the site scores above one that never touched it, which is the cold-start problem
+ * VISION §10 allows shaping for. Zero-sum by construction: it is one attacker-side number, negated.
+ * ⚠ The damage term is kept at the koth value for now. It is the term measured to be out of compliance with
+ * VISION §10 (never overridden by results), and re-deciding it is its own lever, not a rider on this one.
+ */
+function captureFitness(world: World, team: 0 | 1): number {
+  const cfg = world.cfg;
+  const atk = world.attackers;
+  const progress = Math.max(world.capture, world.armed ? 1 : 0);
+  const attackerObjective = world.winner === atk ? 1 : -1 + 0.6 * progress;
+  const objective = team === atk ? attackerObjective : -attackerObjective;
+  const st = world.stats[team];
+  const dmg = (st.damageDealt - st.damageTaken) / (cfg.teamSize * cfg.hp);
+  return objective + 0.5 * dmg;
 }
 
 export function summarize(world: World): MatchResult {

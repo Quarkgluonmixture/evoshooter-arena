@@ -25,6 +25,19 @@ export interface SimConfig {
   aimConeDeg: number;       // must face target within this cone to fire
   zoneRadius: number;
   zonePointsPerSecond: number;
+  /**
+   * 'koth'    — the shipped baseline: whoever holds the zone accrues points, most points wins, and a wipe
+   *             hands the survivors the remaining clock at the zone's own rate.
+   * 'capture' — ROADMAP C1a: one side attacks, one defends. Attackers fill a capture meter inside the site
+   *             (time cost, decays when they leave); filling it ARMS an independent countdown that keeps
+   *             running after every attacker is dead; defenders standing in the site burn that countdown
+   *             back down (time cost again). The round ends by rule, so nothing needs to stand in for
+   *             "the survivors walk over and hold it" — the free-clock payout simply does not exist.
+   */
+  roundMode: 'koth' | 'capture';
+  captureSeconds: number;   // uncontested attacker occupancy needed to arm the site
+  armedSeconds: number;     // countdown once armed; runs whether or not the attackers are alive
+  defuseSeconds: number;    // uncontested defender occupancy needed to disarm it
   memorySeconds: number;    // how long a player's own contact memory persists
   perceptBearingError: number;   // worst-case angular error of a visual contact (rad); also the quantisation step
   perceptRangeError: number;     // worst-case relative range error of a visual contact; also the quantisation step
@@ -79,6 +92,10 @@ export const DEFAULT_SIM: SimConfig = {
   aimConeDeg: 12,
   zoneRadius: 6,
   zonePointsPerSecond: 1,
+  roundMode: 'koth',
+  captureSeconds: 3,
+  armedSeconds: 15,
+  defuseSeconds: 5,
   memorySeconds: 3,
   perceptBearingError: 0.12,
   perceptRangeError: 0.25,

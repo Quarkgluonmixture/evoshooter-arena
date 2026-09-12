@@ -352,6 +352,7 @@ const METRIC_LABELS: Record<keyof TeamMetrics, { title: string; format: (v: numb
   flankRate: { title: 'Flank hits (target facing away)', format: pct, min: 0, max: 1 },
   firstContact: { title: 'Seconds until first shot', format: one, min: 0 },
   sightTicks: { title: 'Enemy-sighting ticks (0 = the teams never met)', format: one, min: 0 },
+  objectiveProgress: { title: 'Objective progress', format: pct, min: 0, max: 1 },
   commActivity: { title: 'Comm channel activity (std-dev)', format: two, min: 0 },
   aimUsage: { title: 'Aim mode usage', format: pct, min: 0, max: 1 },
   moveFraction: { title: 'Time moving', format: pct, min: 0, max: 1 },

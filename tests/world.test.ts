@@ -287,6 +287,106 @@ class JitterLookPolicy implements Policy {
   }
 }
 
+describe('capture rounds (ROADMAP C1a)', () => {
+  const ccfg = { ...cfg, roundMode: 'capture' as const, captureSeconds: 2, armedSeconds: 4, defuseSeconds: 2 };
+  const T = cfg.teamSize;
+
+  /** Attackers are red. Puts `atk` reds and `def` blues in the site and everyone else far away. */
+  function site(seed: number, atk: number, def: number): World {
+    const w = new World(ccfg, map, seed, { attackers: 0 });
+    for (let i = 0; i < T; i++) {
+      const inSite = i < atk;
+      Object.assign(w.agents[i], { x: inSite ? -1.5 + i * 1.5 : -26 + i, z: inSite ? 0 : -26, vx: 0, vz: 0 });
+      const dIn = i < def;
+      Object.assign(w.agents[T + i], { x: dIn ? 1.5 + i * 1.5 : 26 - i, z: dIn ? 0 : 26, vx: 0, vz: 0 });
+    }
+    return w;
+  }
+  const run = (w: World, seconds: number) => {
+    const n = Math.round(seconds / cfg.dt);
+    for (let i = 0; i < n && !w.done; i++) stepMatch(w, new IdlePolicy(), new IdlePolicy());
+  };
+  const kill = (w: World, team: 0 | 1) => {
+    for (let i = 0; i < T; i++) w.agents[team === 0 ? i : T + i].alive = false;
+    w.aliveCount[team] = 0;
+  };
+
+  it('arms only on uncontested attacker occupancy, and the meter decays when they leave', () => {
+    const contested = site(1, 2, 2);
+    run(contested, 3);
+    expect(contested.capture, 'a defender standing in it should stop the clock').toBe(0);
+    expect(contested.armed).toBe(false);
+
+    const clean = site(1, 2, 0);
+    run(clean, ccfg.captureSeconds + 0.2);
+    expect(clean.armed).toBe(true);
+
+    const left = site(1, 2, 0);
+    run(left, ccfg.captureSeconds * 0.5);
+    expect(left.capture).toBeGreaterThan(0.2);
+    for (let i = 0; i < T; i++) Object.assign(left.agents[i], { x: -26 + i, z: -26 });
+    run(left, ccfg.captureSeconds);
+    expect(left.capture).toBe(0);
+    expect(left.armed).toBe(false);
+  });
+
+  it('⭐ killing every attacker AFTER the site is armed does not save the defenders', () => {
+    // This is the whole point of C1a. Under koth, wiping the enemy hands you the rest of the clock at the
+    // zone's own rate — elimination IS the objective. Here the countdown has its own clock.
+    const w = site(2, 2, 0);
+    run(w, ccfg.captureSeconds + 0.2);
+    expect(w.armed).toBe(true);
+    kill(w, 0);
+    run(w, ccfg.armedSeconds + 1);
+    expect(w.done).toBe(true);
+    expect(w.winner, 'the attackers are all dead and they still won').toBe(0);
+  });
+
+  it('lets defenders defuse it, and ends the round for them the moment they finish', () => {
+    const w = site(3, 2, 0);
+    run(w, ccfg.captureSeconds + 0.2);
+    kill(w, 0);
+    for (let i = 0; i < 2; i++) Object.assign(w.agents[T + i], { x: 1.5 + i * 1.5, z: 0 });
+    run(w, ccfg.defuseSeconds + 0.5);
+    expect(w.done).toBe(true);
+    expect(w.winner).toBe(1);
+    expect(w.armedT, 'defused strictly before the countdown ran out').toBeGreaterThan(0);
+  });
+
+  it('keeps elimination a legal win: wiping the attackers BEFORE they arm it ends the round', () => {
+    const w = site(4, 2, 0);
+    run(w, ccfg.captureSeconds * 0.4);
+    expect(w.armed).toBe(false);
+    kill(w, 0);
+    run(w, 0.2);
+    expect(w.done).toBe(true);
+    expect(w.winner).toBe(1);
+  });
+
+  it('lets an armed site outlive the round clock', () => {
+    const w = site(5, 2, 0);
+    w.t = cfg.matchSeconds - ccfg.captureSeconds - 0.5;
+    run(w, ccfg.captureSeconds + 0.3);
+    expect(w.armed).toBe(true);
+    expect(w.t).toBeGreaterThan(cfg.matchSeconds - 0.5);
+    run(w, 0.5);
+    expect(w.done, 'the clock ran out but the site is armed, so the round is not over').toBe(false);
+    run(w, ccfg.armedSeconds + 1);
+    expect(w.winner).toBe(0);
+  });
+
+  it('pays nothing for time not spent: a wipe adds no score', () => {
+    const w = site(6, 0, 0);
+    run(w, 5);
+    kill(w, 1);
+    run(w, 0.2);
+    // nobody armed anything, so the attackers are left to walk in on their own clock — no free points
+    expect(w.score[0]).toBe(0);
+    expect(w.score[1]).toBe(0);
+    expect(w.done, 'wiping the DEFENDERS does not end the round; the site still has to be taken').toBe(false);
+  });
+});
+
 describe('turning', () => {
   it('sweeps instead of snapping when the look action jitters every tick', () => {
     const w = new World(cfg, map, 3);

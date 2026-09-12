@@ -168,6 +168,17 @@ export class World {
   readonly heat: [Float32Array, Float32Array] | null;
   readonly events: WorldEvent[] = [];
   score: [number, number] = [0, 0];
+  /** Which side attacks in `capture` mode. Assigned per match and swapped in pairs, so it is a ROLE, not
+   *  an identity — a club has to play both ends of it (VISION §11.2). Unused in `koth`. */
+  readonly attackers: Team;
+  /** capture meter, 0..1. Fills while attackers hold the site alone, decays when none of them are in it. */
+  capture = 0;
+  /** true once the meter filled; from here the countdown runs whether or not an attacker is alive. */
+  armed = false;
+  /** seconds left on the countdown once armed. */
+  armedT = 0;
+  /** defuse meter, 0..1, burned by defenders holding the site alone after it is armed. */
+  defuse = 0;
   aliveCount: [number, number];
   t = 0;
   tick = 0;
@@ -180,7 +191,7 @@ export class World {
   private readonly lidarOffsets: Float32Array;
   private readonly pendingShots: number[] = [];
 
-  constructor(cfg: SimConfig, map: ArenaMap, seed: number, opts: { heat?: boolean } = {}) {
+  constructor(cfg: SimConfig, map: ArenaMap, seed: number, opts: { heat?: boolean; attackers?: Team } = {}) {
     this.cfg = cfg;
     this.map = map;
     this.rng = new Rng(seed);
@@ -198,6 +209,8 @@ export class World {
     this.losPair = new Uint8Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
     this.aliveCount = [cfg.teamSize, cfg.teamSize];
+    this.attackers = opts.attackers ?? RED;
+    this.armedT = cfg.armedSeconds;
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
     this.halfFov = (cfg.fovDeg * Math.PI) / 360;
     this.cosAimCone = Math.cos((cfg.aimConeDeg * Math.PI) / 180);
@@ -609,7 +622,9 @@ export class World {
       o[p++] = this.inZone(a) ? 1 : 0;
       o[p++] = a.aim ? 1 : 0;
       o[p++] = timeLeft;
-      o[p++] = (this.score[team] - this.score[enemyTeam]) / maxScore;
+      // how the round is going, in [-1, 1]. Same legal HUD channel in both modes; only the scale differs,
+      // because capture progress is not measured in zone-seconds.
+      o[p++] = (this.score[team] - this.score[enemyTeam]) / (cfg.roundMode === 'capture' ? 2 : maxScore);
       o[p++] = Math.min(1, a.dmgRecent / 50);
       o[p++] = sg * a.hitDirX;
       o[p++] = sg * a.hitDirZ;
@@ -1003,7 +1018,7 @@ export class World {
       }
     }
 
-    // 4. zone control scoring
+    // 4. objective
     let rz = 0;
     let bz = 0;
     for (let i = 0; i < n; i++) {
@@ -1013,12 +1028,17 @@ export class World {
         else bz++;
       }
     }
-    if (rz > bz) this.score[RED] += cfg.zonePointsPerSecond * dt;
+    if (cfg.roundMode === 'capture') this.stepCapture(rz, bz, dt);
+    else if (rz > bz) this.score[RED] += cfg.zonePointsPerSecond * dt;
     else if (bz > rz) this.score[BLUE] += cfg.zonePointsPerSecond * dt;
 
     // 5. clock + termination
     this.t += dt;
     this.tick++;
+    if (cfg.roundMode === 'capture') {
+      this.endCapture();
+      return;
+    }
     if (this.aliveCount[RED] === 0 || this.aliveCount[BLUE] === 0) {
       const remaining = Math.max(0, cfg.matchSeconds - this.t);
       if (this.aliveCount[RED] > 0) this.score[RED] += remaining * cfg.zonePointsPerSecond;
@@ -1034,6 +1054,48 @@ export class World {
     }
   }
 
+  /** Attacker-side count of living bodies in the site, and defender-side, for `capture` mode. */
+  private siteCounts(rz: number, bz: number): [number, number] {
+    return this.attackers === RED ? [rz, bz] : [bz, rz];
+  }
+
+  /**
+   * ROADMAP C1a. Uncontested attacker occupancy fills the meter; filling it arms a countdown that runs on
+   * its own clock from then on. Uncontested defender occupancy after that burns a defuse meter. Contested
+   * means nobody makes progress — holding a site is something you have to be *alone* in to finish.
+   */
+  private stepCapture(rz: number, bz: number, dt: number): void {
+    const cfg = this.cfg;
+    const [atk, def] = this.siteCounts(rz, bz);
+    if (!this.armed) {
+      if (atk > 0 && def === 0) this.capture = Math.min(1, this.capture + dt / cfg.captureSeconds);
+      else if (atk === 0) this.capture = Math.max(0, this.capture - dt / cfg.captureSeconds);
+      if (this.capture >= 1) {
+        this.armed = true;
+        this.armedT = cfg.armedSeconds;
+      }
+    } else {
+      this.armedT -= dt; // keeps running whether or not an attacker is still alive — that is the point
+      if (def > 0 && atk === 0) this.defuse = Math.min(1, this.defuse + dt / cfg.defuseSeconds);
+      else if (def === 0) this.defuse = Math.max(0, this.defuse - dt / cfg.defuseSeconds);
+    }
+    // The scoreboard field the HUD already carries: attacker progress vs defender progress.
+    this.score[this.attackers] = this.capture + (this.armed ? 1 : 0);
+    this.score[this.attackers === RED ? BLUE : RED] = this.defuse;
+  }
+
+  /** Round end for `capture` mode. Every branch is a rule; nothing is paid out for time not spent. */
+  private endCapture(): void {
+    const def: Team = this.attackers === RED ? BLUE : RED;
+    if (this.armed) {
+      if (this.defuse >= 1) { this.winner = def; this.done = true; }
+      else if (this.armedT <= 0) { this.winner = this.attackers; this.done = true; }
+      return; // an armed site outlives the round clock: it has to be defused or it goes off
+    }
+    if (this.aliveCount[this.attackers] === 0) { this.winner = def; this.done = true; return; }
+    if (this.t >= this.cfg.matchSeconds - 1e-9) { this.winner = def; this.done = true; }
+  }
+
   /** Cheap state fingerprint for determinism checks. */
   hash(): number {
     let h = 2166136261;
@@ -1046,6 +1108,8 @@ export class World {
       mix(a.x); mix(a.z); mix(a.yaw); mix(a.hp); mix(a.alive ? 1 : 0); mix(a.ammo);
     }
     mix(this.score[0]); mix(this.score[1]); mix(this.tick);
+    // Only mixed in capture mode, so koth fingerprints stay exactly what they were.
+    if (this.cfg.roundMode === 'capture') { mix(this.capture); mix(this.armed ? 1 : 0); mix(this.armedT); mix(this.defuse); }
     return h >>> 0;
   }
 }

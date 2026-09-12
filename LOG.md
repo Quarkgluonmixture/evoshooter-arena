@@ -831,3 +831,44 @@ if (this.aliveCount[RED] === 0 || this.aliveCount[BLUE] === 0) {
 真正的修法在 C1 target shape 自己那一条：**objective action 要有时间成本和可中断性** ——
 一个你可以提前投入、并且**在你死后仍然继续计时**的目标（职业 CS 的 plant/defuse 就是这个形状）。
 那时杀光对面不再等于拿下目标，因为对面可能已经投入了。⇒ 这条作为 C1 的设计约束记进 ROADMAP。
+
+## [2026-09-12 23:45] C1a ship：目标现在有投入成本、有独立倒计时、可被反悔  #ship #decision
+
+按 ROADMAP C1 的「最小设计」三刀里的第一刀，**不动地图**，只把回合机制换掉。
+`roundMode: 'capture'`（`SimConfig`，**默认仍是 `'koth'`**，所以旧世界一个字节都没动 ——
+12 代训练输出的**每一行和两条 duel 行逐字相同**，只有耗时那一行不同）。
+
+**机制**：attacker 独占站在 site 里累积 capture meter（`captureSeconds`，离开会衰减，被 defender 顶住就不动）；
+满了 ⇒ **armed**，一个 `armedSeconds` 的倒计时**按自己的钟走**；defender 独占站进去消耗 defuse meter（`defuseSeconds`）。
+终局全部由规则判定：倒计时归零 = 攻方赢；defuse 满 = 守方赢；未 armed 时攻方团灭或时间耗尽 = 守方赢。
+**armed 之后回合不因时间到而结束** —— 炸弹比回合钟活得久。
+
+⭐⭐ **那段「团灭白送剩余时间」的加分自然消失了**：终局是规则判定，不需要再拿占区费率替代
+「活下来的人慢慢走过去占满」。测试 `pays nothing for time not spent` 钉死这一点，
+而且**团灭守方不再结束回合** —— 攻方仍然得自己走进去把它拿下。
+
+**攻守角色按比赛分配**（`new World(..., { attackers })`），两种分配都跑 ⇒ `red`/`blue` 仍然只是 sides。
+
+### 验收
+
+- 6 条新测试，最承重的那条是 ⭐ **「armed 之后杀光全部攻方，守方仍然输」** ——
+  这正是 koth 下「团灭 = 拿下目标」的反面。另外五条：污染时不推进 / 离开会衰减 / defuse 能赢 /
+  **未 armed 前团灭攻方守方立刻赢（elimination 仍是合法胜法）** / armed 的点位活过回合钟。74 → 80 测试。
+- reference bot 实测（rusher 打 rusher，48 回合，两种角色分配都跑）：capture 下
+  **攻方角色胜率 50%**（角色公平）、**50% 的回合被 armed**（平均 10.6 s）。
+  ⚠ rusher 对 rusher 时 100% 的回合以团灭收场，所以「armed 之后被团灭」出现 **0 次** ——
+  这条要靠一个**会退守再进场 defuse 的 reference bot** 才演得出来，属于 **C1c**。机制本身由单测钉住。
+- ⚠ camper 当守方时攻方 **100%** 获胜：camper 蹲在出生点，而地图**故意**让出生点看不见目标区（墓碑坑 3）
+  ⇒ 它结构上防不住。这是 C1c 需要一个真正的 site defender reference bot 的第一条证据，不是机制问题。
+
+⚠ **平衡没调**：`captureSeconds 3 / armedSeconds 15 / defuseSeconds 5` 是首版数字，
+⛔ 别把它们当结论；调之前先把 C1b 的双 site 做出来，否则调的是一个即将消失的拓扑。
+
+### 边界
+
+- ⚠ **evolving agent 现在看不见 armed / 倒计时** —— 公开回合状态是 **C2** 的活。
+  `self.scoreDiff` 在 capture 下改成携带「攻方进度 − 守方进度」∈ [−1,1]（同一条合法 HUD 通道，只是换了尺度）。
+  ⛔ 在 C2 之前，别拿进化种群的表现评判这套机制：它们还没被告知规则。
+- `objectiveProgress` 加进 `TeamMetrics`（两种模式下都有意义），因为 capture 模式下 `zoneScore` 只会是 0–2。
+- capture 模式的 fitness 是**零和**的攻方视角量：赢 = +1，输 = −1 + 0.6×最高进度（VISION §10 允许的冷启动 shaping）。
+  ⚠ 伤害项仍保留 0.5 系数 —— 那一项已被实测判定不合规（永远压不过结果），但**重定它是另一根杠杆**，不搭这趟车。
