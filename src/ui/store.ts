@@ -3,7 +3,8 @@ import type { TeamMetrics } from '../evo/match.ts';
 
 export interface StoreTeam { best: number; mean: number; worst: number; championMetrics: TeamMetrics; popMetrics: TeamMetrics }
 export interface StoreReport {
-  gen: number; elapsedMs: number; matches: number; ladder: [number | null, number | null]; ladder0: [number | null, number | null]; redWinShare: number;
+  gen: number; elapsedMs: number; matches: number; ladder: [number | null, number | null]; ladder0: [number | null, number | null];
+  ladderSight: [number | null, number | null]; ladder0Sight: [number | null, number | null]; redWinShare: number;
   teams: [StoreTeam, StoreTeam];
 }
 export interface StoreJSON { reports: StoreReport[] }
@@ -74,7 +75,8 @@ export class HistoryStore {
   toJSON(): StoreJSON {
     return {
       reports: this.reports.map((r) => ({
-        gen: r.gen, elapsedMs: r.elapsedMs, matches: r.matches, ladder: r.ladder, ladder0: r.ladder0, redWinShare: r.redWinShare,
+        gen: r.gen, elapsedMs: r.elapsedMs, matches: r.matches, ladder: r.ladder, ladder0: r.ladder0,
+        ladderSight: r.ladderSight, ladder0Sight: r.ladder0Sight, redWinShare: r.redWinShare,
         teams: r.teams.map((t) => ({ best: t.best, mean: t.mean, worst: t.worst, championMetrics: t.championMetrics, popMetrics: t.popMetrics })) as [StoreTeam, StoreTeam],
       })),
     };

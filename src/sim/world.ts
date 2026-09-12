@@ -94,6 +94,9 @@ export interface TeamStats {
   aimTicks: number;
   spreadSum: number;
   spreadTicks: number;
+  /** (viewer, enemy) pairs of MY team that had eyes on an enemy this tick, summed over ticks.
+   *  The denominator behind every behaviour claim: zero here means the two teams never met (GOTCHAS #18). */
+  sightTicks: number;
   engageDistSum: number;
   flankHits: number;
   commSum: number[];
@@ -107,7 +110,7 @@ function newStats(commDim: number): TeamStats {
   return {
     shots: 0, hits: 0, kills: 0, deaths: 0, damageDealt: 0, damageTaken: 0,
     zoneAgentTicks: 0, aliveAgentTicks: 0, coverTicks: 0, threatTicks: 0, moveTicks: 0, aimTicks: 0,
-    spreadSum: 0, spreadTicks: 0, engageDistSum: 0, flankHits: 0,
+    spreadSum: 0, spreadTicks: 0, sightTicks: 0, engageDistSum: 0, flankHits: 0,
     commSum: new Array(commDim).fill(0), commSq: new Array(commDim).fill(0), commN: 0,
     firstContactT: -1, reloads: 0,
   };
@@ -495,7 +498,10 @@ export class World {
         if (d > cfg.viewRange) continue;
         const e = this.computeExposure(a, b);
         this.exposure[i * n + j] = e;
-        if (e > 0 && d > 1e-6 && (fx * dx + fz * dz) / d >= this.cosHalfFov) this.visible[i * n + j] = 1;
+        if (e > 0 && d > 1e-6 && (fx * dx + fz * dz) / d >= this.cosHalfFov) {
+          this.visible[i * n + j] = 1;
+          this.stats[a.team].sightTicks++;
+        }
       }
     }
 

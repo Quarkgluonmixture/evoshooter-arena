@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "train": "node scripts/train.ts",
     "bench": "node scripts/bench.ts",
-    "leaks": "node scripts/leaks.ts"
+    "leaks": "node scripts/leaks.ts",
+    "crossplay": "node scripts/crossplay.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

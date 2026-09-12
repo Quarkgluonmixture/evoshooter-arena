@@ -87,6 +87,14 @@ export interface GenReport {
   ladder: [number | null, number | null];
   /** win-rate of this generation's champion vs the generation-0 champion (null at gen 0) */
   ladder0: [number | null, number | null];
+  /**
+   * Mean sighting ticks per ladder match, alongside each win rate above. A ladder cell can read a
+   * confident 50 % while the two champions never once saw each other — co-evolution can settle on mutual
+   * avoidance, and then the "win rate" is the scoreboard of a match that never happened (GOTCHAS #20).
+   * Zero here means the number next to it measures nothing.
+   */
+  ladderSight: [number | null, number | null];
+  ladder0Sight: [number | null, number | null];
   /** share of pairing matches won by red (0.5 = balanced arms race) */
   redWinShare: number;
   heat: [Float32Array, Float32Array];
@@ -238,6 +246,8 @@ export class Trainer {
     // Same-colour lineage; the past self plays the other side (any genome can play either colour).
     const ladder: [number | null, number | null] = [null, null];
     const ladder0: [number | null, number | null] = [null, null];
+    const ladderSight: [number | null, number | null] = [null, null];
+    const ladder0Sight: [number | null, number | null] = [null, null];
     let ladderMatches = 0;
     const gap = this.evo.ladderGap;
     const L = this.evo.ladderMatches;
@@ -261,12 +271,15 @@ export class Trainer {
       ladderMatches = lj.length;
       plan.forEach((p, k) => {
         let w = 0;
+        let sight = 0;
         for (let m = 0; m < L; m++) {
           const r = lr[k * L + m];
           if (r.winner === 0) w += 1;
           else if (r.winner === -1) w += 0.5;
+          sight += r.metrics[0].sightTicks + r.metrics[1].sightTicks;
         }
         (p.slot === 'gap' ? ladder : ladder0)[p.team] = w / L;
+        (p.slot === 'gap' ? ladderSight : ladder0Sight)[p.team] = sight / L;
       });
     }
 
@@ -279,6 +292,8 @@ export class Trainer {
       teams,
       ladder,
       ladder0,
+      ladderSight,
+      ladder0Sight,
       redWinShare: pairCount ? redWins / pairCount : 0.5,
       heat,
     };
@@ -331,13 +346,20 @@ export class Trainer {
     return t;
   }
 
-  /** Head-to-head between two genomes over `n` seeds; returns win share of `a` (playing red). */
-  async duel(evaluator: Evaluator, a: Float32Array, b: Float32Array, n: number, seed = 777): Promise<number> {
+  /**
+   * Head-to-head between two genomes over `n` seeds. Returns the win share of `a` (playing red) AND the
+   * mean sighting ticks per match, because the win share alone cannot tell "beat him" from "never met him".
+   */
+  async duel(evaluator: Evaluator, a: Float32Array, b: Float32Array, n: number, seed = 777): Promise<{ win: number; sight: number }> {
     const jobs: MatchJob[] = [];
     for (let m = 0; m < n; m++) jobs.push({ red: 0, blue: 1, seed: hashSeed(seed, m), credit: 0, kind: 'ladder' });
     const res = await evaluator.run([a, b], jobs, false);
     let w = 0;
-    for (const r of res) w += r.winner === 0 ? 1 : r.winner === -1 ? 0.5 : 0;
-    return w / n;
+    let sight = 0;
+    for (const r of res) {
+      w += r.winner === 0 ? 1 : r.winner === -1 ? 0.5 : 0;
+      sight += r.metrics[0].sightTicks + r.metrics[1].sightTicks;
+    }
+    return { win: w / n, sight: sight / n };
   }
 }

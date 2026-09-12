@@ -205,11 +205,13 @@ function fmtStatus(r: GenReport | null): string {
   const [R, B] = r.teams;
   const secs = (r.elapsedMs / 1000).toFixed(1);
   const workers = evaluator ? evaluator.size : 0;
-  const lad = (v: number | null) => (v === null ? '–' : `${(v * 100).toFixed(0)}%`);
+  // zero sighting ticks = the two champions never met; the win share is then a scoreboard, not a result
+  const lad = (v: number | null, sight: number | null) =>
+    v === null ? '–' : `${(v * 100).toFixed(0)}${sight === 0 ? '%<sub title="they never saw each other">·</sub>' : '%'}`;
   return (
     `<b>generation ${r.gen}</b> · ${r.matches} matches · ${secs} s/gen · ${workers} workers\n` +
-    `red  best <b>${R.best.toFixed(2)}</b> mean ${R.mean.toFixed(2)} · vs gen 0 <b>${lad(r.ladder0[0])}</b> · vs −10 <b>${lad(r.ladder[0])}</b>\n` +
-    `blue best <b>${B.best.toFixed(2)}</b> mean ${B.mean.toFixed(2)} · vs gen 0 <b>${lad(r.ladder0[1])}</b> · vs −10 <b>${lad(r.ladder[1])}</b>\n` +
+    `red  best <b>${R.best.toFixed(2)}</b> mean ${R.mean.toFixed(2)} · vs gen 0 <b>${lad(r.ladder0[0], r.ladder0Sight[0])}</b> · vs −10 <b>${lad(r.ladder[0], r.ladderSight[0])}</b>\n` +
+    `blue best <b>${B.best.toFixed(2)}</b> mean ${B.mean.toFixed(2)} · vs gen 0 <b>${lad(r.ladder0[1], r.ladder0Sight[1])}</b> · vs −10 <b>${lad(r.ladder[1], r.ladderSight[1])}</b>\n` +
     `head-to-head balance: red wins ${(r.redWinShare * 100).toFixed(0)}%`
   );
 }
@@ -349,6 +351,7 @@ const METRIC_LABELS: Record<keyof TeamMetrics, { title: string; format: (v: numb
   engageDist: { title: 'Engagement distance (m)', format: one, min: 0 },
   flankRate: { title: 'Flank hits (target facing away)', format: pct, min: 0, max: 1 },
   firstContact: { title: 'Seconds until first shot', format: one, min: 0 },
+  sightTicks: { title: 'Enemy-sighting ticks (0 = the teams never met)', format: one, min: 0 },
   commActivity: { title: 'Comm channel activity (std-dev)', format: two, min: 0 },
   aimUsage: { title: 'Aim mode usage', format: pct, min: 0, max: 1 },
   moveFraction: { title: 'Time moving', format: pct, min: 0, max: 1 },

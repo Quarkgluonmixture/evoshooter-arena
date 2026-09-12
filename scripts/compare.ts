@@ -11,7 +11,7 @@ const lastArg = process.argv.indexOf('--last');
 const LAST = lastArg > 0 ? Number(process.argv[lastArg + 1]) : 5;
 if (!aPath || !bPath) throw new Error('usage: node scripts/compare.ts <base.json> <treatment.json> [--last N]');
 
-interface Gen { gen: number; ladder0: [number | null, number | null]; red: { best: number; mean: number; metrics: TeamMetrics }; blue: { best: number; mean: number; metrics: TeamMetrics } }
+interface Gen { gen: number; ladder0: [number | null, number | null]; ladder0Sight?: [number | null, number | null]; red: { best: number; mean: number; metrics: TeamMetrics }; blue: { best: number; mean: number; metrics: TeamMetrics } }
 const load = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as { gens: Gen[] };
 
 function tail(run: { gens: Gen[] }, side: 'red' | 'blue'): TeamMetrics {
@@ -38,5 +38,10 @@ for (const k of METRIC_KEYS) {
   console.log(`${pad(k, 14)} | ${num(ar)} ${num(br)} | ${num(ab)} ${num(bb)}`);
 }
 console.log(`${pad('bestFitness', 14)} | ${num(fitness(A, 'red'))} ${num(fitness(B, 'red'))} | ${num(fitness(A, 'blue'))} ${num(fitness(B, 'blue'))}`);
-const ladder = (run: { gens: Gen[] }) => run.gens.slice(-1)[0].ladder0.map((x) => (x === null ? '-' : `${(x * 100).toFixed(0)}%`)).join(' / ');
+// `·` = the two champions never saw each other, so that win share measures nothing (GOTCHAS #20).
+// Runs exported before the denominator existed have no ladder0Sight and simply print unmarked.
+const ladder = (run: { gens: Gen[] }) => {
+  const g = run.gens.slice(-1)[0];
+  return g.ladder0.map((x, t) => (x === null ? '-' : `${(x * 100).toFixed(0)}%${g.ladder0Sight?.[t] === 0 ? '·' : ''}`)).join(' / ');
+};
 console.log(`final-gen ladder vs gen-0 (R / B): base ${ladder(A)}   treatment ${ladder(B)}`);

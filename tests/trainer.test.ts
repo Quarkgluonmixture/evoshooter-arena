@@ -14,6 +14,12 @@ describe('Trainer', () => {
     expect(r0.gen).toBe(0);
     expect(r0.ladder).toEqual([null, null]);
     expect(r0.ladder0).toEqual([null, null]);
+    // Every ladder win share must arrive with the denominator that makes it readable, or a 50 % between two
+    // champions who never met reads exactly like a 50 % between equals (GOTCHAS #20). This asserts the
+    // plumbing (a number appears exactly when a win share does); that the counter really counts is
+    // guarded positively in world.test.ts.
+    expect(r0.ladderSight).toEqual([null, null]);
+    expect(r0.ladder0Sight).toEqual([null, null]);
     expect(r0.matches).toBe(4); // pairings only: no hall of fame yet
     const r1 = await t.runGeneration(ev);
     expect(r1.gen).toBe(1);
@@ -22,6 +28,15 @@ describe('Trainer', () => {
     expect(r1.ladder[0]).toBeLessThanOrEqual(1);
     expect(r1.ladder0[1]).toBeGreaterThanOrEqual(0);
     expect(r1.ladder0[1]).toBeLessThanOrEqual(1);
+    for (const t of [0, 1] as const) {
+      expect(r1.ladderSight[t] === null).toBe(r1.ladder[t] === null);
+      expect(r1.ladder0Sight[t] === null).toBe(r1.ladder0[t] === null);
+      expect(r1.ladder0Sight[t]).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(r1.ladder0Sight[t])).toBe(true);
+    }
+    const d = await t.duel(ev, t.hof[0][1].genome, t.hof[0][0].genome, 2);
+    expect(d.win).toBeGreaterThanOrEqual(0);
+    expect(d.sight).toBeGreaterThanOrEqual(0);
 
     expect(t.hof[0].length).toBe(2);
     expect(t.hof[1].length).toBe(2);

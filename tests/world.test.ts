@@ -128,6 +128,29 @@ describe('World', () => {
     expect(r.fitness[0] + r.fitness[1]).toBeCloseTo(0, 6);
   });
 
+  it('counts sighting ticks for the eye that is looking, never for the team facing away', () => {
+    // This counter is the denominator behind every behaviour claim (GOTCHAS #18): a cross-play cell with
+    // zero sightings is a non-measurement, not a 50/50 draw. Three ways it can silently lie — never
+    // incrementing, crediting the wrong team, or crediting both ends of a one-way sighting — all show up here.
+    const T = cfg.teamSize;
+    const place = (blueYaw: number) => {
+      const w = new World(cfg, map, 3);
+      for (let s = 0; s < T; s++) {
+        const x = -6 + 3 * s;
+        Object.assign(w.agents[s], { x, z: -4 - s, yaw: Math.PI / 2 });
+        Object.assign(w.agents[T + s], { x: -x, z: 4 + s, yaw: blueYaw });
+      }
+      w.observe();
+      return w.stats.map((st) => st.sightTicks);
+    };
+    const [mutualR, mutualB] = place(-Math.PI / 2); // both sides looking at each other
+    expect(mutualR).toBeGreaterThan(0);
+    expect(mutualB).toBe(mutualR); // mirrored setup → mirrored sightings
+    const [oneWayR, oneWayB] = place(Math.PI / 2); // blue looking away, red unchanged
+    expect(oneWayR).toBe(mutualR);
+    expect(oneWayB).toBe(0);
+  });
+
   it('never lets an agent end up inside cover or outside the arena', () => {
     const rng = new Rng(8);
     const r = new NeuralPolicy(shape, randomGenome(shape, rng));

@@ -22,12 +22,13 @@ export interface TeamMetrics {
   moveFraction: number;  // fraction of ticks moving
   commActivity: number;  // std-dev of the comm channel across agents and time
   firstContact: number;  // seconds until the first shot (matchSeconds if none)
+  sightTicks: number;    // (my agent, enemy) pairs in sight, summed over ticks — 0 = the teams never met
   reloads: number;
 }
 
 export const METRIC_KEYS = [
   'zoneScore', 'kills', 'deaths', 'survivors', 'damageDealt', 'damageTaken', 'shots', 'accuracy', 'zoneShare',
-  'coverRatio', 'spread', 'engageDist', 'flankRate', 'aimUsage', 'moveFraction', 'commActivity', 'firstContact', 'reloads',
+  'coverRatio', 'spread', 'engageDist', 'flankRate', 'aimUsage', 'moveFraction', 'commActivity', 'firstContact', 'sightTicks', 'reloads',
 ] as const satisfies readonly (keyof TeamMetrics)[];
 
 export interface MatchResult {
@@ -67,6 +68,7 @@ export function deriveMetrics(st: TeamStats, world: World, team: 0 | 1): TeamMet
     moveFraction: st.aliveAgentTicks > 0 ? st.moveTicks / st.aliveAgentTicks : 0,
     commActivity: Math.sqrt(commVar),
     firstContact: st.firstContactT < 0 ? cfg.matchSeconds : st.firstContactT,
+    sightTicks: st.sightTicks,
     reloads: st.reloads,
   };
 }
