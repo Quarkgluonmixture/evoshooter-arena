@@ -875,19 +875,20 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：V6 — 把记忆从 world 手里交回玩家（`A1-P15`）。**
+**当前：V6b 或 V4 —— 但两者都是“大刀”，⭐ 建议先做 cross-play 矩阵再动。**
 
-已 CLOSED（2026-09-11 ~ 09-12）：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 听觉 · **V11 + V12**。
-**V1 / V2 / V3 / V5 / V11 / V12 全部关闭**；observation 100 维（分布现查 `npm run leaks`）。
-仍然开着：**V6**（本刀）· **V4** 自动瞄准（`A1-P12`/`A1-P14`）· V7/V8/V9/V10。
+已 CLOSED（2026-09-11 ~ 09-12）：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · **V6a**。
+**信息层全部关闭**（V1/V2/V3/V5/V11/V12）；observation 100 维、97 legal / 3 truth-form / **0 hidden**。
 
-V6 的两半，⭐ **分两刀**（否则「记忆窗口的形状」和「记忆搬进网络」会混在一个 A/B 里）：
+剩下的账与它们的探针：
+- **V4** target-slot 自动瞄准 —— `A1-P12`（look 全 0 头仍转 24°）· `A1-P14`（转向的是我的记忆而非他真身）。
+  ⚠ 动它必须**连带重做转头手感**（`turnRate`/`scanTurnRate` 按 `targetId` 切换、look 低通建立在「动作=绝对方向」上），
+  见 SUBSTRATE V4 的前瞻警告 + GOTCHAS #10：⛔ 不要照搬常数。
+- **V6b** 记忆归属 —— `A1-P23`（1.8 秒后回忆的方位逐位不变 ⇒ world 存了完美记录）。
+  ⚠ 要 recurrent brain ⇒ **改 genome 尺度**，动手前重做 mutation/inheritance sensitivity（GOTCHAS #6）。
+- V7/V8/V9/V10 仍在 Programme D–G。
 
-- **V6a 先去掉断崖**：`staleness` 是唯一没被 confidence 缩放的 contact 字段，所以 3 秒记忆窗口现在是
-  一次性删除（`A1-P15` 实测 max |Δ| 0.967）。把记忆做成**连续衰减**（recency 乘进所有字段，像 A3.2a 对 quality 那样），
-  验收 = `A1-P15` 按**量级判据**翻 clean（阈值跟 `A1-P8` 一样先定 0.05 再跑）。⛔ 这一刀不动 brain。
-- **V6b 再谈归属**：world 不再替玩家记忆，改由 brain 自己维持（= Programme D 的 recurrent brain）。
-  ⚠ 这会改 genome 尺度 ⇒ **动手前重做 mutation/inheritance sensitivity**（GOTCHAS #6）。
-
-每刀照旧：预测先写 LOG 再跑 · 先说清哪条 probe 该翻绿 + **正向护栏** · same-genome 对照再归因 ·
-bench 交错配对（⚠ 先看 `uptime`）· 镜像测试覆盖新通道 · 对照 = `runs/b0-hud-s{1,2,3}`。
+⭐ **为什么建议先插一步 cross-play**：连续十一刀的行为侧结论都停在「seed 间互相矛盾、测不出方向」，
+而 champion-vs-gen0 这把尺子已经三次给出退化信号（其中一次是**两个冠军根本不相遇**，A4/seed 3）。
+V4/V6b 是会真正改变行为的大刀——**先把尺子换好，再动它们**，否则 A/B 结果没法解释。
+做法在 `TODO.md`「每代冠军 vs 全部历史冠军的胜率矩阵」那条。

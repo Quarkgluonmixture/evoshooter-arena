@@ -672,7 +672,10 @@ export class World {
         // while I can see him the belief is this tick's percept, and the stored contact is the same
         // number — what I remember is what I saw, not what was true
         const believed = vis ? this.perceive(a, en, en.x - a.x, en.z - a.z, live) : null;
-        const recalled = fresh ? k.q * Math.max(0, 1 - age / cfg.memorySeconds) : 0; // a glimpse I barely got is a memory I barely hold
+        // A glimpse I barely got is a memory I barely hold, and the hold decays as (1-t)^2 so the end of
+        // the window is a fade rather than a deletion (ROADMAP V6a).
+        const fade = fresh ? (1 - age / cfg.memorySeconds) * (1 - age / cfg.memorySeconds) : 0;
+        const recalled = k.q * fade;
         const conf = Math.max(live, recalled);
         if (conf <= 0) continue;
         const px = believed ? a.x + believed.dx : k.x;
@@ -706,7 +709,14 @@ export class World {
           o[p++] = conf * Math.min(1, d / cfg.viewRange);
           o[p++] = enemyLive[k];
           o[p++] = conf;
-          o[p++] = vis ? 0 : Math.min(1, (this.t - kn.t) / cfg.memorySeconds);
+          // Recency, not staleness — and scaled by confidence like every other field in this slot. The
+          // first version reported a bare 1 while visible, which put a full-height cliff back at the edge
+          // of vision; A1-P8, written three phases earlier, caught it.
+          {
+            const age = this.t - kn.t;
+            const f = Math.max(0, 1 - age / cfg.memorySeconds);
+            o[p++] = conf * (vis ? 1 : f * f);
+          }
         } else {
           for (let c = 0; c < ENEMY_FEATS; c++) o[p++] = 0;
         }

@@ -9,7 +9,7 @@
  * Nothing in `src/sim` or `src/brain` may import this file (SUBSTRATE T8, analytics firewall).
  */
 import { DEFAULT_SIM, type SimConfig } from '../core/config.ts';
-import type { Box } from '../sim/geom.ts';
+import { wrapAngle, type Box } from '../sim/geom.ts';
 import type { ArenaMap } from '../sim/map.ts';
 import { World, ACT_DIM, A_AIM, A_TARGET0 } from '../sim/world.ts';
 import { obsSchema, type ObsField } from '../sim/obsSchema.ts';
@@ -545,9 +545,8 @@ export const LEAK_PROBES: LeakProbe[] = [
     id: 'A1-P15',
     kind: 'discontinuity',
     gap: 'V6',
-    title: 'my memory of a contact is a perfect step function the world keeps for me',
-    expect: 'leak',
-    expectFields: ['enemy0.bearingSin', 'enemy0.bearingCos', 'enemy0.range', 'enemy0.confidence', 'enemy0.staleness'],
+    title: 'the memory window ends in a cliff',
+    expect: 'clean', // flipped by ROADMAP V6a: the hold fades as (1-t)^2 instead of being deleted
     run: (cfg) => {
       // Both worlds are read at the SAME clock time (so the legal round-time HUD is identical); they differ
       // only in how long ago the sighting happened — see GOTCHAS #11.
@@ -573,13 +572,21 @@ export const LEAK_PROBES: LeakProbe[] = [
         if (dd > 1e-9) fields.push(schema[k].name);
         if (dd > maxDelta) maxDelta = dd;
       }
-      return fields.length === 0
-        ? { status: 'clean', fields, detail: 'remembering is the brain’s job and it degrades on its own terms' }
+      // Same magnitude criterion as A1-P8, fixed before the V6a run: a fading memory still moves a
+      // little at the end of the window, a deleted one moves a lot.
+      const CLIFF = 0.05;
+      return maxDelta <= CLIFF
+        ? {
+            status: 'clean',
+            fields: [],
+            detail: `200 ms either side of the ${cfg.memorySeconds} s window moves the observation by at most ` +
+              `${maxDelta.toExponential(2)} (cliff threshold ${CLIFF}): the memory fades out instead of being deleted`,
+          }
         : {
             status: 'leak',
             fields,
             detail: `200 ms either side of the ${cfg.memorySeconds} s memory window moves ${fields.length} fields ` +
-              `by up to ${maxDelta.toFixed(4)}: the world, not my brain, decides what I still remember`,
+              `by up to ${maxDelta.toFixed(4)}: the world deletes what I still remember in one tick`,
           };
     },
   },
@@ -788,6 +795,43 @@ export const LEAK_PROBES: LeakProbe[] = [
       return names.length === 1 && names[0] === 'mate0.firing'
         ? { status: 'clean', fields: [], detail: 'I can see him shoot, and that is the only thing it tells me' }
         : { status: 'leak', fields: names, detail: `expected exactly mate0.firing to move, got [${names.join(', ')}]` };
+    },
+  },
+  {
+    id: 'A1-P23',
+    kind: 'truth-identity',
+    gap: 'V6',
+    title: 'a two-second-old memory has not drifted at all',
+    expect: 'leak',
+    run: (cfg) => {
+      const w = new World(cfg, labMap(cfg, [MID_WALL]), 1);
+      standObserver(w);
+      place(w, ENEMY, 12, 6, -Math.PI / 2); // seen once, in plain view
+      w.observe();
+      place(w, ENEMY, 0, 10, -Math.PI / 2); // then gone behind the wall, and I stand still
+      const bearingAt = (age: number) => {
+        w.t = age;
+        w.observe();
+        const off = OBSERVER * w.obsDim;
+        const sin = w.obs[off + indexOfField(cfg, 'enemy0.bearingSin')];
+        const cos = w.obs[off + indexOfField(cfg, 'enemy0.bearingCos')];
+        return Math.atan2(sin, cos); // the confidence scaling cancels in the ratio
+      };
+      const young = bearingAt(0.2);
+      const old = bearingAt(2);
+      const drift = Math.abs(wrapAngle(old - young));
+      // The confidence scaling cancels in the ratio only up to float32 rounding, which shows up as ~1e-5 rad
+      // of fake drift. Real perceptual drift would be degrees over seconds, so the line sits between them.
+      const REAL = 1e-3; // rad, about 0.06°
+      return drift > REAL
+        ? { status: 'clean', fields: [], detail: `the recalled bearing has moved ${(drift * 180 / Math.PI).toFixed(2)}° in 1.8 s` }
+        : {
+            status: 'leak',
+            fields: [],
+            detail: `after 1.8 s the recalled bearing has moved ${drift.toExponential(2)} rad — float32 rounding, ` +
+              'not memory: the world keeps a perfect record for me and only fades its weight, so remembering ' +
+              'is still not the brain\'s job (V6b)',
+          };
     },
   },
 ];

@@ -91,7 +91,8 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`enemy${s}.quality`, 'enemy', 'legal', undefined,
       'how good my current look is: visible body fraction x distance falloff x eccentricity falloff');
     push(`enemy${s}.confidence`, 'enemy', 'legal', undefined, 'best of what I see now and what I remember seeing');
-    push(`enemy${s}.staleness`, 'enemy', 'truth-form', 'V6', 'age of the world-managed memory entry');
+    push(`enemy${s}.recency`, 'enemy', 'truth-form', 'V6',
+      '1 while I can see him, fading as the memory ages — but the world is still the one doing the remembering (V6b)');
   }
 
   // --- hearing (A4)
