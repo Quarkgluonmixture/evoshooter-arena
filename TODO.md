@@ -5,9 +5,11 @@
 > 本文件只放不改变主路线的补充活；做完立即删。
 
 ## 当前 roadmap 外的补充验证
-- [ ] **A2 之后的 ladder 疑云**：末代冠军对第 0 代冠军，基线 4/4 血统 90–100%，A2 后 3/6 打不赢（s1 红/蓝平手、s3 红 5%）。
-      下一步不是再跑一个 seed，而是**换尺子**：把下面「冠军 vs 全部历史冠军胜率矩阵」提前做出来，用 cross-play 而不是单一标量判断是否退步
-      （SUBSTRATE §10.2）。若 A3 再现同样现象，再考虑加预算（pop / 代数）。
+- [ ] ⭐ **换尺子：cross-play 胜率矩阵**（= 下面「可视化」里那条，提前做）。十一刀下来 champion-vs-gen0 这把单一标量
+      已经三次给出自相矛盾或退化的信号，其中 A4/seed 3 的真因是**两个冠军互相从不相遇**（GOTCHAS #18）。
+      ⛔ 不要再靠加 seed 解决；按 SUBSTRATE §10.2 用 cross-play 判断是否退步。V4 / V6b 两把大刀**动手前**先把这个做出来。
+- [ ] ⚠ **seed 3 反复滑向「互相找不到」**（A3.3 v1 首枪 28.9 s · A4 冠军 0 次相遇 · V6a 首枪 22.3 s，三次都是它）。
+      cross-play 矩阵做出来后第一件事就是看它是不是 map seed 7 与某条血统的相互作用。
 - [ ] 在不干扰 A0/A1 的前提下，保留一次旧 baseline 长跑：pop 24、≥200 代、两 seed；只作为迁移前历史 census，不再把“旧 observation 下更稳定”当未来设计裁决。
 - [ ] 旧 comm channel 的语义 census 可作为 D2 前 baseline：comm 值与「有敌人可见 / 在区内 / 换弹中」相关性；只测现状，不据此保留无限连续通信设计。
 
@@ -24,6 +26,5 @@
 
 ## 工程
 - [ ] `lidar()` 的 ray-box 求交是 O(射线 × 箱子)（13 × 32），A3.3 之后 bench +22%。加个空间索引（网格/BVH）或按射线方向预筛箱子；先 profile 确认它真是热点再动手。
-- [ ] GitHub Pages 部署（对齐 `../evofootball-arena/.github/workflows/pages.yml`：npm ci + test + build）。
 - [ ] 地图池轮换防单图过拟合——C1 tactical objective topology 稳定后再做，避免为旧 KOTH map 过度工程。
 - [ ] 导入 run 时按 mapSeed 自动重载，而不是弹 alert 让人手改 URL。

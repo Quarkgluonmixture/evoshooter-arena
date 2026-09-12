@@ -82,7 +82,13 @@
 - `README.md` 只在 phase 真 ship 后更新，不提前描述未来世界。
 
 ## 坑
-**全部搬到 `GOTCHAS.md`（编号连续，永不重排）——动手前扫一遍。** 这里不再复制，避免两份漂移。
+**全部在 `GOTCHAS.md`——动手前按「你正要做什么」那张挑读索引扫相关几条**（现役 17 条 + 2 条墓碑；编号永不重排）。
+这里不复制，避免两份漂移。
+⚠ 改那个文件时**保持格式**：条目头 `N. **标题**（日期）`、`闸:` 独占一行、小节标题不带编号 ——
+否则 kit 的 `gotchas-contract` hook 会解析出 0 条（**静默失守**，本仓被它哑了整整一晚）。
+自查一条命令：`python3 ~/claude-kit/hooks/gotchas-contract.py --audit GOTCHAS.md`。
 
 ## 链接
+LOG 接手只需 `tail -n 120 LOG.md`（22:15 起为 live，更早在 `LOG-archive/`；检索用 `grep -n '^## ' LOG.md LOG-archive/*.md`）。
+
 `docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · `docs/DISCOVERY-EXPLAINABILITY-CONTRACT.md` · `docs/EVOLUTION-ECOLOGY-CONTRACT.md` · `docs/CULTURAL-TRANSMISSION-CONTRACT.md` · `README.md` · `GOTCHAS.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
