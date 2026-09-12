@@ -30,9 +30,13 @@
 这三份专门合同**不改变当前施工顺序**；只在未来 E5/E6/E7/G2–G4 或任何“已经学会语言/战术/角色/文化”的 strong claim 时强制读取。
 
 ## Current cursor
-⭐ **尺子已经换好（2026-09-12 03:35，cross-play 矩阵 + ladder 分母），V4 / V6b 的前置解除，下一步就是这两把大刀之一。**
-两者的取舍、连带要重做的东西在 `docs/ROADMAP.md` Current Cursor。
-⛔ 它们的 A/B **不许**再用 champion-vs-gen0 的单一数字下行为结论 —— 走 `npm run crossplay`（坑 #20）。
+⭐⭐ **下一刀 = V6b / ROADMAP Phase D1（记忆搬进 brain 的 recurrent state）。两个前置都已经拆掉：**
+① 尺子换好了（cross-play 矩阵 + ladder 分母，2026-09-12 03:35）；
+② D1 的 optimizer sensitivity gate **提前跑完**（2026-09-12 22:00，`npm run inherit`）——
+结论：**genome 变大本身不需要改 σ**，只看 layer-1 fan-in（H=40 时 D +18%），真要压回去动 `resetProb` 不动 σ，
+但 ⛔ **先别改**，原样上 D1 再在新架构上复测（细节在 ROADMAP Phase D1 的 Evolution gate）。
+⛔ V4 先不动：它改的是**动作的语义**而不是 SimConfig 里的数字，cross-play 的 drift guard 可能静默放行（见 TODO 首条）。
+⛔ 任何 A/B 都不许再用 champion-vs-gen0 的单一数字下行为结论 —— 走 `npm run crossplay`（坑 #20）。
 
 2026-09-11 夜到 09-12 凌晨连关十一刀：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 · V11+V12 · V6a，
 再加 09-12 的**换尺子**一刀（不在 ROADMAP phase 编号里，它是仪器不是迁移）。
@@ -45,14 +49,17 @@
   ② `npm run crossplay`（2026-09-12 新增）= 强弱判断的唯一合法尺子：任意几个 run 的 hof 冠军互打，
   每对双色打、共用 seed、胜率按 side 平衡，**每个格子自带分母**（sighting ticks / shots），零接触印 `··`。
   跨 run 的 `SimConfig` 差异直接报错。用法见 `README.md`「Cross-play」。
+  ③ `npm run inherit`（2026-09-12 新增）= 改任何网络/genome 尺度前的闸：量一次 `mutate()` 把每层
+  pre-activation 推开多远，配闭式解 `mutationVariance()`（与 `mutate()` 同文件，只有一份）。
+  ⭐ 结论已经反直觉两次：旋钮是 **`resetProb` 不是 `mutSigma`**，且看 **fan-in 不看 genome 大小**（坑 #22）。
   ⭐⭐ 它**不只守当期这一刀**：V6a 第一版把 `recency` 在「看得见」时写成恒 1，视距边界又出现满幅断崖，
   被**三刀前**写的 `A1-P8` 抓住 —— 规矩是「这个槽里每个字段都必须乘 confidence」。
   ⭐ 每条修复都要配**正向护栏**（`A1-P22`/`A1-P17`）：把字段改成恒 0 也能让泄漏探针变绿，那是空过。
 - **现在的世界**：敌情私有 · contact = 按把握缩放的 bearing/range/quality（量化 + 确定性抖动）+ recency ·
   几何 = 13 条跟头走的射线（±90°、背后全无）· 听觉 = 4 扇区脚步/枪声（衰减、隔墙、无身份无阵营）·
   队友 HUD 只剩位置/血量（开火要看得见）· objective 不数敌人。obsDim 100、genome 5324、bench ≈ 61 ms/match（空机器）。
-- ⚠ **十条别踩**：⓪ ⭐⭐ **ladder 的 50%/100% 可能是一场没发生的比赛**（#20，14% 的格子如此），
-  跨 run 比训练 fitness 会倒挂（#21）；① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
+- ⚠ **十一条别踩**：⓪ ⭐⭐ **ladder 的 50%/100% 可能是一场没发生的比赛**（#20，14% 的格子如此），
+  跨 run 比训练 fitness 会倒挂（#21），改尺度时动的旋钮是 `resetProb` 不是 σ（#22）；① `coverRatio` 不可跨 A2 比较（#12）；② 零和指标不能当独立 cell 写预测（#14）；
   ③ bench 前看 `uptime`（#15）；④ 性能结论必须**交错配对**量（#16）；⑤ ⭐⭐ 抖动 key 用 **slot**、量化格建在
   **自我相对量**上、中局镜像测试要覆盖新通道（#17）；⑥ ⭐ 行为指标变了先做 **same-genome 对照**；
   ⑦ ⭐⭐ 同一 run 的两个冠军可能互相根本不接触（#18）；⑧ ⭐ **contact 槽里的每个字段都要乘 confidence**，
@@ -76,6 +83,8 @@
 - `npm run bench` 量 ms/match；改网络尺寸或观测维度前后都跑。⚠ 先看 `uptime`（坑 #15/#16）。
 - `npm run crossplay -- <run.json> [...] --gens first,last --n 6 --maps 7,11,23 --out runs/xp.json`
   —— 任何「谁更强 / 有没有退步」的判断都从这里出，⛔ 不从 ladder 的单一数字出。
+- `npm run inherit -- <run.json> <yardstick.json> --children 16 --sweep --fanin`
+  —— 改网络尺寸 / genome 结构**前后**都跑；⚠ 第二个 run 是必要的（父子对打会 0 接触，见坑 #18/#20）。
 
 ## 工作纪律摘要
 - 一次一根承重杠杆；probe-first；预测先冻结；same-seed A/B；不过门就 revert/reframe。
@@ -93,7 +102,8 @@
 - `README.md` 只在 phase 真 ship 后更新，不提前描述未来世界。
 
 ## 坑
-**全部在 `GOTCHAS.md`——动手前按「你正要做什么」那张挑读索引扫相关几条**（现役 17 条 + 2 条墓碑；编号永不重排）。
+**全部在 `GOTCHAS.md`——动手前按「你正要做什么」那张挑读索引扫相关几条**（编号永不重排；⛔ 别在这里 pin 条数，
+`python3 ~/claude-kit/hooks/gotchas-contract.py --audit GOTCHAS.md` 会打印当期条数）。
 这里不复制，避免两份漂移。
 ⚠ 改那个文件时**保持格式**：条目头 `N. **标题**（日期）`、`闸:` 独占一行、小节标题不带编号 ——
 否则 kit 的 `gotchas-contract` hook 会解析出 0 条（**静默失守**，本仓被它哑了整整一晚）。

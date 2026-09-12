@@ -384,6 +384,16 @@ scripted/reference agents 能证明：
 
 必须跑 optimizer sensitivity：genome size / mutation sigma / inheritance stability。CHECKPOINT 已有突变尺度塌缩前科，不能默认旧 σ 仍合适。
 
+**这一条已经预先做完（2026-09-12，`npm run inherit`，证据在 LOG 同日 22:00 条）**，结论可以直接用：
+
+- **genome 变大本身不需要改 σ**：genome 从 3028 涨到 32780（10.8×），layer-1 的相对扰动 D 没动（0.210–0.236）。
+  决定 D 的是**那一层的 fan-in 与权重 std**，不是参数总量。
+- **本 phase 唯一要看的就是 layer-1 的 fan-in**：拼一个 H 维 recurrent state 进 observation ⇒
+  D **H=24 +11% · H=40 +18% · H=64 +27%**（init 尺度）。
+- **真要压回去，动 `resetProb` 不动 σ**（GOTCHAS #22：reset 项是 sigma 项的 11 倍）。H=40 时 `0.002 → 0.0014` 即可。
+- ⛔ **但先别改**：+18% 在可测分辨率下是小量（σ 翻 7.5 倍也才 +18%）。按「一次一根杠杆」先原样上 D1，
+  新架构上复跑 `npm run inherit`，再决定要不要动 `resetProb`。
+
 ---
 
 ## Phase D2 — Radio v2：有限、可涌现的语言
@@ -885,7 +895,8 @@ short headless evolution A/B (same seeds)
   ⚠ 动它必须**连带重做转头手感**（`turnRate`/`scanTurnRate` 按 `targetId` 切换、look 低通建立在「动作=绝对方向」上），
   见 SUBSTRATE V4 的前瞻警告 + GOTCHAS #10：⛔ 不要照搬常数。
 - **V6b** 记忆归属 —— `A1-P23`（1.8 秒后回忆的方位逐位不变 ⇒ world 存了完美记录）。
-  ⚠ 要 recurrent brain ⇒ **改 genome 尺度**，动手前重做 mutation/inheritance sensitivity（GOTCHAS #6）。
+  ✅ **前置的 mutation/inheritance sensitivity 已经做完**（2026-09-12，见 Phase D1 的 Evolution gate）：
+  结论是 genome 变大本身不需要改 σ，先原样上、新架构上复测。⇒ **V6b 现在没有未清的前置。**
 - V7/V8/V9/V10 仍在 Programme D–G。
 
 ### 尺子已经换掉（2026-09-12，CLOSED）

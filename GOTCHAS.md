@@ -17,7 +17,7 @@
 | 写探测 / 度量脚本 | **13**（随机基因组根本不接敌）· **18**（同一 run 的两个冠军可能互相不接触） |
 | 下性能结论 | **16**（必须交错配对量）· **15**（忙机器读数虚高 35%）· **4**（训练抢 CPU 会让测试假失败） |
 | 动 UI / 用页面验证 | **5**（端口撞车）· **7**（重叠是宽度的函数）· **8**（Sprite 数是假信号）· **9**（渲染读插值位姿） |
-| 改 network / genome 尺度 | **6**（旧 mutation σ 不可沿用）· **1**（先查优化器再改规则） |
+| 改 network / genome 尺度 | **22**（旋钮是 resetProb 不是 σ；看 fan-in 不看参数总量）· **6**（旧 mutation σ 不可沿用）· **1**（先查优化器再改规则） |
 
 ## 元规律：三个反复出现的失败族
 
@@ -139,6 +139,16 @@ xcodebuild 把 load average 顶到 32（swift helper 930% CPU）；机器安静�
 闸: 无 — 视觉流畅度没有机器判据；规矩是新增跟随类视觉都走 `scene.pose`
 
 ## 本项目特有的硬规则
+
+22. **继承保真度的旋钮是 `resetProb`，不是 `mutSigma`；而且它看 fan-in，不看 genome 大小**（2026-09-12）
+`mutate()` 的 reset 是**替换**（`out[i] = gauss*0.5`），每权重贡献 `0.25 + s²`；σ 只贡献 `sigma²`。
+默认设置下 reset 项 **5.5e-4** 对 sigma 项 **5.0e-5 = 11 倍**。实测 sweep：σ 从 0.02 拉到 0.15（7.5×）
+layer-1 扰动只 +18%，而 resetProb 从 0 到 0.02 让它涨 **11 倍**（`resetProb=0` 时突变几乎行为惰性）。
+⇒ ⛔ 调了 σ 却看不到变化时，别下「突变尺度不重要」的结论——你动的不是主导项。
+⭐ 另一半同样反直觉：genome 从 3028 涨到 32780（**10.8×**），layer-1 扰动纹丝不动（0.210–0.236）。
+决定它的是**那一层的 fan-in 与权重 std**（`D = √v / s`，init 尺度下 `D ≈ √(fan_in · v)`），不是参数总量。
+⚠ 逐层量 D 时只有**第 1 层**能校验公式：更深的层测到的 Δ 里混着上游传下来的扰动，会系统性偏高（实测 1.4–7.1×）。
+闸: tests/brain.test.ts — 实测每权重方差 / `mutationVariance()` ∈ [0.93, 1.07]（改 RESET_SCALE 或把 reset 改成加性都会红）；⛔ 不覆盖「这个 D 值对进化好不好」，那要 `npm run inherit` + A/B
 
 6. **改 genome 尺度会让旧 mutation σ/rate 失效**（2026-09-11）
 未来增加 recurrent brain / individual player parameters 都会改尺度；任何 D1/E1 改动先重新做 inheritance/mutation sensitivity。

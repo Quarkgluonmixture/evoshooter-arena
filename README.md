@@ -18,6 +18,7 @@ npm test           # vitest: determinism, mirror symmetry, colour fairness, env 
 npm run train -- --gens 40 --pop 16 --seed 1   # headless training in the terminal
 npm run leaks      # print what each observation field is allowed to know, and where it cheats today
 npm run crossplay -- runs/a.json runs/b.json   # win-rate matrix between saved champions (see below)
+npm run inherit -- runs/a.json runs/b.json     # does a child still behave like its parent? (see below)
 ```
 
 Node ≥ 22.6 (TypeScript runs directly in Node; the browser build uses Vite).
@@ -231,6 +232,27 @@ champion-vs-gen-0 ladder had been reading 50 % for five straight generations whi
 training fitness does **not** transfer across runs (the second-best-trained champion placed fifth in real
 matches, the worst-trained placed third); and the current meta is fully transitive — 9–10 decisive edges per
 map, **zero** cycles. Details in `LOG.md`, traps in `GOTCHAS.md` #20 and #21.
+
+## Inheritance: does a child still behave like its parent?
+
+```
+npm run inherit -- runs/a.json runs/b.json --children 16 --sweep --fanin
+```
+
+The population once collapsed into "everybody hides" because mutation was large relative to the weights, so
+children inherited nothing (see *What did not work* above). This measures that directly instead of guessing:
+it takes an evolved champion, mutates it, and reports how far one `mutate` call moves each layer's
+pre-activations relative to the pre-activations themselves — measured on real observation rows, next to the
+closed form that `mutationVariance()` predicts. It also scores parent and children against a *third-party*
+yardstick, because a champion and its own near-copies inherit the same avoidance equilibrium and never meet.
+
+Two results worth knowing before changing any network size (2026-09-12):
+
+- The knob is **`resetProb`, not `mutSigma`**. A reset replaces a weight rather than nudging it, so at the
+  defaults it contributes 11x more variance than sigma does; taking sigma from 0.02 to 0.15 moves the
+  disruption by 18 %, while taking resetProb from 0 to 0.02 moves it by 11x.
+- Disruption follows a layer's **fan-in**, not the genome's size. Growing the genome 10.8x (3028 -> 32780
+  weights) left the first layer's disruption unchanged.
 
 ## Headless runs
 
