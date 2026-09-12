@@ -122,7 +122,8 @@ and quality are blurred and quantised by an amount that grows as the look gets w
 finer than my perceptual resolution never reaches the policy.
 
 **Contacts are private**: an enemy only a teammate can see never appears in my slots. I get what I have seen myself,
-plus a three-second memory of it — and a glimpse I barely got decays into a memory I barely hold. An enemy's health,
+plus a three-second memory of it — and a glimpse I barely got decays into a memory I barely hold, fading out rather
+than being deleted when the window ends. An enemy's health,
 his facing, and how exposed *I* am to *him* are his state, not my percept, so they are not in there.
 
 The geometry rays follow the head: densest down the crosshair, thinning towards ±90°, nothing at all behind. Structures
