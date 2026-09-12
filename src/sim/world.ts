@@ -674,11 +674,14 @@ export class World {
       for (let s = 0; s < cfg.mateSlots; s++) {
         if (s < mateOrder.length) {
           const m = ag[mateOrder[s]];
-          const dx = m.x - a.x;
-          const dz = m.z - a.z;
+          // A dead teammate's frozen position is a DEATH COORDINATE, and ROADMAP C2 rules that the public
+          // "we are a man down" signal carries no coordinate: it tells you the fight happened, not where.
+          // Leaving it on the HUD hands every survivor a permanent marker on the last place an enemy was.
+          const dx = m.alive ? m.x - a.x : 0;
+          const dz = m.alive ? m.z - a.z : 0;
           o[p++] = (sg * dx) / half;
           o[p++] = (sg * dz) / half;
-          o[p++] = Math.min(1, Math.hypot(dx, dz) / half);
+          o[p++] = m.alive ? Math.min(1, Math.hypot(dx, dz) / half) : 0;
           o[p++] = m.alive ? 1 : 0;
           o[p++] = m.alive ? m.hp / cfg.hp : 0;
           // A teammate's body actions are a VISUAL cue, not a HUD field: out of sight, out of mind

@@ -810,6 +810,46 @@ export const LEAK_PROBES: LeakProbe[] = [
     },
   },
   {
+    id: 'A1-P24',
+    kind: 'counterfactual',
+    test: 'T2',
+    title: 'a dead teammate still says where he died',
+    expect: 'clean',
+    run: (cfg) => {
+      // ROADMAP C2: the public signal is "a man down", not "a man down HERE". A corpse left on the HUD is a
+      // permanent marker on the last place an enemy was known to be — inferred enemy information arriving
+      // through a teammate channel.
+      const moved = counterfactual(cfg, {
+        setup: (w) => {
+          standObserver(w);
+          place(w, MATE, 0, 6, Math.PI / 2);
+          w.agents[MATE].alive = false;
+          w.aliveCount[0]--;
+          for (let m = 2; m < cfg.teamSize; m++) place(w, m, -28 - m, -28, 0);
+        },
+        mutate: (w) => { place(w, MATE, 14, -4, 0); }, // the body is somewhere else entirely
+      });
+      const names = moved.changed.map((f) => f.name);
+      if (names.length > 0) {
+        return { status: 'leak', fields: names, detail: `moving the corpse moved [${names.join(', ')}]` };
+      }
+      // Positive guardrail: the same move on a LIVING teammate has to move the same slot, or this probe is
+      // green because the channel is dead rather than because the corpse is silent (GOTCHAS #11).
+      const live = counterfactual(cfg, {
+        setup: (w) => {
+          standObserver(w);
+          place(w, MATE, 0, 6, Math.PI / 2);
+          for (let m = 2; m < cfg.teamSize; m++) place(w, m, -28 - m, -28, 0);
+        },
+        mutate: (w) => { place(w, MATE, 14, -4, 0); },
+      });
+      const liveNames = live.changed.map((f) => f.name);
+      return liveNames.some((n) => n.startsWith('mate') && n.endsWith('.dx'))
+        ? { status: 'clean', fields: [], detail: `a corpse moves nothing, while the same move on a living teammate moves [${liveNames.join(', ')}]` }
+        : { status: 'leak', fields: [], detail: `the teammate position channel is dead for everyone: a LIVING teammate moving 14 m changed [${liveNames.join(', ') || 'nothing'}]` };
+    },
+  },
+  {
     id: 'A1-P23',
     kind: 'truth-identity',
     gap: 'V6',
