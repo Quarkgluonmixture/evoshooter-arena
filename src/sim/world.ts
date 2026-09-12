@@ -25,7 +25,7 @@ export const ENEMY_FEATS = 6;
 export const AUDIO_CLASSES = 2; // footstep, gunshot
 
 export function obsDim(cfg: SimConfig): number {
-  return SELF_BASE + cfg.teamSize + 5 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
+  return SELF_BASE + cfg.teamSize + 4 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
     + cfg.enemySlots * ENEMY_FEATS + cfg.audioSectors * AUDIO_CLASSES;
 }
 
@@ -152,6 +152,8 @@ export class World {
   readonly audio: Float32Array;
   /** audioPath[i*n+j]: this tick's attenuation multiplier between i and j, or 0 when out of earshot. */
   private readonly audioPath: Float32Array;
+  /** losPair[i*n+j]: 1 when nothing stands between i's eye and j's eye. Symmetric; one pass per tick. */
+  private readonly losPair: Uint8Array;
   readonly stats: [TeamStats, TeamStats];
   readonly heat: [Float32Array, Float32Array] | null;
   readonly events: WorldEvent[] = [];
@@ -182,6 +184,7 @@ export class World {
     this.contact = [];
     this.audio = new Float32Array(this.n * cfg.audioSectors * AUDIO_CLASSES);
     this.audioPath = new Float32Array(this.n * this.n);
+    this.losPair = new Uint8Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
     this.aliveCount = [cfg.teamSize, cfg.teamSize];
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
@@ -336,18 +339,27 @@ export class World {
     for (let k = 0; k < this.audio.length; k++) this.audio[k] *= decay;
 
     // One geometry pass per PAIR, not per (listener, source): the segment is the same in both
-    // directions, and this loop is the whole cost of hearing.
+    // directions. Hearing and "can I see my teammate" both read it, so it is computed once.
     const R = cfg.audioRange;
+    const far = Math.max(R, cfg.viewRange);
     this.audioPath.fill(0);
+    this.losPair.fill(0);
     for (let i = 0; i < n; i++) {
       if (!ag[i].alive) continue;
       for (let j = i + 1; j < n; j++) {
         if (!ag[j].alive) continue;
         const d = Math.hypot(ag[j].x - ag[i].x, ag[j].z - ag[i].z);
+        if (d >= far) continue;
+        // only teammates need the sight flag beyond earshot; enemies are handled by the exposure pass
+        if (d >= R && ag[i].team !== ag[j].team) continue;
+        const clear = this.losClear(ag[i].x, cfg.eyeHeight, ag[i].z, ag[j].x, cfg.eyeHeight, ag[j].z);
+        if (clear) {
+          this.losPair[i * n + j] = 1;
+          this.losPair[j * n + i] = 1;
+        }
         if (d >= R) continue;
         const near = 1 - (d / R) * (d / R);
-        let path = near * near;
-        if (!this.losClear(ag[i].x, cfg.eyeHeight, ag[i].z, ag[j].x, cfg.eyeHeight, ag[j].z)) path *= cfg.audioOcclusion;
+        const path = clear ? near * near : near * near * cfg.audioOcclusion;
         this.audioPath[i * n + j] = path;
         this.audioPath[j * n + i] = path;
       }
@@ -408,6 +420,17 @@ export class World {
     // lattice itself carries no information about the true value
     const lq = Math.log(1.15);
     return Math.min(1, Math.exp(Math.round(Math.log(noisy) / lq) * lq));
+  }
+
+  /** Is `other` inside my field of view, within range, and not behind something? */
+  private canSee(me: Agent, other: Agent): boolean {
+    const cfg = this.cfg;
+    const dx = other.x - me.x;
+    const dz = other.z - me.z;
+    const d = Math.hypot(dx, dz);
+    if (d > cfg.viewRange || d < 1e-6) return d <= 1e-6;
+    if (!this.losPair[me.id * this.n + other.id]) return false;
+    return (Math.cos(me.yaw) * dx + Math.sin(me.yaw) * dz) / d >= this.cosHalfFov;
   }
 
   private lidar(a: Agent, out: Float32Array, off: number): void {
@@ -590,7 +613,8 @@ export class World {
         o[p++] = (sg * dz) / half;
         o[p++] = Math.min(1, Math.hypot(dx, dz) / half);
         o[p++] = zoneCount[team] / T;
-        o[p++] = zoneCount[enemyTeam] / T;
+        // The enemy count inside the zone used to be here (V12): it reported bodies nobody had seen,
+        // a free occupancy radar. The legal channel for "they are taking it" is the score margin.
       }
 
       // --- lidar
@@ -619,7 +643,9 @@ export class World {
           o[p++] = Math.min(1, Math.hypot(dx, dz) / half);
           o[p++] = m.alive ? 1 : 0;
           o[p++] = m.alive ? m.hp / cfg.hp : 0;
-          o[p++] = m.alive && m.firing ? 1 : 0;
+          // A teammate's body actions are a VISUAL cue, not a HUD field: out of sight, out of mind
+          // (SUBSTRATE §6.2 / V11). Position and health stay on the HUD; firing does not.
+          o[p++] = m.alive && m.firing && this.canSee(a, m) ? 1 : 0;
           for (let c = 0; c < cfg.commDim; c++) o[p++] = m.alive ? m.comm[c] : 0;
         } else {
           for (let c = 0; c < MATE_FEATS_BASE + cfg.commDim; c++) o[p++] = 0;

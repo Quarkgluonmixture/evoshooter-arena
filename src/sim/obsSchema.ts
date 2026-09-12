@@ -61,8 +61,6 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
   push('obj.dz', 'objective', 'legal');
   push('obj.dist', 'objective', 'legal');
   push('obj.mineInZone', 'objective', 'legal', undefined, 'derived from the teammate position HUD');
-  push('obj.enemyInZone', 'objective', 'hidden', 'V12',
-    'counts enemies standing in the zone whether or not anyone has ever seen them');
 
   // --- geometry sensing
   for (let k = 0; k < cfg.lidarRays; k++) {
@@ -77,8 +75,8 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`mate${s}.dist`, 'teammate', 'legal');
     push(`mate${s}.alive`, 'teammate', 'legal');
     push(`mate${s}.hp`, 'teammate', 'legal', undefined, 'teammate HP HUD (§3.2)');
-    push(`mate${s}.firing`, 'teammate', 'hidden', 'V11',
-      'body-action truth delivered at any range through any wall (§6.2 allows it only in vision)');
+    push(`mate${s}.firing`, 'teammate', 'legal', undefined,
+      'only set when I can actually see him — a visual cue, not a HUD field (§6.2)');
     for (let c = 0; c < cfg.commDim; c++) {
       push(`mate${s}.comm${c}`, 'comm', 'legal', 'V8', 'radio is a legal channel; V8 is its unbounded bandwidth');
     }

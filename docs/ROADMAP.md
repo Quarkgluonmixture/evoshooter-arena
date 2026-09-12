@@ -875,17 +875,19 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：A5 — Player-private belief / memory 的归属（V6）。**
+**当前：V6 — 把记忆从 world 手里交回玩家（`A1-P15`）。**
 
-已 CLOSED：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · **A4 听觉**（2026-09-11 ~ 09-12）。
-**V1 / V2 / V3 / V5 已关闭**；observation 101 维（分布现查 `npm run leaks`，⛔ 别抄）。
+已 CLOSED（2026-09-11 ~ 09-12）：A0 · A1 · A2 · A3.1 · A3.2a · A3.2b(+镜像修复) · A3.3 · A4 听觉 · **V11 + V12**。
+**V1 / V2 / V3 / V5 / V11 / V12 全部关闭**；observation 100 维（分布现查 `npm run leaks`）。
+仍然开着：**V6**（本刀）· **V4** 自动瞄准（`A1-P12`/`A1-P14`）· V7/V8/V9/V10。
 
-仍然开着的账：**V4** 自动瞄准（`A1-P12`/`A1-P14`）· **V6** 记忆归 world 管、3 秒窗口是断崖（`A1-P15`）·
-**V11** `mate*.firing` 不判可见性（`A1-P10`）· **V12** objective 数不可见的敌人（`A1-P11`）· V7/V8/V9/V10。
+V6 的两半，⭐ **分两刀**（否则「记忆窗口的形状」和「记忆搬进网络」会混在一个 A/B 里）：
 
-⭐ **下一刀选哪个，按「便宜且能独立归因」排**：V11/V12 是**小刀**（各改一两个字段、各有现成 probe、
-不动 genome 尺度），V6/V4 是**大刀**（动记忆归属与动作语义、会改 obsDim 和转头手感、GOTCHAS #6/#10 都指向它们）。
-建议顺序：**先 V11 + V12（一刀一个，半小时级）**，再进 V6，最后 V4（V4 要连带重做转头，见 SUBSTRATE V4 的前瞻警告）。
+- **V6a 先去掉断崖**：`staleness` 是唯一没被 confidence 缩放的 contact 字段，所以 3 秒记忆窗口现在是
+  一次性删除（`A1-P15` 实测 max |Δ| 0.967）。把记忆做成**连续衰减**（recency 乘进所有字段，像 A3.2a 对 quality 那样），
+  验收 = `A1-P15` 按**量级判据**翻 clean（阈值跟 `A1-P8` 一样先定 0.05 再跑）。⛔ 这一刀不动 brain。
+- **V6b 再谈归属**：world 不再替玩家记忆，改由 brain 自己维持（= Programme D 的 recurrent brain）。
+  ⚠ 这会改 genome 尺度 ⇒ **动手前重做 mutation/inheritance sensitivity**（GOTCHAS #6）。
 
-每刀照旧：预测先写 LOG 再跑 · probe 该翻绿的先说出来 · same-genome 对照再归因 · bench 交错配对 ·
-镜像测试要覆盖新通道 · 对照 = `runs/a4-hearing-s{1,2,3}`。
+每刀照旧：预测先写 LOG 再跑 · 先说清哪条 probe 该翻绿 + **正向护栏** · same-genome 对照再归因 ·
+bench 交错配对（⚠ 先看 `uptime`）· 镜像测试覆盖新通道 · 对照 = `runs/b0-hud-s{1,2,3}`。

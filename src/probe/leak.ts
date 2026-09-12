@@ -316,8 +316,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     test: 'T2',
     gap: 'V11',
     title: 'a teammate 30 m away behind a wall pulls the trigger',
-    expect: 'leak',
-    expectFields: ['mate0.firing'],
+    expect: 'clean', // flipped by V11: firing is a visual cue now, not a HUD field
     run: (cfg) =>
       cf(
         cfg,
@@ -342,8 +341,7 @@ export const LEAK_PROBES: LeakProbe[] = [
     test: 'T1',
     gap: 'V12',
     title: 'an enemy nobody has seen steps into the objective',
-    expect: 'leak',
-    expectFields: ['obj.enemyInZone'],
+    expect: 'clean', // flipped by V12: the objective HUD no longer counts bodies
     run: (cfg) =>
       cf(
         cfg,
@@ -765,6 +763,31 @@ export const LEAK_PROBES: LeakProbe[] = [
       return same
         ? { status: 'clean', fields: [], detail: 'the same steps sound the same whoever is making them — telling friend from foe is inference, not a label' }
         : { status: 'leak', fields: [], detail: `friend and foe are distinguishable in the audio channel: ${mate.map((v) => v.toFixed(3)).join(',')} vs ${enemy.map((v) => v.toFixed(3)).join(',')}` };
+    },
+  },
+  {
+    id: 'A1-P22',
+    kind: 'counterfactual',
+    test: 'T2',
+    title: 'a teammate fires in plain sight',
+    expect: 'clean',
+    run: (cfg) => {
+      // The guard on V11's fix: hiding the field behind a visibility test must not turn it into a dead
+      // constant. If this ever reports "nothing moved", A1-P10 is passing for the wrong reason.
+      const d = counterfactual(cfg, {
+        setup: (w) => {
+          standObserver(w);
+          place(w, MATE, 0, 6, Math.PI / 2); // 16 m straight ahead, nothing in the way
+          for (let m = 2; m < cfg.teamSize; m++) place(w, m, -28 - m, -28, 0);
+        },
+        mutate: (w) => {
+          w.agents[MATE].firing = true;
+        },
+      });
+      const names = d.changed.map((f) => f.name);
+      return names.length === 1 && names[0] === 'mate0.firing'
+        ? { status: 'clean', fields: [], detail: 'I can see him shoot, and that is the only thing it tells me' }
+        : { status: 'leak', fields: names, detail: `expected exactly mate0.firing to move, got [${names.join(', ')}]` };
     },
   },
 ];
