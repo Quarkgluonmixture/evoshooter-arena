@@ -35,6 +35,15 @@ export interface SimConfig {
    *             "the survivors walk over and hold it" — the free-clock payout simply does not exist.
    */
   roundMode: 'koth' | 'capture';
+  /**
+   * 1 — the shipped single central zone.
+   * 2 — ROADMAP C1b: two sites, placed so that the 180° rotation swaps them, which is what keeps the map
+   *     side-fair with an asymmetric objective. Until C1b-2 the world still plays only site 0; this changes
+   *     the MAP and what `npm run mapprobe` can measure, nothing else.
+   */
+  siteCount: 1 | 2;
+  /** distance of each site centre from the arena centre when `siteCount` is 2 */
+  siteOffset: number;
   captureSeconds: number;   // uncontested attacker occupancy needed to arm the site
   armedSeconds: number;     // countdown once armed; runs whether or not the attackers are alive
   defuseSeconds: number;    // uncontested defender occupancy needed to disarm it
@@ -93,6 +102,8 @@ export const DEFAULT_SIM: SimConfig = {
   zoneRadius: 6,
   zonePointsPerSecond: 1,
   roundMode: 'koth',
+  siteCount: 1,
+  siteOffset: 12,
   captureSeconds: 3,
   armedSeconds: 15,
   defuseSeconds: 5,

@@ -47,7 +47,7 @@ export function labMap(cfg: SimConfig, boxes: Box[]): ArenaMap {
     spawns[0].push({ x: -26 + s, z: -27 });
     spawns[1].push({ x: 26 - s, z: 27 });
   }
-  return { seed: -1, boxes, spawns, zoneX: 0, zoneZ: 0 };
+  return { seed: -1, boxes, spawns, sites: [{ x: 0, z: 0 }], zoneX: 0, zoneZ: 0 };
 }
 
 export function place(w: World, id: number, x: number, z: number, yaw: number): void {
