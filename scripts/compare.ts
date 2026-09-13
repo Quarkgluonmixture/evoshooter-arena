@@ -14,9 +14,18 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { METRIC_KEYS, type TeamMetrics } from '../src/evo/match.ts';
 
-const files = process.argv.slice(2).filter((s) => !s.startsWith('--'));
-const lastArg = process.argv.indexOf('--last');
-const LAST = lastArg > 0 ? Number(process.argv[lastArg + 1]) : 5;
+// Skip the VALUE after a flag, not just the flag. The two-file version destructured the first two
+// positionals and silently ignored the rest, so `--last 5` parsed as a third file and nobody noticed; once
+// this took N files it tried to open a run called "5".
+const argv = process.argv.slice(2);
+const VALUED = new Set(['--last']);
+const files: string[] = [];
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i].startsWith('--')) { if (VALUED.has(argv[i])) i++; continue; }
+  files.push(argv[i]);
+}
+const lastArg = argv.indexOf('--last');
+const LAST = lastArg >= 0 ? Number(argv[lastArg + 1]) : 5;
 if (files.length < 2) throw new Error('usage: node scripts/compare.ts <a.json> <b.json> [more.json ...] [--last N]');
 
 interface Gen {

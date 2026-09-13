@@ -23,7 +23,13 @@ export interface TeamMetrics {
   commActivity: number;  // std-dev of the comm channel across agents and time
   firstContact: number;  // seconds until the first shot (matchSeconds if none)
   sightTicks: number;    // (my agent, enemy) pairs in sight, summed over ticks — 0 = the teams never met
-  objectiveProgress: number; // 0..1 of this team's own objective: zone-point share (koth) or capture/defuse (capture)
+  /**
+   * 0..1 on MY OWN objective this match: zone-point share in koth, capture progress if I attacked, defuse
+   * progress if I defended. ⚠ Unambiguous per match, but once roles swap within a generation the aggregate
+   * is "how far along whatever my job was", which is two quantities in one number — fine for "is the
+   * objective being engaged at all", ⛔ not for comparing attacking to defending.
+   */
+  objectiveProgress: number;
   reloads: number;
 }
 
