@@ -8,7 +8,10 @@
  * two plus the intervention. A high mutual information alone is a CORRELATION: "token 3 shows up when an
  * enemy is visible" is not "token 3 means enemy" (VISION §7.4).
  *
- * Layer 1, sender: symbol entropy, silence rate, and mutual information against candidate referents.
+ * Layer 1, sender: symbol entropy, silence rate, and mutual information against candidate referents — per champion
+ * (red, blue) and pooled, because two champions' different codes dilute each other in one table; and conditioned on
+ * match phase, because a world-wide state that arrives late in a round ("a site is armed") correlates with any speaker
+ * whose symbols merely drift with the clock (GOTCHAS #30).
  * Layer 2+3, receiver and intervention: three ablations, each editing what the brain is about to READ:
  *   off       — every teammate's message replaced by silence;
  *   shuffled  — replaced by a message drawn from this run's own recorded pool (same marginal distribution,
@@ -88,9 +91,16 @@ function referents(w: World, i: number): boolean[] {
   return [sees, inSite, w.armedSite >= 0, a.reloadT > 0, a.hp < w.cfg.hp / 2];
 }
 
-const symCount = new Array(BINS).fill(0) as number[];
-const joint = REFERENTS.map(() => Array.from({ length: 2 }, () => new Array(BINS).fill(0) as number[]));
-const refCount = REFERENTS.map(() => [0, 0]);
+/** index 0 = red champion's speakers, 1 = blue's, 2 = both pooled (a pooled MI can dilute one champion's code) */
+const symCount = [0, 1, 2].map(() => new Array(BINS).fill(0) as number[]);
+const joint = [0, 1, 2].map(() => REFERENTS.map(() => Array.from({ length: 2 }, () => new Array(BINS).fill(0) as number[])));
+const refCount = [0, 1, 2].map(() => REFERENTS.map(() => [0, 0]));
+/** match phase = elapsed time in PHASES equal bins: a referent that comes late in a round (an armed site) correlates with
+ * any speaker whose symbols merely drift with the clock, so MI is also printed conditioned on phase */
+const PHASES = 10;
+const phaseOf = (w: World) => Math.min(PHASES - 1, Math.floor((w.t / w.cfg.matchSeconds) * PHASES));
+/** [champion][phase][referent][value][symbol] */
+const jointP = [0, 1, 2].map(() => Array.from({ length: PHASES }, () => REFERENTS.map(() => Array.from({ length: 2 }, () => new Array(BINS).fill(0) as number[]))));
 /** every transmitted symbol we saw, as an ablation pool */
 const pool: number[] = [];
 
@@ -104,17 +114,28 @@ for (let m = 0; m < N; m++) {
       for (let i = 0; i < w.n; i++) {
         if (!w.agents[i].alive) continue;
         const bits = referents(w, i);
+        const ph = phaseOf(w);
         for (let c = 0; c < commDim; c++) {
           const b = bin(w.agents[i].commSaid[c]);
-          symCount[b]++;
           pool.push(w.agents[i].commSaid[c]);
-          bits.forEach((v, r) => { joint[r][v ? 1 : 0][b]++; refCount[r][v ? 1 : 0]++; });
+          for (const k of [w.agents[i].team, 2]) {
+            symCount[k][b]++;
+            bits.forEach((v, r) => { joint[k][r][v ? 1 : 0][b]++; refCount[k][r][v ? 1 : 0]++; jointP[k][ph][r][v ? 1 : 0][b]++; });
+          }
         }
       }
     }
   }
 }
 
+/** I(symbol; referent) from a [value][symbol] count table, and its share of the total count */
+function miTable(t: number[][]): { mi: number; n: number } {
+  const n = t[0].reduce((s, x) => s + x, 0) + t[1].reduce((s, x) => s + x, 0);
+  if (n === 0) return { mi: 0, n };
+  const marg = t[0].map((x, b) => x + t[1][b]);
+  const sizes = [0, 1].map((v) => t[v].reduce((s, x) => s + x, 0));
+  return { mi: H(marg) - [0, 1].reduce((s, v) => s + (sizes[v] / n) * H(t[v]), 0), n };
+}
 const H = (counts: number[]) => {
   const n = counts.reduce((s, x) => s + x, 0);
   if (n === 0) return 0;
@@ -122,9 +143,6 @@ const H = (counts: number[]) => {
   for (const c of counts) if (c > 0) { const p = c / n; h -= p * Math.log2(p); }
   return h;
 };
-const total = symCount.reduce((s, x) => s + x, 0);
-const Hsym = H(symCount);
-const silence = symCount[bin(0)] / total;
 
 const pad = (s: string, n: number) => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
 const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length));
@@ -132,15 +150,27 @@ const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s
 console.log(`radio analysis — ${A.tag}${GEN === undefined ? '' : `@${GEN}`}, ${N} seeds x 2 role assignments, ${commDim} slot(s), ${BINS} bins`);
 console.log(`world radio: ${A.sim.commTokens ? `${2 * A.sim.commTokens + 1} symbols/slot, every ${A.sim.commIntervalTicks}t, ${A.sim.commDelayTicks}t delay` : 'continuous float every tick (pre-D2 baseline)'}`);
 console.log();
-console.log(`symbol entropy ${Hsym.toFixed(2)} of ${Math.log2(BINS).toFixed(2)} bits possible · silence-bin share ${(silence * 100).toFixed(0)}% · ${total} symbols observed`);
-console.log();
-console.log(`${padr('candidate referent', 20)}${pad('MI (bits)', 11)}${pad('% of H', 9)}${pad('base rate', 11)}`);
-REFERENTS.forEach((name, r) => {
-  const n = refCount[r][0] + refCount[r][1];
-  const cond = [0, 1].map((v) => (refCount[r][v] / n) * H(joint[r][v]));
-  const mi = Hsym - cond.reduce((s, x) => s + x, 0);
-  console.log(`${padr(name, 20)}${pad(mi.toFixed(3), 11)}${pad(`${((mi / Math.max(1e-9, Hsym)) * 100).toFixed(0)}%`, 9)}${pad(`${((refCount[r][1] / n) * 100).toFixed(0)}%`, 11)}`);
-});
+for (const k of [2, 0, 1]) {
+  const total = symCount[k].reduce((s, x) => s + x, 0);
+  const Hsym = H(symCount[k]);
+  const silence = symCount[k][bin(0)] / total;
+  console.log(`${['RED champion', 'BLUE champion', 'both pooled'][k]}: symbol entropy ${Hsym.toFixed(2)} of ${Math.log2(BINS).toFixed(2)} bits possible · silence-bin share ${(silence * 100).toFixed(0)}% · ${total} symbols observed`);
+  // MI(symbol; phase): the clock itself, the confound the conditional column removes
+  const byPhase = Array.from({ length: PHASES }, (_, ph) => jointP[k][ph][0][0].map((x, b) => x + jointP[k][ph][0][1][b]));
+  const phN = byPhase.map((c) => c.reduce((s, x) => s + x, 0));
+  const miClock = Hsym - byPhase.reduce((s, c, ph) => s + (phN[ph] / total) * H(c), 0);
+  console.log(`MI(symbol; match phase in ${PHASES} bins) ${miClock.toFixed(3)} bits = ${((miClock / Math.max(1e-9, Hsym)) * 100).toFixed(0)}% of H`);
+  console.log(`${padr('candidate referent', 20)}${pad('MI (bits)', 11)}${pad('% of H', 9)}${pad('base rate', 11)}${pad('MI|phase', 10)}${pad('% of H', 9)}`);
+  REFERENTS.forEach((name, r) => {
+    const n = refCount[k][r][0] + refCount[k][r][1];
+    const cond = [0, 1].map((v) => (refCount[k][r][v] / n) * H(joint[k][r][v]));
+    const mi = Hsym - cond.reduce((s, x) => s + x, 0);
+    let miPh = 0;
+    for (let ph = 0; ph < PHASES; ph++) { const t = miTable(jointP[k][ph][r]); miPh += (t.n / n) * t.mi; }
+    console.log(`${padr(name, 20)}${pad(mi.toFixed(3), 11)}${pad(`${((mi / Math.max(1e-9, Hsym)) * 100).toFixed(1)}%`, 9)}${pad(`${((refCount[k][r][1] / n) * 100).toFixed(0)}%`, 11)}${pad(miPh.toFixed(3), 10)}${pad(`${((miPh / Math.max(1e-9, Hsym)) * 100).toFixed(1)}%`, 9)}`);
+  });
+  console.log();
+}
 console.log('⚠ MI is a CORRELATION. "this symbol shows up when an enemy is visible" is not "this symbol means enemy".');
 console.log();
 
