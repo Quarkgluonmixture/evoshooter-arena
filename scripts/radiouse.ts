@@ -6,11 +6,25 @@
  * Each champion (at each requested hall-of-fame generation) plays the other colour's champion of every run in its arm —
  * same rules, same generation — while the OBSERVED team's incoming radio (every `mate*.comm*` field it reads) is:
  *   normal    untouched;
- *   shuffled  replaced by a value drawn at random (seeded) from what this team actually HEARD in its normal matches: same
- *             symbol distribution, correlation with the situation destroyed — the in-distribution control (GOTCHAS #24);
+ *   speaker   ⭐ each teammate's broadcast replaced by something that SAME speaker (team slot) said at another moment in
+ *             normal play: who talks and how each speaker habitually talks survive, only WHEN it was said is destroyed;
+ *   frozen    each teammate always broadcasts his most common symbol from normal play: a pure per-speaker constant code;
+ *   shuffled  each teammate's broadcast replaced by anything this team heard in normal play: destroys timing AND habits;
  *   off       silence.
  * Only the observed team is edited: ablating both teams reads "everyone got weaker" as a null (recprobe's rule).
- * Δshuffle = fitness(normal) − fitness(shuffled) is the meaning-bearing use; Δoff alone only shows the input is load-bearing.
+ * A substitute is drawn once per (speaker, channel) per send interval, aligned to the delayed send grid, and every
+ * listener hears the same one — a real broadcast holds a symbol for `commIntervalTicks` and says one thing to everybody.
+ * A dead speaker stays silent in every mode, as in normal play.
+ *
+ * Reading it:  Δspeaker = normal − speaker   ⇒ SITUATIONAL content (what is happening now);
+ *              Δfrozen  = normal − frozen    ⇒ more than a per-speaker constant (≈ 0 means a constant code is enough);
+ *              Δshuffle = normal − shuffled  ⇒ timing and/or per-speaker structure — on its own, not content;
+ *              Δoff                          ⇒ the input is load-bearing at all.
+ * ⚠ Readout history (both found on the d2-radio control before any long run was read):
+ *   v1 had only `shuffled` and read pooled Δshuffle +0.543 on a radio whose sender side shows 0–1% MI — a per-speaker
+ *   constant code (the shape D1's recurrent state had, GOTCHAS #24) would do that, hence `speaker` and `frozen`;
+ *   v2 redrew substitutes EVERY tick and independently per listener, so a held symbol flickered and two teammates heard one
+ *   speaker say different things. Its pooled Δspeaker passed (+0.042) only because per-champion −0.51 and +0.69 cancelled.
  *
  * This supersedes the receiver half of `scripts/radio.ts`, which ablates both teams and walks its pool with a fixed stride;
  * radio.ts stays the sender-side instrument (entropy / silence / MI).
@@ -24,9 +38,9 @@ import { Rng, hashSeed } from '../src/core/rng.ts';
 import { generateMap, type ArenaMap } from '../src/sim/map.ts';
 import { genomeLength, type MlpShape } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor } from '../src/brain/policy.ts';
-import { obsSchema } from '../src/sim/obsSchema.ts';
 import { stepMatch, summarize } from '../src/evo/match.ts';
 import { World } from '../src/sim/world.ts';
+import { mateFields, mateSlotSpeakers } from '../src/probe/radioCall.ts';
 
 const argv = process.argv.slice(2);
 const files: string[] = [];
@@ -75,30 +89,63 @@ for (const x of entries) {
   }
 }
 
-type Mode = 'normal' | 'shuffled' | 'off';
-const MODES: Mode[] = ['normal', 'shuffled', 'off'];
+type Mode = 'normal' | 'speaker' | 'frozen' | 'shuffled' | 'off';
+const MODES: Mode[] = ['normal', 'speaker', 'frozen', 'shuffled', 'off'];
 const RESERVOIR = 50000;
 const pad = (s: string, n: number) => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
 const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length));
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 
-console.log(`radio use — observed team's incoming radio set to normal / shuffled (drawn from what it really hears) / off;`);
-console.log(`each champion vs the other colour's champion of every run in its arm, ${N} seeds x 2 roles each\n`);
-console.log(`${padr('arm', 20)}${padr('champion', 24)}${pad('opps', 5)}${pad('fit norm', 9)}${pad('shuffled', 9)}${pad('off', 9)}` +
-  `${pad('Δshuffle', 10)}${pad('Δoff', 9)}${pad('moved', 9)}${pad('win n/s/o', 14)}${pad('heard', 7)}`);
+/** Reservoir sample with a seeded generator, so a readout is reproducible. */
+class Reservoir {
+  readonly xs: number[] = [];
+  private seen = 0;
+  private readonly rng: Rng;
+  constructor(seed: number) { this.rng = new Rng(seed); }
+  add(v: number): void {
+    this.seen++;
+    if (this.xs.length < RESERVOIR) this.xs.push(v);
+    else { const k = this.rng.int(this.seen); if (k < RESERVOIR) this.xs[k] = v; }
+  }
+}
 
-const pooled = new Map<string, { dShuffle: number[]; offBelow: number }>();
+/** Most common value (a quantised radio has a handful of symbols); falls back to the mean for a continuous one. */
+function modal(xs: number[]): number {
+  const counts = new Map<number, number>();
+  for (const v of xs) {
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+    if (counts.size > 64) return mean(xs);
+  }
+  let best = 0;
+  let bestN = -1;
+  for (const [v, n] of counts) if (n > bestN) { best = v; bestN = n; }
+  return best;
+}
+
+console.log('radio use — observed team hears normal / speaker (same speaker, another moment) / frozen (each speaker\'s usual symbol) / shuffled / off;');
+console.log(`one substitute per speaker per send interval, the same for every listener; each champion vs the other colour's champion of every run in its arm, ${N} seeds x 2 roles\n`);
+console.log(`${padr('arm', 16)}${padr('champion', 20)}${pad('normal', 8)}${pad('speaker', 8)}${pad('frozen', 8)}${pad('shuffled', 9)}${pad('off', 8)}` +
+  `${pad('Δspeaker', 9)}${pad('Δfrozen', 9)}${pad('Δshuffle', 9)}${pad('Δoff', 8)}${pad('moved', 7)}${pad('win n/sp/fr/sh/off', 21)}${pad('heard', 6)}`);
+
+const pooled = new Map<string, { dSpeaker: number[]; dFrozen: number[]; dShuffle: number[]; offBelow: number }>();
 for (const entry of entries) {
   const opponents = entries.filter((e) => e.arm === entry.arm);
-  const commIdx = obsSchema(entry.sim).filter((f) => /^mate\d+\.comm\d+$/.test(f.name)).map((f) => f.index);
+  const { dx, comm } = mateFields(entry.sim);
+  const allComm = comm.flat();
+  const T = entry.sim.teamSize;
+  const C = entry.sim.commDim;
+  const interval = Math.max(1, entry.sim.commIntervalTicks);
+  const delay = entry.sim.commDelayTicks;
   for (const team of [0, 1] as const) {
-    // reservoir sample of what this team actually HEARS in normal play; the shuffled mode draws from it
-    const reservoir: number[] = [];
-    let seen = 0;
-    const resRng = new Rng(hashSeed(BASE, 0x5e5, team));
+    // what this team HEARS in normal play: pooled, and per speaker (team slot) x channel
+    const heard = new Reservoir(hashSeed(BASE, 0x5e5, team));
+    const bySpeaker = Array.from({ length: T }, (_, s) => Array.from({ length: C }, (_, c) => new Reservoir(hashSeed(BASE, 0x5e6, team, s, c))));
+    let usual: number[][] = [];
     const mine = new NeuralPolicy(entry.shape, entry.champ[team]);
     const res = new Map<Mode, { fit: number[]; win: number; heardOn: number; heardAll: number }>();
+    const order: number[] = [];
     for (const mode of MODES) {
+      if (mode === 'frozen') usual = bySpeaker.map((row) => row.map((r) => modal(r.xs)));
       const fit: number[] = [];
       let win = 0;
       let heardOn = 0;
@@ -109,20 +156,45 @@ for (const entry of entries) {
           for (const attackers of [0, 1] as const) {
             const rng = new Rng(hashSeed(BASE, oi, m, attackers));
             const w = new World(entry.sim, entry.map, hashSeed(BASE, m), { attackers });
+            // one substitute per (speaker agent, channel), redrawn when that speaker's heard symbol could change
+            const subst = new Float32Array(w.n * C);
+            let drawn = false;
             const edit = (x: World) => {
+              if (mode === 'speaker' || mode === 'shuffled' || mode === 'frozen') {
+                const onGrid = (((x.tick - delay) % interval) + interval) % interval === 0;
+                if (!drawn || onGrid) {
+                  drawn = true;
+                  for (const sp of x.agents) {
+                    if (sp.team !== team) continue;
+                    for (let c = 0; c < C; c++) {
+                      const pool = mode === 'shuffled' ? heard.xs : bySpeaker[sp.slot][c].xs;
+                      subst[sp.id * C + c] = mode === 'frozen' ? usual[sp.slot][c] : pool.length ? pool[rng.int(pool.length)] : 0;
+                    }
+                  }
+                }
+              }
               for (let i = 0; i < x.n; i++) {
                 const a = x.agents[i];
                 if (!a.alive || a.team !== team) continue;
                 const base = i * x.obsDim;
-                for (const j of commIdx) {
-                  if (mode === 'normal') {
-                    const v = x.obs[base + j];
-                    seen++;
-                    if (reservoir.length < RESERVOIR) reservoir.push(v);
-                    else { const k = resRng.int(seen); if (k < RESERVOIR) reservoir[k] = v; }
-                  } else {
-                    x.obs[base + j] = mode === 'off' ? 0 : reservoir[rng.int(reservoir.length)];
+                if (mode === 'off') {
+                  for (const j of allComm) x.obs[base + j] = 0;
+                } else {
+                  mateSlotSpeakers(x, entry.sim, i, dx, order);
+                  for (let s = 0; s < order.length; s++) {
+                    const sp = x.agents[order[s]];
+                    for (let c = 0; c < C; c++) {
+                      const j = base + comm[s][c];
+                      if (mode === 'normal') {
+                        heard.add(x.obs[j]);
+                        if (sp.alive) bySpeaker[sp.slot][c].add(x.obs[j]);
+                      } else {
+                        x.obs[j] = sp.alive ? subst[sp.id * C + c] : 0;
+                      }
+                    }
                   }
+                }
+                for (const j of allComm) {
                   heardAll++;
                   if (x.obs[base + j] !== 0) heardOn++;
                 }
@@ -135,31 +207,37 @@ for (const entry of entries) {
           }
         }
       });
-      if (mode === 'normal' && reservoir.length === 0) throw new Error(`${entry.tag}: the team heard nothing at all — no pool to shuffle`);
+      if (mode === 'normal' && heard.xs.length === 0) throw new Error(`${entry.tag}: the team heard nothing at all — no pool to draw from`);
       res.set(mode, { fit, win: win / fit.length, heardOn, heardAll });
     }
-    const nrm = res.get('normal')!;
-    const shf = res.get('shuffled')!;
+    const f = (m: Mode) => mean(res.get(m)!.fit);
     const off = res.get('off')!;
     if (off.heardOn !== 0) throw new Error('off mode still delivered radio — the ablation did not land');
-    const dShuffle = mean(nrm.fit) - mean(shf.fit);
-    const dOff = mean(off.fit) - mean(nrm.fit);
-    const moved = nrm.fit.filter((v, i) => v !== shf.fit[i]).length;
-    const p = pooled.get(entry.arm) ?? { dShuffle: [], offBelow: 0 };
+    const nrm = res.get('normal')!;
+    const dSpeaker = f('normal') - f('speaker');
+    const dFrozen = f('normal') - f('frozen');
+    const dShuffle = f('normal') - f('shuffled');
+    const dOff = f('off') - f('normal');
+    const moved = nrm.fit.filter((v, i) => v !== res.get('speaker')!.fit[i]).length;
+    const p = pooled.get(entry.arm) ?? { dSpeaker: [], dFrozen: [], dShuffle: [], offBelow: 0 };
+    p.dSpeaker.push(dSpeaker);
+    p.dFrozen.push(dFrozen);
     p.dShuffle.push(dShuffle);
-    if (mean(off.fit) < mean(nrm.fit)) p.offBelow++;
+    if (f('off') < f('normal')) p.offBelow++;
     pooled.set(entry.arm, p);
-    const pw = (x: number) => (x * 100).toFixed(0);
-    console.log(`${padr(entry.arm, 20)}${padr(`${entry.tag}@${entry.gen} ${team === 0 ? 'R' : 'B'}`, 24)}${pad(String(opponents.length), 5)}` +
-      `${pad(mean(nrm.fit).toFixed(3), 9)}${pad(mean(shf.fit).toFixed(3), 9)}${pad(mean(off.fit).toFixed(3), 9)}` +
-      `${pad(dShuffle.toFixed(3), 10)}${pad(dOff.toFixed(3), 9)}${pad(`${moved}/${nrm.fit.length}`, 9)}` +
-      `${pad(`${pw(nrm.win)}/${pw(shf.win)}/${pw(off.win)}%`, 14)}${pad(`${pw(nrm.heardOn / Math.max(1, nrm.heardAll))}%`, 7)}`);
+    const pw = (m: Mode) => (res.get(m)!.win * 100).toFixed(0);
+    console.log(`${padr(entry.arm, 16)}${padr(`${entry.tag}@${entry.gen} ${team === 0 ? 'R' : 'B'}`, 20)}` +
+      `${pad(f('normal').toFixed(3), 8)}${pad(f('speaker').toFixed(3), 8)}${pad(f('frozen').toFixed(3), 8)}${pad(f('shuffled').toFixed(3), 9)}${pad(f('off').toFixed(3), 8)}` +
+      `${pad(dSpeaker.toFixed(3), 9)}${pad(dFrozen.toFixed(3), 9)}${pad(dShuffle.toFixed(3), 9)}${pad(dOff.toFixed(3), 8)}${pad(`${moved}/${nrm.fit.length}`, 7)}` +
+      `${pad(`${pw('normal')}/${pw('speaker')}/${pw('frozen')}/${pw('shuffled')}/${pw('off')}%`, 21)}${pad(`${((nrm.heardOn / Math.max(1, nrm.heardAll)) * 100).toFixed(0)}%`, 6)}`);
   }
 }
 
 console.log('\npooled per arm:');
 for (const [arm, p] of pooled) {
-  console.log(`  ${padr(arm, 20)} Δshuffle > 0 in ${p.dShuffle.filter((d) => d > 0).length}/${p.dShuffle.length} · pooled mean Δshuffle ${mean(p.dShuffle).toFixed(3)} · off below normal in ${p.offBelow}/${p.dShuffle.length}`);
+  const small = p.dSpeaker.filter((d) => Math.abs(d) <= 0.25).length;
+  console.log(`  ${padr(arm, 16)} Δspeaker > 0 in ${p.dSpeaker.filter((d) => d > 0).length}/${p.dSpeaker.length} · pooled Δspeaker ${mean(p.dSpeaker).toFixed(3)}` +
+    ` (|Δspeaker| <= 0.25 in ${small}/${p.dSpeaker.length}) · pooled Δfrozen ${mean(p.dFrozen).toFixed(3)} · pooled Δshuffle ${mean(p.dShuffle).toFixed(3)} · off below normal in ${p.offBelow}/${p.dSpeaker.length}`);
 }
-console.log('moved = matches whose team fitness changed at all between normal and shuffled (capture fitness is quantised).');
+console.log('moved = matches whose team fitness changed at all between normal and speaker (capture fitness is quantised).');
 console.log('heard = share of incoming radio fields that were non-silent in normal play.');

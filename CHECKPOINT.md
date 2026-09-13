@@ -11,9 +11,9 @@
 
 ## Current cursor（2026-09-13）
 
-⛔⛔ **现在停在人工闸门：D2 的下一根杠杆需要用户定**（三个选项、VISION 冲突点与推荐都在 `docs/ROADMAP.md` §4，cursor 以那里为准）。
-最新事实：完美说话者下 **120 代 2 条血统里 1 条学会了听**（s1 蓝方翻转报点胜率 67% → 2%），40 代两条都没学会 ⇒ 听学得会但慢且看血统。
-⚠ 长训练在本机会被宿主以内存不足杀掉：`npm run uptake -- train` 已支持每 10 代快照、同 `--out` 重跑续上。
+⭐⭐ **进行中 = D2 选项 1（用户 2026-09-13 选定）：真实电台只加预算，`runs/d2-long-s{1,2}` 300 代在跑**（状态与读数计划在 `docs/ROADMAP.md` §4，cursor 以那里为准）。
+⚠ 本机会以内存不足杀长任务：`train.ts` / `uptake train` 带 `--snap-every` 时，同一条命令重跑即续上。
+⚠ 读数 `npm run radiouse` 的对照门槛 P3'' 没过，长跑逐冠军报告；它顺带更正了 D2b 接收端结论的一半（对照冠军**确实**依赖自己的电台）。
 
 D 程序留下的表（**先问世界、再问进化**，方法 `npm run memdemand`）：
 
@@ -51,11 +51,12 @@ chance 20%，16/16 格。说与听在 MLP 里本来就是不同权重；team-cro
 | `npm run mapprobe [--sites 2] [--self-test]` | 地图拓扑（可行通路 / 通路数 / choke / 出生点视线）；`--self-test` 在 CI | ⛔ 给对称性背书前先过 self-test（坑 #25） |
 | `npm run c1exit` | C1 exit 的四问，reference bot 向**世界**提问 | ⛔ 读到 FAIL 先证明工具到达了断言（坑 #26） |
 | `npm run memdemand` | ⭐ **世界为记忆 / 通信付多少钱**（扫 reference bot 的记忆档 + telepathy 上界） | ⛔ 别把 telepathy 当合法策略，它只是上界 |
-| `npm run radio` | 电台上有什么：符号熵 / 静默率 / MI + `off`/`shuffled`/`alien` 三档消融 | ⛔ 高 MI 只是相关；语言 claim 要三层证据（VISION §7.4） |
+| `npm run radio [--gen G]` | 电台上有什么（**发送端**）：符号熵 / 静默率 / MI | ⛔ 高 MI 只是相关；⛔ 它的接收端消融两队一起动、固定步长取池 —— 接收端用 `radiouse` |
 | `npm run identity [--drop comm0,comm1]` | 同队五个人是**五个人还是五个身体**（one-hot 旋转拉丁方：body vs carrier + 随机标签对照） | ⛔ 低 carrier 只说明「这个分类器在这些特征上找不到」（坑 #28） |
 | `npm run radiodemand` | 一条**合法**有限电台值多少（手写一符号报点走真实量化 / 间隔 / 延迟，对照 telepathy 上界；静音行必须与私有视野逐场相同，否则脚本报错） | ⛔ 只是协议空间里的一个点：低分只约束这个协议 |
 | `npm run commstep` | 只突变「说」/「听」权重（配同尺寸对照），看单边台阶存不存在 | ⛔ 实测分辨率不够：六类在同一冠军内同起同落（坑 #26 ④），别拿它判「学不会」 |
 | `npm run uptake -- train/eval` | 说话者完美（注入报点）时进化学不学得会听：normal / flipped / off，对手取同臂所有 run | ⛔ 脚手架 run 带 `scaffold` 字段：不得当种群来源，不得和正常 run 进同一张 crossplay |
+| `npm run radiouse -- <runs> --gens a,b` | 被测队**自己的**电台依赖：normal / speaker（同说话者换时刻）/ frozen（常数码）/ shuffled / off，只动被测队 | ⛔ 对照门槛 P3'' 未过；comm0 / comm1 仍各自抽（坑 #29、TODO） |
 
 ## ⚠ 动手前必扫的几条（正文在 `GOTCHAS.md`）
 - ⓪ **内部指标全绿 ≠ 打得过外面**（#23）· ladder 的 50%/100% 可能是**没发生的比赛**（#20）·
