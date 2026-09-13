@@ -269,6 +269,15 @@ for (const entry of entries) {
     const off = res.get('off')!;
     if (off.heardOn !== 0) throw new Error('off mode still delivered radio — the ablation did not land');
     const nrm = res.get('normal')!;
+    /** paired per-match difference (matches are aligned by opponent, world seed and roles): mean and its standard error */
+    const paired = (a: Mode, b: Mode) => {
+      const xs = res.get(a)!.fit.map((v, i) => v - res.get(b)!.fit[i]);
+      const mu = mean(xs);
+      const sd = Math.sqrt(xs.reduce((t, x) => t + (x - mu) * (x - mu), 0) / Math.max(1, xs.length - 1));
+      return { mu, se: sd / Math.sqrt(xs.length) };
+    };
+    const pReplay = paired('normal', 'replay');
+    const pNull = paired('replay', "replay'");
     const dSpeaker = f('normal') - f('speaker');
     const dFrozen = f('normal') - f('frozen');
     const dShuffle = f('normal') - f('shuffled');
@@ -295,6 +304,9 @@ for (const entry of entries) {
       `${pad(f('normal').toFixed(3), 8)}${pad(f('speaker').toFixed(3), 8)}${pad(f('frozen').toFixed(3), 8)}${pad(f('shuffled').toFixed(3), 9)}${pad(f('off').toFixed(3), 8)}` +
       `${pad(dSpeaker.toFixed(3), 9)}${pad(dFrozen.toFixed(3), 9)}${pad(dShuffle.toFixed(3), 9)}${pad(dOff.toFixed(3), 8)}${pad(dRedraw.toFixed(3), 9)}${pad(dRedrawSh.toFixed(3), 11)}${pad(dReplay.toFixed(3), 9)}${pad(dRedrawRp.toFixed(3), 11)}${pad(`${(noDonorShare * 100).toFixed(1)}%`, 9)}${pad(`${moved}/${nrm.fit.length}`, 7)}` +
       `${pad(`${pw('normal')}/${pw('speaker')}/${pw('frozen')}/${pw('shuffled')}/${pw('off')}/${pw('replay')}%`, 24)}${pad(`${((nrm.heardOn / Math.max(1, nrm.heardAll)) * 100).toFixed(0)}%`, 6)}`);
+    // paired per-match estimate: a single redraw difference is NOT a standard error (D2s Probe 1c)
+    console.log(`${padr('', 16)}${padr(`${entry.tag}@${entry.gen} ${team === 0 ? 'R' : 'B'}`, 20)}paired per match, n=${nrm.fit.length}:` +
+      ` Δreplay ${pReplay.mu.toFixed(3)} ± ${pReplay.se.toFixed(3)} SE · null (replay − replay') ${pNull.mu.toFixed(3)} ± ${pNull.se.toFixed(3)} SE`);
   }
 }
 
