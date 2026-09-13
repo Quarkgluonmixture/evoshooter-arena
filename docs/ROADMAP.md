@@ -599,6 +599,27 @@ D1 的前提（private temporal belief 承重）**本世界不支持**。
 - long-run 是否出现稳定 token usage；
 - token usage 的 birth / stabilization / drift timeline。
 
+### 进度（2026-09-13）
+
+- ✅ **D2a 通道改造**：`commTokens`（量化成 `2n+1` 符号，0 = 静默，靠死区自己选）·
+  `commIntervalTicks`（多久才能重新决定一条消息）· `commDelayTicks`（听者落后多少 tick）。默认全关。
+  ⭐ 量化在**发出来的东西**上，不在动作空间上 ⇒ ACT_DIM 不变、genome 不作废。
+  「说的」`commSaid` 与「听到的」`heardComm()` 现在是两个对象。
+- ✅ **D2b 分析**：`npm run radio` = 符号熵 / 静默率 / 与候选指称的 MI + 三种消融
+  （`off` / `shuffled` / `alien`，后两种是坑 #24 要的 in-distribution 对照）。
+- ❌ **两种电台下都测不到任何意义**：连续电台与有限电台的冠军，符号熵都 ≈2.07–2.08 / 2.32 bits、
+  MI 都只有 **0–1%**、静默率 20–23%（≈均匀）。有限电台下 `off` 的 objective 甚至**高于** `normal`。
+- ⭐⭐ **但世界确实为通信付大钱**（`npm run memdemand` 的 telepathy 档）：
+  共享视野把守方胜率从 **13% 拉到 42%**（+29pp），telepathy + 记忆 **47%** 是唯一打得过「不追」参照（38%）的配置，
+  并把 armed 率从 76–88% 压到 **58%**。
+  ⚠ telepathy 共享**精确坐标**，是个宽松上界 ⇒ 正确说法是「共享接触信息最多值 29pp，有限电台能拿到多少未知」。
+
+⇒ **D2 的前提被世界支持**（与 D1 相反：D1 是需求侧没钱）。所以「电台没被用起来」更可能是
+**搜索 / 架构**问题，而候选是具体的：**V7「一个脑子穿五个身体」** —— 一队共享一个网络，
+同一批权重既要学编码又要学解码，且没有个体身份可分化。
+⇒ ⛔ **不要再调电台参数或加训练预算去救 D2。下一根承重杠杆是 E1（player identity split）**，
+它同时解锁 D2 还缺的 team-crossplay 分析（speaker 和 listener 现在是同一个对象）。
+
 ### Strong-claim gate
 
 “token 3 常在见敌时出现”不等于已经证明 token 3 = enemy。

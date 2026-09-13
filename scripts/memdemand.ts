@@ -17,7 +17,9 @@ import { DEFAULT_SIM, type SimConfig } from '../src/core/config.ts';
 import { hashSeed } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
 import { runMatch } from '../src/evo/match.ts';
-import { FakeAttackerPolicy, MemoryHunterPolicy, SiteAttackerPolicy, SiteDefenderPolicy } from '../src/brain/scripted.ts';
+import {
+  FakeAttackerPolicy, MemoryHunterPolicy, SiteAttackerPolicy, SiteDefenderPolicy, TeamSightHunterPolicy,
+} from '../src/brain/scripted.ts';
 import type { Policy } from '../src/brain/policy.ts';
 
 const flag = (name: string, d: string) => {
@@ -69,7 +71,10 @@ for (const h of H) {
         for (let m = 0; m < N; m++) {
           const seed = hashSeed(8642, mapSeed, m);
           const A = atk.make();
-          const D = h < 0 ? new SiteDefenderPolicy(SPLIT) : new MemoryHunterPolicy(h);
+          // >= 900 encodes a TELEPATHY row: 1000 + horizon, sharing every teammate's sightings for free
+          const D = h < 0 ? new SiteDefenderPolicy(SPLIT)
+            : h >= 900 ? new TeamSightHunterPolicy(h - 1000)
+            : new MemoryHunterPolicy(h);
           const r = runMatch(attackers === 0 ? A : D, attackers === 0 ? D : A, map, seed, cfg, { attackers });
           const defender = attackers === 0 ? 1 : 0;
           n++;
@@ -84,10 +89,14 @@ for (const h of H) {
     nAll += n;
   }
   means.push(wAll / nAll);
-  console.log(`${padr(h < 0 ? 'site-holder ref' : `${h}s`, 17)}${cells.join('')}${pad(`${((wAll / nAll) * 100).toFixed(0)}%`, 8)}` +
+  const label = h < 0 ? 'site-holder ref' : h >= 900 ? `telepathy ${h - 1000}s` : `${h}s`;
+  console.log(`${padr(label, 17)}${cells.join('')}${pad(`${((wAll / nAll) * 100).toFixed(0)}%`, 8)}` +
     `${pad(`${((armedAll / nAll) * 100).toFixed(0)}%`, 8)}${pad((sightAll / nAll).toFixed(0), 8)}`);
 }
 console.log();
+console.log('⭐ `telepathy Ns` shares every teammate\'s sightings instantly and for free — an UPPER BOUND on what any');
+console.log('   radio could buy. If it does not beat the matching private-sight row, this world does not pay for');
+console.log('   communication, and no channel design or training budget will make it pay.');
 console.log('cell / mean = DEFENDER win share. armed = rounds where a site got armed (if ~0 the objective never');
 console.log('happened and nothing here is about memory). sight = mean sighting ticks per match.');
 console.log(`⭐ Read the mean column against the horizon: ${H.map((h, i) => `${h}s ${(means[i] * 100).toFixed(0)}%`).join('  ')}`);

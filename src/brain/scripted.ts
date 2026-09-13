@@ -168,6 +168,20 @@ export class MemoryHunterPolicy implements Policy {
   private world: World | null = null;
   constructor(seconds: number) { this.seconds = seconds; }
 
+  /** The nearest enemy THIS agent can see. Overridden by the telepathy upper bound below. */
+  protected visibleEnemy(world: World, agent: number): { x: number; z: number } | null {
+    const me = world.agents[agent];
+    let best: { x: number; z: number } | null = null;
+    let bestD = Infinity;
+    for (const e of world.agents) {
+      if (!e.alive || e.team === me.team) continue;
+      if (!world.visible[agent * world.n + e.id]) continue;
+      const d = Math.hypot(e.x - me.x, e.z - me.z);
+      if (d < bestD) { bestD = d; best = { x: e.x, z: e.z }; }
+    }
+    return best;
+  }
+
   act(world: World, agent: number): void {
     if (this.world !== world) {
       this.world = world;
@@ -180,14 +194,7 @@ export class MemoryHunterPolicy implements Policy {
     const a = world.agents[agent];
     const sg = a.team === 0 ? 1 : -1;
 
-    let seen: { x: number; z: number } | null = null;
-    let bestD = Infinity;
-    for (const e of world.agents) {
-      if (!e.alive || e.team === a.team) continue;
-      if (!world.visible[agent * world.n + e.id]) continue;
-      const d = Math.hypot(e.x - a.x, e.z - a.z);
-      if (d < bestD) { bestD = d; seen = { x: e.x, z: e.z }; }
-    }
+    const seen = this.visibleEnemy(world, agent);
     const mem = this.last[agent];
     if (seen) { mem.x = seen.x; mem.z = seen.z; mem.t = world.t; }
 
@@ -210,6 +217,34 @@ export class MemoryHunterPolicy implements Policy {
     }
     act[off + A_FIRE] = 1;
     act[off + A_TARGET0] = 1;
+  }
+}
+
+/**
+ * Like `MemoryHunterPolicy`, but it reacts to the nearest enemy visible to ANY of its teammates — perfect,
+ * instant, free communication. An UPPER BOUND on what a radio could ever buy, not a legal policy.
+ *
+ * Its only job is to answer "does this world pay for sharing contacts at all?" before anyone tunes a channel
+ * or reads meaning into one. Same method as `MemoryHunterPolicy`: ask the world first, then ask whether
+ * evolution can find it.
+ */
+export class TeamSightHunterPolicy extends MemoryHunterPolicy {
+  protected override visibleEnemy(world: World, agent: number): { x: number; z: number } | null {
+    const me = world.agents[agent];
+    let best: { x: number; z: number } | null = null;
+    let bestD = Infinity;
+    for (const e of world.agents) {
+      if (!e.alive || e.team === me.team) continue;
+      let seenByAnyone = false;
+      for (const mate of world.agents) {
+        if (!mate.alive || mate.team !== me.team) continue;
+        if (world.visible[mate.id * world.n + e.id]) { seenByAnyone = true; break; }
+      }
+      if (!seenByAnyone) continue;
+      const d = Math.hypot(e.x - me.x, e.z - me.z);
+      if (d < bestD) { bestD = d; best = { x: e.x, z: e.z }; }
+    }
+    return best;
   }
 }
 
