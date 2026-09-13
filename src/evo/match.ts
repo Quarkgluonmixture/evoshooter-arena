@@ -144,7 +144,7 @@ export function runMatch(
   map: ArenaMap,
   seed: number,
   cfg: SimConfig,
-  opts: { heat?: boolean } = {},
+  opts: { heat?: boolean; attackers?: 0 | 1 } = {},
 ): MatchResult {
   const world = new World(cfg, map, seed, opts);
   while (!world.done) stepMatch(world, red, blue);

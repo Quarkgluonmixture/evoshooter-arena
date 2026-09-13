@@ -14,6 +14,8 @@ export interface MatchJob {
   /** bit 1 = credit red genome's fitness, bit 2 = credit blue genome's fitness */
   credit: number;
   kind: 'pair' | 'hof' | 'ladder';
+  /** which side attacks, in `capture` mode. Undefined leaves the World's default. */
+  attackers?: 0 | 1;
 }
 
 export interface Evaluator {
@@ -49,7 +51,7 @@ export function evaluateJobs(
     if (!p) { p = new NeuralPolicy(shape, genomes[i]); cache.set(i, p); }
     return p;
   };
-  return jobs.map((j) => runMatch(pol(j.red), pol(j.blue), map, j.seed, cfg, { heat: wantHeat }));
+  return jobs.map((j) => runMatch(pol(j.red), pol(j.blue), map, j.seed, cfg, { heat: wantHeat, attackers: j.attackers }));
 }
 
 export interface SnapshotHof { gen: number; fitness: number; genome: number[] }
@@ -139,17 +141,29 @@ export class Trainer {
     return h[start + this.rng.int(h.length - start)];
   }
 
-  /** Build the genome table + jobs for the current generation. */
+  /**
+   * Build the genome table + jobs for the current generation.
+   *
+   * In `capture` mode attacking and defending are not the same job, so every match is emitted TWICE — same
+   * opponents, same seed, roles swapped. Without that, red would attack in every match it ever played and
+   * would become a permanent attacker species, which VISION §11.2 rules out, and every fitness number would
+   * be a mix of two different jobs in whatever ratio the schedule happened to produce
+   * (SUBSTRATE §10.3: fitness aggregation must be side-balanced). In `koth` the sides are symmetric and one
+   * match per pairing is the whole story.
+   */
   private plan(): { genomes: Float32Array[]; jobs: MatchJob[] } {
     const P = this.evo.popSize;
     const genomes: Float32Array[] = [...this.pops[0], ...this.pops[1]];
     const jobs: MatchJob[] = [];
     const seedBase = hashSeed(this.gen, 0xabc);
+    const roles: (0 | 1 | undefined)[] = this.sim.roundMode === 'capture' ? [0, 1] : [undefined];
 
     for (let k = 0; k < this.evo.pairings; k++) {
       const perm = this.rng.shuffle(Array.from({ length: P }, (_, i) => i));
       for (let i = 0; i < P; i++) {
-        jobs.push({ red: i, blue: P + perm[i], seed: hashSeed(seedBase, k, i), credit: 3, kind: 'pair' });
+        for (const attackers of roles) {
+          jobs.push({ red: i, blue: P + perm[i], seed: hashSeed(seedBase, k, i), credit: 3, kind: 'pair', attackers });
+        }
       }
     }
     for (let k = 0; k < this.evo.hofMatches; k++) {
@@ -157,12 +171,16 @@ export class Trainer {
         const hb = this.hofPick(1);
         if (hb) {
           genomes.push(hb.genome);
-          jobs.push({ red: i, blue: genomes.length - 1, seed: hashSeed(seedBase, 100 + k, i), credit: 1, kind: 'hof' });
+          for (const attackers of roles) {
+            jobs.push({ red: i, blue: genomes.length - 1, seed: hashSeed(seedBase, 100 + k, i), credit: 1, kind: 'hof', attackers });
+          }
         }
         const hr = this.hofPick(0);
         if (hr) {
           genomes.push(hr.genome);
-          jobs.push({ red: genomes.length - 1, blue: P + i, seed: hashSeed(seedBase, 200 + k, i), credit: 2, kind: 'hof' });
+          for (const attackers of roles) {
+            jobs.push({ red: genomes.length - 1, blue: P + i, seed: hashSeed(seedBase, 200 + k, i), credit: 2, kind: 'hof', attackers });
+          }
         }
       }
     }
@@ -260,11 +278,11 @@ export class Trainer {
         const now = lg.push(h[h.length - 1].genome) - 1;
         const first = lg.push(h[0].genome) - 1;
         plan.push({ team: t, slot: 'first' });
-        for (let m = 0; m < L; m++) lj.push({ red: now, blue: first, seed: hashSeed(this.gen, 0x1ad0, t, m), credit: 0, kind: 'ladder' });
+        for (let m = 0; m < L; m++) lj.push({ red: now, blue: first, seed: hashSeed(this.gen, 0x1ad0, t, m), credit: 0, kind: 'ladder', attackers: this.sim.roundMode === 'capture' ? ((m % 2) as 0 | 1) : undefined });
         if (this.gen >= gap) {
           const past = lg.push(h[h.length - 1 - gap].genome) - 1;
           plan.push({ team: t, slot: 'gap' });
-          for (let m = 0; m < L; m++) lj.push({ red: now, blue: past, seed: hashSeed(this.gen, 0x1ad, t, m), credit: 0, kind: 'ladder' });
+          for (let m = 0; m < L; m++) lj.push({ red: now, blue: past, seed: hashSeed(this.gen, 0x1ad, t, m), credit: 0, kind: 'ladder', attackers: this.sim.roundMode === 'capture' ? ((m % 2) as 0 | 1) : undefined });
         }
       }
       const lr = await evaluator.run(lg, lj, false);
@@ -352,7 +370,9 @@ export class Trainer {
    */
   async duel(evaluator: Evaluator, a: Float32Array, b: Float32Array, n: number, seed = 777): Promise<{ win: number; sight: number }> {
     const jobs: MatchJob[] = [];
-    for (let m = 0; m < n; m++) jobs.push({ red: 0, blue: 1, seed: hashSeed(seed, m), credit: 0, kind: 'ladder' });
+    for (let m = 0; m < n; m++) {
+      jobs.push({ red: 0, blue: 1, seed: hashSeed(seed, m), credit: 0, kind: 'ladder', attackers: this.sim.roundMode === 'capture' ? ((m % 2) as 0 | 1) : undefined });
+    }
     const res = await evaluator.run([a, b], jobs, false);
     let w = 0;
     let sight = 0;
