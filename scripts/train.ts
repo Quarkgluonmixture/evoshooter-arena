@@ -15,7 +15,12 @@ const trainer = new Trainer(
     popSize: num('pop', 16), pairings: num('pairings', 3), hofMatches: num('hof', 2), ladderGap: num('gap', 10),
     mutSigma: num('sigma', 0.05), mutRate: num('rate', 0.02), resetProb: num('reset', 0.002), elite: num('elite', 2),
   },
-  { matchSeconds: num('seconds', 40), recurrentDim: num('rec', 0), ...(args.has('mem') ? { memorySeconds: num('mem', 3) } : {}) },
+  {
+    matchSeconds: num('seconds', 40), recurrentDim: num('rec', 0),
+    ...(args.has('mem') ? { memorySeconds: num('mem', 3) } : {}),
+    ...(args.get('mode') === 'capture' ? { roundMode: 'capture' as const } : {}),
+    ...(args.has('sites') ? { siteCount: (num('sites', 1) === 2 ? 2 : 1) as 1 | 2 } : {}),
+  },
   num('seed', 1),
 );
 const ev = trainer.localEvaluator();
@@ -25,7 +30,8 @@ const f = (x: number, w = 6) => x.toFixed(3).padStart(w);
 const pct = (x: number | null, sight?: number | null) =>
   x === null ? '   -  ' : (x * 100).toFixed(0).padStart(5) + (sight === 0 ? '·' : '%');
 
-console.log(`obs=${trainer.sim.recurrentDim ? `${trainer.shape.inputs - trainer.sim.recurrentDim}+${trainer.sim.recurrentDim}rec` : trainer.shape.inputs} genome=${trainer.pops[0][0].length} pop=${trainer.evo.popSize} map=${trainer.map.boxes.length} boxes`);
+console.log(`obs=${trainer.sim.recurrentDim ? `${trainer.shape.inputs - trainer.sim.recurrentDim}+${trainer.sim.recurrentDim}rec` : trainer.shape.inputs} genome=${trainer.pops[0][0].length} pop=${trainer.evo.popSize} map=${trainer.map.boxes.length} boxes ` +
+  `mode=${trainer.sim.roundMode} sites=${trainer.sim.siteCount}${trainer.sim.roundMode === 'capture' ? ' (roles swapped per pairing ⇒ 2x matches)' : ''}`);
 console.log('ladder cells marked · are matches where the two champions never saw each other — the win share there measures nothing');
 console.log('gen | bestR  meanR | bestB  meanB | vsG0-R vsG0-B | vs-10R vs-10B | accR  accB | zoneR zoneB | coverR coverB | spreadR spreadB | 1stShot | ms');
 const t0 = Date.now();
