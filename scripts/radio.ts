@@ -1,7 +1,7 @@
 /**
  * ROADMAP D2's required analyses — what, if anything, is on the radio.
  *
- *   node scripts/radio.ts runs/a.json [runs/alien.json] [--n 6] [--bins 5]
+ *   node scripts/radio.ts runs/a.json [runs/alien.json] [--n 6] [--bins 5] [--gen N]
  *
  * ⛔ None of this licenses the sentence "the team has a language". D2's strong-claim gate wants three layers
  * — a sender-state relation, a receiver response, and an intervention — and this script measures the first
@@ -47,21 +47,24 @@ const BINS = num('bins', 5);
 interface RunHofEntry { gen: number; fitness: number; genome: number[] }
 interface RunFile { evo: EvoConfig; sim: SimConfig; hof: [RunHofEntry[], RunHofEntry[]] }
 
-function load(path: string) {
+function load(path: string, gen?: number) {
   const data = JSON.parse(readFileSync(path, 'utf8')) as RunFile;
   const { sim, defaulted } = normalizeSim(data.sim);
   const tag = basename(path).replace(/\.json$/, '');
   if (defaulted.length) console.log(`note: ${tag} predates ${defaulted.join(', ')} — using today's defaults`);
   const shape = shapeFor(sim, data.evo.hidden);
   const champ = ([0, 1] as const).map((t) => {
-    const e = data.hof[t][data.hof[t].length - 1];
+    // `--gen N` reads generation N's hall-of-fame champion instead of the last one (the alien run always uses its last)
+    const e = gen === undefined ? data.hof[t][data.hof[t].length - 1] : data.hof[t].find((x) => x.gen === gen);
+    if (!e) throw new Error(`${tag}: no hall-of-fame entry for gen ${gen}`);
     if (e.genome.length !== genomeLength(shape)) throw new Error(`${tag}: genome ${e.genome.length} != ${genomeLength(shape)}`);
     return Float32Array.from(e.genome);
   });
   return { tag, sim, evo: data.evo, shape, champ };
 }
 
-const A = load(files[0]);
+const GEN = flags.has('gen') ? num('gen', 0) : undefined;
+const A = load(files[0], GEN);
 const ALIEN = files[1] ? load(files[1]) : null;
 if (ALIEN && ALIEN.shape.inputs !== A.shape.inputs) {
   throw new Error(`alien run has obsDim ${ALIEN.shape.inputs}, this one has ${A.shape.inputs} — a transplanted vocabulary has to come from the same observation layout`);
@@ -126,7 +129,7 @@ const silence = symCount[bin(0)] / total;
 const pad = (s: string, n: number) => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
 const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length));
 
-console.log(`radio analysis — ${A.tag}, ${N} seeds x 2 role assignments, ${commDim} slot(s), ${BINS} bins`);
+console.log(`radio analysis — ${A.tag}${GEN === undefined ? '' : `@${GEN}`}, ${N} seeds x 2 role assignments, ${commDim} slot(s), ${BINS} bins`);
 console.log(`world radio: ${A.sim.commTokens ? `${2 * A.sim.commTokens + 1} symbols/slot, every ${A.sim.commIntervalTicks}t, ${A.sim.commDelayTicks}t delay` : 'continuous float every tick (pre-D2 baseline)'}`);
 console.log();
 console.log(`symbol entropy ${Hsym.toFixed(2)} of ${Math.log2(BINS).toFixed(2)} bits possible · silence-bin share ${(silence * 100).toFixed(0)}% · ${total} symbols observed`);

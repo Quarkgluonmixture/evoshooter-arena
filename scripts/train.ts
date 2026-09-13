@@ -1,16 +1,24 @@
 /**
- * Headless training: node scripts/train.ts --gens 30 --pop 16 --seed 1 [--out runs/x.json]
+ * Headless training: node scripts/train.ts --gens 30 --pop 16 --seed 1 [--out runs/x.json] [--snap-every 10]
  * Prints one line per generation and finishes with the key evidence: does the final champion beat gen-0?
+ *
+ * `--snap-every N` (needs --out) snapshots the trainer every N generations, so a run the host kills can be resumed by
+ * rerunning the same command. Off by default: a snapshot re-seeds the RNG (scripts/lib/resumable.ts), so turning it on
+ * changes a run's trajectory from generation N onward.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { Trainer } from '../src/evo/trainer.ts';
+import { clearSnapshot, openTrainer, runGenerations, snapshotPath } from './lib/resumable.ts';
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ''), process.argv[i + 1] ?? '1');
 const num = (k: string, d: number) => (args.has(k) ? Number(args.get(k)) : d);
 
 const gens = num('gens', 20);
-const trainer = new Trainer(
+const out = args.get('out');
+const snapEvery = num('snap-every', 0);
+if (snapEvery > 0 && !out) throw new Error('--snap-every needs --out: the snapshot is written next to it');
+const { trainer, resumedAt } = openTrainer(out ?? '', snapEvery, () => new Trainer(
   {
     popSize: num('pop', 16), pairings: num('pairings', 3), hofMatches: num('hof', 2), ladderGap: num('gap', 10),
     mutSigma: num('sigma', 0.05), mutRate: num('rate', 0.02), resetProb: num('reset', 0.002), elite: num('elite', 2),
@@ -25,7 +33,7 @@ const trainer = new Trainer(
     ...(args.has('comm-delay') ? { commDelayTicks: num('comm-delay', 0) } : {}),
   },
   num('seed', 1),
-);
+));
 const ev = trainer.localEvaluator();
 const f = (x: number, w = 6) => x.toFixed(3).padStart(w);
 // A ladder cell with zero sighting ticks is a match that never happened: the champions evolved past each
@@ -36,11 +44,11 @@ const pct = (x: number | null, sight?: number | null) =>
 console.log(`obs=${trainer.sim.recurrentDim ? `${trainer.shape.inputs - trainer.sim.recurrentDim}+${trainer.sim.recurrentDim}rec` : trainer.shape.inputs} genome=${trainer.pops[0][0].length} pop=${trainer.evo.popSize} map=${trainer.map.boxes.length} boxes ` +
   `mode=${trainer.sim.roundMode} sites=${trainer.sim.siteCount}${trainer.sim.roundMode === 'capture' ? ' (roles swapped per pairing ⇒ 2x matches)' : ''} ` +
   `radio=${trainer.sim.commTokens ? `${2 * trainer.sim.commTokens + 1}sym/slot every ${trainer.sim.commIntervalTicks}t, ${trainer.sim.commDelayTicks}t delay` : 'continuous float every tick (baseline)'}`);
+if (resumedAt !== null) console.log(`resumed ${snapshotPath(out!)} at gen ${resumedAt} — the config comes from the snapshot, not from these flags`);
 console.log('ladder cells marked · are matches where the two champions never saw each other — the win share there measures nothing');
 console.log('gen | bestR  meanR | bestB  meanB | vsG0-R vsG0-B | vs-10R vs-10B | accR  accB | zoneR zoneB | coverR coverB | spreadR spreadB | 1stShot | ms');
 const t0 = Date.now();
-for (let g = 0; g < gens; g++) {
-  const r = await trainer.runGeneration(ev);
+await runGenerations(trainer, ev, gens, out ?? '', snapEvery, (r) => {
   const [R, B] = r.teams;
   console.log(
     `${String(r.gen).padStart(3)} | ${f(R.best)} ${f(R.mean)} | ${f(B.best)} ${f(B.mean)} | ${pct(r.ladder0[0], r.ladder0Sight[0])} ${pct(r.ladder0[1], r.ladder0Sight[1])} | ${pct(r.ladder[0], r.ladderSight[0])} ${pct(r.ladder[1], r.ladderSight[1])} | ` +
@@ -48,8 +56,9 @@ for (let g = 0; g < gens; g++) {
       `${f(R.popMetrics.coverRatio, 6)} ${f(B.popMetrics.coverRatio, 6)} | ${f(R.popMetrics.spread, 7)} ${f(B.popMetrics.spread, 7)} | ` +
       `${f(R.popMetrics.firstContact, 7)} | ${r.elapsedMs}`,
   );
-}
+});
 const total = (Date.now() - t0) / 1000;
+const ran = gens - (resumedAt ?? 0);
 
 const n = num('duel', 10);
 const last = trainer.hof[0].length - 1;
@@ -57,7 +66,7 @@ const redNowVsRedG0 = await trainer.duel(ev, trainer.hof[0][last].genome, traine
 const blueNowVsBlueG0 = await trainer.duel(ev, trainer.hof[1][last].genome, trainer.hof[1][0].genome, n);
 const g0VsNowRed = await trainer.duel(ev, trainer.hof[0][0].genome, trainer.hof[0][last].genome, n);
 const g0VsNowBlue = await trainer.duel(ev, trainer.hof[1][0].genome, trainer.hof[1][last].genome, n);
-console.log(`\n${gens} generations in ${total.toFixed(0)}s (${(total / gens).toFixed(1)} s/gen)`);
+console.log(`\n${ran} generations in ${total.toFixed(0)}s (${(total / Math.max(1, ran)).toFixed(1)} s/gen)`);
 const duelLine = (label: string, asRed: { win: number; sight: number }, asBlue: { win: number; sight: number }) => {
   const sight = (asRed.sight + asBlue.sight) / 2;
   const note = sight === 0
@@ -69,11 +78,12 @@ duelLine('final red champion vs gen-0 red champion:  ', redNowVsRedG0, g0VsNowRe
 duelLine('final blue champion vs gen-0 blue champion:', blueNowVsBlueG0, g0VsNowBlue);
 console.log('For a ruler that survives mutual avoidance, run: npm run crossplay -- <run.json> --gens first,last');
 
-if (args.has('out')) {
+if (out) {
   mkdirSync('runs', { recursive: true });
-  const out = {
+  const data = {
     evo: trainer.evo,
     sim: trainer.sim,
+    // ⚠ per-generation history is kept in memory only, so a resumed run exports the generations since the last resume
     gens: trainer.history.map((h) => ({
       gen: h.gen, ladder: h.ladder, ladder0: h.ladder0,
       ladderSight: h.ladderSight, ladder0Sight: h.ladder0Sight, redWinShare: h.redWinShare,
@@ -82,6 +92,7 @@ if (args.has('out')) {
     })),
     hof: trainer.hof.map((h) => h.map((e) => ({ gen: e.gen, fitness: e.fitness, genome: Array.from(e.genome) }))),
   };
-  writeFileSync(args.get('out')!, JSON.stringify(out));
-  console.log(`saved ${args.get('out')}`);
+  writeFileSync(out, JSON.stringify(data));
+  if (snapEvery > 0) clearSnapshot(out);
+  console.log(`saved ${out}`);
 }

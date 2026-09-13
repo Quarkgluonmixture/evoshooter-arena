@@ -28,7 +28,8 @@
     "identity": "node scripts/identity.ts",
     "radiodemand": "node scripts/radiodemand.ts",
     "commstep": "node scripts/commstep.ts",
-    "uptake": "node scripts/uptake.ts"
+    "uptake": "node scripts/uptake.ts",
+    "radiouse": "node scripts/radiouse.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
