@@ -22,7 +22,8 @@
     "yardstick": "node scripts/yardstick.ts",
     "recprobe": "node scripts/recprobe.ts",
     "mapprobe": "node scripts/mapprobe.ts",
-    "c1exit": "node scripts/c1exit.ts"
+    "c1exit": "node scripts/c1exit.ts",
+    "memdemand": "node scripts/memdemand.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

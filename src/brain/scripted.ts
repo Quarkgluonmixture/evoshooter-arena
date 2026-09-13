@@ -149,6 +149,70 @@ export class EagerRotateDefenderPolicy extends SiteAttackerPolicy {
   }
 }
 
+/**
+ * Hunts with a MEMORY HORIZON: chases a visible enemy, and for `seconds` after losing sight keeps moving to
+ * where it last saw him; after that it goes back to the objective. `seconds = 0` is a bot that forgets the
+ * instant an enemy leaves its view.
+ *
+ * Built to answer one question without training anything: does this world PAY for temporal belief? Sweep the
+ * horizon and see whether win rate follows it. If it does, memory has value here and evolution's failure to
+ * use it is a search problem; if it does not, there is no demand to find. (ROADMAP D1, 2026-09-13.)
+ *
+ * Reads engine truth, like every reference bot, and must never enter the evolving population.
+ */
+export class MemoryHunterPolicy implements Policy {
+  private readonly seconds: number;
+  private readonly last: { x: number; z: number; t: number }[] = [];
+  /** Memory is per-agent and MATCH-scoped: cleared when a different world shows up, because a reference bot
+   *  carrying belief across matches would make a match depend on which matches ran before it (D1 step 1). */
+  private world: World | null = null;
+  constructor(seconds: number) { this.seconds = seconds; }
+
+  act(world: World, agent: number): void {
+    if (this.world !== world) {
+      this.world = world;
+      this.last.length = 0;
+      for (let i = 0; i < world.n; i++) this.last.push({ x: 0, z: 0, t: -1e9 });
+    }
+    const off = agent * ACT_DIM;
+    const act = world.act;
+    act.fill(0, off, off + ACT_DIM);
+    const a = world.agents[agent];
+    const sg = a.team === 0 ? 1 : -1;
+
+    let seen: { x: number; z: number } | null = null;
+    let bestD = Infinity;
+    for (const e of world.agents) {
+      if (!e.alive || e.team === a.team) continue;
+      if (!world.visible[agent * world.n + e.id]) continue;
+      const d = Math.hypot(e.x - a.x, e.z - a.z);
+      if (d < bestD) { bestD = d; seen = { x: e.x, z: e.z }; }
+    }
+    const mem = this.last[agent];
+    if (seen) { mem.x = seen.x; mem.z = seen.z; mem.t = world.t; }
+
+    // target: him if I can see him, else where he was if that is still fresh, else the objective
+    let tx: number;
+    let tz: number;
+    let stop: number;
+    if (seen) { tx = seen.x; tz = seen.z; stop = 2; }
+    else if (world.t - mem.t <= this.seconds) { tx = mem.x; tz = mem.z; stop = 1.5; }
+    else {
+      const site = world.map.sites[a.slot % world.map.sites.length];
+      tx = site.x;
+      tz = site.z;
+      stop = world.cfg.zoneRadius * 0.5;
+    }
+    if (Math.hypot(tx - a.x, tz - a.z) > stop) {
+      const [gx, gz] = navDir(world.map, world.cfg, a.x, a.z, tx, tz);
+      act[off + A_MOVE_X] = sg * gx * 3;
+      act[off + A_MOVE_Z] = sg * gz * 3;
+    }
+    act[off + A_FIRE] = 1;
+    act[off + A_TARGET0] = 1;
+  }
+}
+
 /** Rushes the zone but never fires — isolates "shooting matters" in tests. */
 export class PacifistRusherPolicy implements Policy {
   private inner = new RusherPolicy();

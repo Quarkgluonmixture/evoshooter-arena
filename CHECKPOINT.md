@@ -11,12 +11,20 @@
 
 ## Current cursor（2026-09-13）
 
-⭐⭐ **下一刀 = 在 C1/C2 世界里重开 D1（记忆）。** 当初 D1 的空结果被 reframe 成「世界不为信息博弈付钱」，
-现在世界付钱了（C1）也告诉 agent 了（C2），而且 baseline 证明这个世界**学得动**：
-`--mode capture --sites 2`，两 seed，首枪 33 s → 7–8 s、accuracy .08 → .29、
-⭐ **objectiveProgress .08 → .23/.35**（旧 KOTH 世界四十代钉在 .01–.04）。
-⇒ 三臂重来：`rec0/mem3` · `rec0/mem0` · `rec40/mem0`，再跑 `npm run recprobe` 的四档消融。
-⛔ 按坑 #27：跨架构 A/B 先报 genome 长度是否相同，长度不同就只读方向。
+**C1/C2 世界学得动**（baseline：首枪 33 s → 7–8 s、accuracy .08 → .29、
+⭐ objectiveProgress .08 → **.23/.35**，旧 KOTH 四十代钉在 .01–.04）。
+
+**D1 已在新世界重开并收掉（2026-09-13，两个预测都错，结论更干净）**：
+① world 的 3 秒记忆在这个世界**本来就不承重**（A/B 初始种群相同，拿掉它 objectiveProgress 反而略升）；
+② recurrent state **仍然是学出来的常数**（`recprobe` 的 alien 档 var=0.000 与 live 打平且多数更好）；
+③ ⭐⭐ `npm run memdemand` 直接问世界：记忆价值 **~2 s 达峰 24%**，而**完全不追、只守点位的参照拿 38%** ——
+**追击本身就是错的**。⇒ **需求侧限制，不是搜索侧**；D1 ⛔ 不再算本世界背着的债。
+⚠ 窄结论：只测了**追击式**记忆。「记住敌人承诺了哪个点位 / 队友死在哪侧 / 他在换弹」都没测。
+
+⭐⭐ **下一刀（两条，挑一条）**：
+- **C2 剩下的观战侧**：kill feed UI（`TODO.md`，消费合法事件源）· 双点位的 HUD/观战渲染（现在只画 site 0）。
+- **Programme D2（Radio v2）或 E1（player identity split）** —— 按 `docs/ROADMAP.md` 顺序，D2 在前。
+⛔ 不要为了救 D1 再改世界：要改得先有「记忆回报 > 站位回报」的设计理由（已登记在 ROADMAP D1）。
 
 **已关闭**：A0–A4 · V11/V12 · V6a · **D1（实现 ship、默认不翻、行为 exit 未过）** ·
 **C1a/C1b/C1c（C1 CLOSED，exit 3/3）** · **C2 的世界规则部分**。细节在 `docs/ROADMAP.md`，经过在 `LOG.md`。
