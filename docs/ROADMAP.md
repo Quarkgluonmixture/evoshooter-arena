@@ -620,6 +620,12 @@ D1 的前提（private temporal belief 承重）**本世界不支持**。
 ⇒ ⛔ **不要再调电台参数或加训练预算去救 D2。下一根承重杠杆是 E1（player identity split）**，
 它同时解锁 D2 还缺的 team-crossplay 分析（speaker 和 listener 现在是同一个对象）。
 
+⚠⚠ **2026-09-13 14:57 更正（E1 probe 之后）：上面这段的两条理由都不成立。**
+① 共享大脑**已经有**可测的个体身份（见 Phase E1 进度）；
+② 说与听在 MLP 里本来就是不同权重（输出层 comm 行 vs 第一层 `mate*.comm*` 列），而 team-crossplay **现在就能做**：
+`Policy.act` 逐 agent 调用，按 slot 分发的包装器即可，不需要拆 genome。
+⇒ 架构假说削弱，剩 **search** 与 **channel** 两个候选。下一刀先问世界**一条合法的有限电台值多少**（见 §4 Current Cursor）。
+
 ### Strong-claim gate
 
 “token 3 常在见敌时出现”不等于已经证明 token 3 = enemy。
@@ -680,7 +686,23 @@ vision channel 对 teammate 提供合法外显 cue：
 
 ### Exit
 
-analytics 能从行为识别同一队不同 player，而不是只靠 slot id。
+~~analytics 能从行为识别同一队不同 player，而不是只靠 slot id。~~
+⚠ **2026-09-13 实测：现在的共享大脑就能过这一条**（见下方进度）⇒ 它分不出「共享大脑」和「个体参数」，不是门。
+按 §3 收紧（⛔ 不降低）：
+
+- 候选架构必须在**同一把尺子**（`npm run identity`：one-hot 旋转拉丁方 + 随机标签对照）上**超过共享大脑 + slot one-hot 的基线**，
+  而不是只超过 1/teamSize 的偶然水平；
+- 并说清超过的是哪一项：**表达**（身份信号更强，或出现在一条第一层 bias 表达不了的行为上）
+  还是**遗传**（player block 单独继承；换身体 / 换队后 signature 跟着 block 走，SUBSTRATE T9）。
+
+### 进度（2026-09-13）：probe-first 推翻了施工前提
+
+`npm run identity` 把「出生位置」和「one-hot 身份」拆成两个平衡的标签（16 格 × 16 种子，chance 20%）：
+carrier 身份 **36–66%**，去掉电台特征后 **31–55%**，16/16 格高于偶然；出生位置 47–64%，随机标签对照 6–25%。
+⇒ ⭐ **slot one-hot × 第一层权重 = 每人一条 40 维 bias，就是上面候选第二条「shared team genome + per-player compact bias vector」——
+它已经 ship，而且被进化用上了。** 预测 P2（「五个身体不是五个人」）错了。
+⇒ ⛔ 不按原计划直接造 player block。E1 保留，但问题从「有没有个体」改成「一条第一层 bias 的个体**不够**在哪」——
+动工前要先有一个「不够」的证据。数字与限制在 LOG 2026-09-13 14:57。
 
 ---
 
@@ -1087,13 +1109,25 @@ short headless evolution A/B (same seeds)
 
 # 4. Current Cursor
 
-**当前：Phase C2 —— round state / kill feed / objective public info。** （2026-09-13 更新）
+**当前（2026-09-13 14:57）：D2c —— 问世界「一条合法的有限电台值多少」。**
+
+E1 的 probe-first 推翻了施工前提（共享大脑已有个体身份，见 Phase E1 进度），D2 的架构假说随之削弱；
+telepathy 只给了**精确坐标**的上界，有限电台能拿到多少没人量过。
+⇒ 用 memdemand 同法：手写 reference bot **只通过**真实的 `commSaid → commWire → heardComm` 通道说和听，扫符号数 / 间隔 / 延迟。
+值钱 ⇒ 进化找不到是 **search** 问题；不值 ⇒ **通道本身太窄**，先改 D2 设计。
+⛔ 出结果前不训练、不造 player block。
+
+<details><summary>C2 的当时记录（2026-09-13 上午；C2 的世界规则部分之后已关闭）</summary>
+
+**当时：Phase C2 —— round state / kill feed / objective public info。**
 
 ⭐ **C1 已 CLOSED**（C1a 机制 · C1b 双点位与路网 · C1c reference-bot exit 3/3）。
 ⇒ 现在挡路的是**进化 agent 看不见回合状态**：点位在哪、哪个 armed、倒计时剩多少，全是 C2 的公开信息。
 ⛔ **在 C2 之前不要在双点位地图上训练并解读结果** —— 它们还没被告知比赛规则。
 ⚠ C2 之后要做的第一件事是**重跑 baseline**：胜负条件和地图都换了，`README` Evidence 表、坑 #23 的 0%、
 所有 `runs/*.json` 的 cross-play 胜率都是**旧规则下的数**（坑 #12）。
+
+</details>
 
 <details><summary>C1 的当时记录（2026-09-12）</summary>
 

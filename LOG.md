@@ -438,3 +438,50 @@ C1 关闭 ⇒ 地图池轮换可以做了），另两条是自己挖出来的坑
 **接手点 = E1（player identity split）/ V7。** 理由不是「roadmap 排到这里」，是 D 程序量出来的：
 世界为**通信**付 +29pp 而进化没用（⇒ 不是需求侧，是一队共享一个网络这件事），为**记忆**只付一点点
 （⇒ 需求侧，D1 不再算债）。
+
+## [2026-09-13 14:57] E1 probe-first：共享大脑里已经有「人」，不只是「身体」—— 施工前提被推翻  #measure #decision
+
+**问题**：E1 问「共享网络的 slot 分化 vs 真正的个体参数，差在哪」。动手造 player block 之前先量：**现在**的五个人是什么。
+**混淆**：`map.spawns[team][slot]` 让 one-hot 身份和出生位置是**同一个标签** ⇒「slot 2 打法不同」完全可以只是几何。
+
+**仪器** `npm run identity`（纯分析，不训练、不动 sim）：每 tick 在 observe 之后把 one-hot 旋转 k 位，
+每个种子跑**全部** k = 0..4（拉丁方）⇒ 每个身体带两个互相平衡的标签：**body**（出生位置）/ **carrier**（网络被告知的身份）。
+每人每场一条行为向量（own-frame 位置、移动/瞄准占比、射速、存活、离队友距离、在点位、偏左点位、电台均值、击杀），
+按 (run, 颜色, 攻守) 分格，留一种子 nearest centroid，旁边一列**随机标签**对照。4 个 run × 2 色 × 2 角色 = 16 格，每格 16 种子。
+
+⚠ **过程滑档（已写成坑 #28）**：v1 每场只抽一个 k，训练折里同 k 的种子会把出生几何以「固定改名」的形式递给 carrier 分类器。
+n=3 冒烟读 carrier 47–67%，和泄漏分不开 ⇒ 正式跑之前改成拉丁方，并在 `runs/e1-identity-predictions.txt` 追加说明（预测不改）。
+
+| 16 格范围（chance 20%） | aligned | body | **carrier** | random |
+|---|---|---|---|---|
+| 全特征 | 66–99% | 47–64% | **36–66%** | 6–25% |
+| 去掉 comm0/comm1（事后分解） | 49–96% | 43–65% | **31–55%** | 7–24% |
+
+**对冻结预测**：P1（aligned ≥ 50%）16/16 ✅ · P2a（body > carrier）**10/16 ❌**（要 ≥ 12）· P2b（carrier ≤ 35%）**0/16 ❌**。
+事后去掉电台特征：14/16 · 6/16 —— P2b 仍 ❌。随机列 ≈ chance ⇒ 分类器没漏折。
+**权重侧佐证**：冠军第一层的 slot 列 RMS 有的涨到 0.19–0.27（init ≈ 0.095，在 109 个输入里排第 3–23），有的留在 init 附近
+⇒ 进化**有选择地**放大了部分 slot 的身份输入。
+
+### 解读
+
+⭐⭐ **slot one-hot × 第一层权重 = 每人一条 40 维 bias ≡ ROADMAP E1 候选「shared team genome + per-player compact bias vector」——它已经 ship，且被用上了。**
+去掉电台特征后 carrier 信号还在，主要落在 aiming / moving 上 ⇒ 不只是电台输出的常数偏移。
+⇒ P2「五个身体不是五个人」**错了**。按冻结的 P3：**先 reframe，不造 player block。**
+
+连带推翻两条之前写进 CHECKPOINT / ROADMAP D2 的理由：
+1. **「E1 解锁 team-crossplay」是错的**：`stepMatch` 虽然按队给 Policy，但 `act` 是逐 agent 调用 ⇒ 按 slot 分发的包装器就能
+   让 A 当 speaker、B 当 listener，不需要拆 genome。（读 `match.ts` / `policy.ts` 确认，**还没实跑**。）`radio.ts` 的输出已改。
+2. **「同一批权重既要编码又要解码」站不住**：MLP 里「说」是输出层的 comm 行，「听」是第一层的 `mate*.comm*` 列，本来就是不同权重；
+   共享的只是**跨队员**的参数。⇒ 「电台没被用上」的**架构**假说被削弱，剩下 **search** 与 **channel** 两个候选。
+
+**E1 exit 原文不是门**：「analytics 能从行为识别同一队不同 player，而不是只靠 slot id」—— 现在的共享大脑就能过。
+按 ROADMAP §3（发现假设错 ⇒ 收紧，不降低）改成：候选架构要在同一把尺子上**超过共享大脑基线**，并说清超过的是表达还是遗传。
+
+### 下一刀
+
+**D2c：问世界「一条合法的有限电台值多少」**。telepathy 共享的是精确坐标，只是宽松上界；D2 自己写过「有限电台能拿到多少，未知」。
+memdemand 同法：手写 reference bot 只通过真实的 `commSaid → commWire → heardComm` 通道说话和听，扫符号数 / 间隔 / 延迟。
+值钱 ⇒ 进化找不到是 search 问题；不值 ⇒ 通道本身太窄，是 D2 的设计问题，与 E1 无关。
+
+⚠ 限制：nearest centroid + 11–13 个手工特征（低 carrier 只说明**这个**分类器找不到）· 旋转后的 (出生位置, one-hot) 组合是训练中没见过的联合分布 ·
+4 个 run 都在 mapSeed 7 · 只看末代冠军。

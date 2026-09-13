@@ -24,7 +24,8 @@
     "mapprobe": "node scripts/mapprobe.ts",
     "c1exit": "node scripts/c1exit.ts",
     "memdemand": "node scripts/memdemand.ts",
-    "radio": "node scripts/radio.ts"
+    "radio": "node scripts/radio.ts",
+    "identity": "node scripts/identity.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

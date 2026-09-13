@@ -195,5 +195,5 @@ for (const mode of MODES) {
 console.log();
 console.log('off vs normal alone proves only that the input is load-bearing. The claim needs shuffled (and alien)');
 console.log('to come out WORSE than normal: same distribution on the wire, correlation with the situation removed.');
-console.log('⛔ team-crossplay (A\'s speaker with B\'s listener) is not implementable yet — one shared network per');
-console.log('   team means speaker and listener are the same object. It unblocks at V7/E1 (player identity split).');
+console.log('⛔ team-crossplay (A\'s speaker with B\'s listener) is not in this script yet. It needs no genome change:');
+console.log('   Policy.act runs per agent, so a wrapper that dispatches by slot puts A in one body and B in the rest.');
