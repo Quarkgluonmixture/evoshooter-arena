@@ -20,6 +20,9 @@ const trainer = new Trainer(
     ...(args.has('mem') ? { memorySeconds: num('mem', 3) } : {}),
     ...(args.get('mode') === 'capture' ? { roundMode: 'capture' as const } : {}),
     ...(args.has('sites') ? { siteCount: (num('sites', 1) === 2 ? 2 : 1) as 1 | 2 } : {}),
+    ...(args.has('tokens') ? { commTokens: num('tokens', 0) } : {}),
+    ...(args.has('comm-interval') ? { commIntervalTicks: num('comm-interval', 1) } : {}),
+    ...(args.has('comm-delay') ? { commDelayTicks: num('comm-delay', 0) } : {}),
   },
   num('seed', 1),
 );
@@ -31,7 +34,8 @@ const pct = (x: number | null, sight?: number | null) =>
   x === null ? '   -  ' : (x * 100).toFixed(0).padStart(5) + (sight === 0 ? '·' : '%');
 
 console.log(`obs=${trainer.sim.recurrentDim ? `${trainer.shape.inputs - trainer.sim.recurrentDim}+${trainer.sim.recurrentDim}rec` : trainer.shape.inputs} genome=${trainer.pops[0][0].length} pop=${trainer.evo.popSize} map=${trainer.map.boxes.length} boxes ` +
-  `mode=${trainer.sim.roundMode} sites=${trainer.sim.siteCount}${trainer.sim.roundMode === 'capture' ? ' (roles swapped per pairing ⇒ 2x matches)' : ''}`);
+  `mode=${trainer.sim.roundMode} sites=${trainer.sim.siteCount}${trainer.sim.roundMode === 'capture' ? ' (roles swapped per pairing ⇒ 2x matches)' : ''} ` +
+  `radio=${trainer.sim.commTokens ? `${2 * trainer.sim.commTokens + 1}sym/slot every ${trainer.sim.commIntervalTicks}t, ${trainer.sim.commDelayTicks}t delay` : 'continuous float every tick (baseline)'}`);
 console.log('ladder cells marked · are matches where the two champions never saw each other — the win share there measures nothing');
 console.log('gen | bestR  meanR | bestB  meanB | vsG0-R vsG0-B | vs-10R vs-10B | accR  accB | zoneR zoneB | coverR coverB | spreadR spreadB | 1stShot | ms');
 const t0 = Date.now();

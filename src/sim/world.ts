@@ -69,7 +69,10 @@ export interface Agent {
   /** low-passed look intent in the TEAM frame; keeps scanning gradual instead of per-tick jitter */
   lookX: number;
   lookZ: number;
+  /** what I am trying to say this tick, straight off the action */
   comm: Float32Array;
+  /** the quantised symbol currently leaving my radio — only re-decided every `commIntervalTicks` */
+  commSaid: Float32Array;
   dmgRecent: number;
   hitDirX: number;
   hitDirZ: number;
@@ -182,6 +185,12 @@ export class World {
   /** audio[(i * audioSectors + sector) * AUDIO_CLASSES + klass]: loudness this listener currently hears. */
   readonly audio: Float32Array;
   /**
+   * commWire[((i * commDim) + c) * L + age]: what agent i's slot c was transmitting `age` ticks ago, where
+   * L = commDelayTicks + 1. Teammates read the OLDEST entry, so a message takes real time to arrive — and
+   * what a speaker is currently saying is not the same object as what a listener currently hears.
+   */
+  private readonly commWire: Float32Array;
+  /**
    * brain[i*recurrentDim + k]: player i's own recurrent state, carried from last tick (ROADMAP D1).
    * It lives here rather than on the policy on purpose — policies are cached per genome and replayed
    * across matches, so state held on one would make a match depend on which matches ran before it.
@@ -244,6 +253,7 @@ export class World {
     this.contact = [];
     this.audio = new Float32Array(this.n * cfg.audioSectors * AUDIO_CLASSES);
     this.brain = new Float32Array(this.n * cfg.recurrentDim);
+    this.commWire = new Float32Array(this.n * cfg.commDim * (cfg.commDelayTicks + 1));
     this.audioPath = new Float32Array(this.n * this.n);
     this.losPair = new Uint8Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
@@ -307,6 +317,7 @@ export class World {
           lookX: 0,
           lookZ: 1, // both teams start looking at the enemy half (team frame is mirrored)
           comm: new Float32Array(cfg.commDim),
+          commSaid: new Float32Array(cfg.commDim),
           dmgRecent: 0,
           hitDirX: 0,
           hitDirZ: 0,
@@ -745,7 +756,8 @@ export class World {
           // A teammate's body actions are a VISUAL cue, not a HUD field: out of sight, out of mind
           // (SUBSTRATE §6.2 / V11). Position and health stay on the HUD; firing does not.
           o[p++] = m.alive && m.firing && this.canSee(a, m) ? 1 : 0;
-          for (let c = 0; c < cfg.commDim; c++) o[p++] = m.alive ? m.comm[c] : 0;
+          // what he SAID a moment ago, not what he is saying now (D2 transmission delay)
+          for (let c = 0; c < cfg.commDim; c++) o[p++] = m.alive ? this.heardComm(m.id, c) : 0;
         } else {
           for (let c = 0; c < MATE_FEATS_BASE + cfg.commDim; c++) o[p++] = 0;
         }
@@ -854,8 +866,10 @@ export class World {
       if (speed > 0.5) st.moveTicks++;
       if (a.aim) st.aimTicks++;
       for (let c = 0; c < cfg.commDim; c++) {
-        st.commSum[c] += a.comm[c];
-        st.commSq[c] += a.comm[c] * a.comm[c];
+        // the metric describes the RADIO, not the unexpressed urge: with commTokens 0 these are the same
+        // number, so the default config's commActivity is unchanged
+        st.commSum[c] += a.commSaid[c];
+        st.commSq[c] += a.commSaid[c] * a.commSaid[c];
       }
       st.commN++;
     }
@@ -895,6 +909,7 @@ export class World {
       a.aim = act[off + A_AIM] > 0;
       a.firing = act[off + A_FIRE] > 0 && best >= 0;
       for (let c = 0; c < cfg.commDim; c++) a.comm[c] = Math.tanh(act[off + A_COMM0 + c]);
+      this.transmit(a);
 
       // movement intent (team frame -> world)
       let mx = Math.tanh(act[off + A_MOVE_X]);
@@ -1122,6 +1137,39 @@ export class World {
       else if (this.score[BLUE] > this.score[RED] + 1e-9) this.winner = BLUE;
       else this.winner = -1;
     }
+  }
+
+  /**
+   * ROADMAP D2. Decide a symbol at most every `commIntervalTicks`, then push it down the wire. The quantiser
+   * keeps the ACTION space continuous and discretises what comes out, the same way a visual percept is
+   * reported through a quantiser rather than by changing what an eye is: `Math.round(v * tokens) / tokens`
+   * gives `2*tokens+1` symbols, and the dead zone around 0 is what makes silence a choice rather than a
+   * value a player cannot express.
+   */
+  /** Test/probe seam: push this agent's current intent onto the wire without stepping the world. */
+  transmitFor(a: Agent): void { this.transmit(a); }
+
+  private transmit(a: Agent): void {
+    const cfg = this.cfg;
+    const L = cfg.commDelayTicks + 1;
+    const decide = cfg.commIntervalTicks <= 1 || this.tick % cfg.commIntervalTicks === 0;
+    for (let c = 0; c < cfg.commDim; c++) {
+      if (decide) {
+        const v = a.comm[c];
+        a.commSaid[c] = cfg.commTokens > 0
+          ? Math.max(-1, Math.min(1, Math.round(v * cfg.commTokens) / cfg.commTokens))
+          : v;
+      }
+      const base = (a.id * cfg.commDim + c) * L;
+      for (let age = L - 1; age > 0; age--) this.commWire[base + age] = this.commWire[base + age - 1];
+      this.commWire[base] = a.commSaid[c];
+    }
+  }
+
+  /** What agent `i`'s slot `c` sounds like to a listener right now — `commDelayTicks` behind what he is saying. */
+  heardComm(i: number, c: number): number {
+    const L = this.cfg.commDelayTicks + 1;
+    return this.commWire[(i * this.cfg.commDim + c) * L + (L - 1)];
   }
 
   /** Living attackers and defenders standing in site `si`. */

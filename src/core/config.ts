@@ -65,6 +65,18 @@ export interface SimConfig {
   mateSlots: number;
   commDim: number;
   /**
+   * ROADMAP D2 / VISION §7.2. 0 = the shipped baseline: an unbounded float per slot, rewritten every tick,
+   * which is not a radio — it is a second exact-state bus. Above 0 the broadcast is quantised to
+   * `2 * commTokens + 1` symbols per slot (±k/commTokens, plus 0), and 0 means SILENCE, which a player
+   * chooses by keeping the output inside the dead zone. ⛔ No symbol has a preset meaning and none ever will;
+   * what a symbol comes to mean is the thing D2 is trying to observe, not something to encode.
+   */
+  commTokens: number;
+  /** a new message may only be DECIDED every N ticks; between those the last decision keeps transmitting */
+  commIntervalTicks: number;
+  /** teammates hear what was said this many ticks ago */
+  commDelayTicks: number;
+  /**
    * Width of the player's own recurrent state (ROADMAP D1 / SUBSTRATE V6b). 0 = feed-forward brain, the
    * shipped baseline. When > 0 the previous tick's first-hidden-layer activations are fed back in as extra
    * inputs, so the brain can carry belief across ticks instead of the world holding a perfect record for it.
@@ -124,6 +136,9 @@ export const DEFAULT_SIM: SimConfig = {
   enemySlots: 3,
   mateSlots: 4,
   commDim: 2,
+  commTokens: 0,
+  commIntervalTicks: 1,
+  commDelayTicks: 0,
   recurrentDim: 0,
   heatCells: 24,
 };

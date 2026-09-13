@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BRAIN_ONLY_FIELDS, DEFAULT_SIM, DEFAULT_EVO, type SimConfig } from '../src/core/config.ts';
 import { Rng } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
-import { World, obsDim, ACT_DIM, A_LOOK_X, A_LOOK_Z, type Agent } from '../src/sim/world.ts';
+import { World, obsDim, ACT_DIM, A_LOOK_X, A_LOOK_Z, A_COMM0, type Agent } from '../src/sim/world.ts';
 import { obsSchema } from '../src/sim/obsSchema.ts';
 import { randomGenome } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
@@ -474,6 +474,69 @@ describe('capture rounds (ROADMAP C1a)', () => {
     expect(w.score[0]).toBe(0);
     expect(w.score[1]).toBe(0);
     expect(w.done, 'wiping the DEFENDERS does not end the round; the site still has to be taken').toBe(false);
+  });
+});
+
+describe('radio v2 (ROADMAP D2)', () => {
+  /** A policy that says exactly what it is told to, so the channel can be driven from the test. */
+  class Talker implements Policy {
+    private readonly say: (t: number) => number;
+    constructor(say: (t: number) => number) { this.say = say; } // no parameter properties: erasableSyntaxOnly
+    act(world: World, agent: number): void {
+      const off = agent * ACT_DIM;
+      world.act.fill(0, off, off + ACT_DIM);
+      // atanh, so the tanh in the decoder gives back the value we asked for
+      const v = this.say(world.tick);
+      const x = 0.5 * Math.log((1 + v) / (1 - v));
+      for (let c = 0; c < world.cfg.commDim; c++) world.act[off + A_COMM0 + c] = x;
+    }
+  }
+  const drive = (over: Partial<SimConfig>, say: (t: number) => number, ticks: number) => {
+    const c = { ...cfg, ...over };
+    const w = new World(c, generateMap(DEFAULT_EVO.mapSeed, c), 1);
+    const heard: number[] = [];
+    const said: number[] = [];
+    for (let i = 0; i < ticks; i++) {
+      stepMatch(w, new Talker(say), new IdlePolicy());
+      heard.push(w.heardComm(0, 0));
+      said.push(w.agents[0].commSaid[0]);
+    }
+    return { heard, said, w };
+  };
+
+  it('quantises to a finite alphabet, and leaves a dead zone so silence is a choice', () => {
+    const { said } = drive({ commTokens: 2 }, (t) => -0.99 + (t % 40) * 0.05, 40);
+    const alphabet = [...new Set(said.map((v) => Number(v.toFixed(6))))].sort((a, b) => a - b);
+    expect(alphabet).toEqual([-1, -0.5, 0, 0.5, 1]); // 2*tokens+1 symbols
+    const { said: quiet } = drive({ commTokens: 2 }, () => 0.2, 3); // inside the dead zone
+    expect(quiet.every((v) => v === 0), 'a small intent has to be expressible as silence').toBe(true);
+  });
+
+  it('⭐ delivers what was said N ticks ago, and nothing at all before that', () => {
+    // The load-bearing one. An off-by-one here, or a delay that silently does nothing, leaves the channel
+    // looking like a working radio while still being an instant state bus.
+    const D = 3;
+    const { heard, said } = drive({ commTokens: 4, commDelayTicks: D }, (t) => (t === 0 ? 1 : 0.02), 8);
+    expect(said[0]).toBe(1);
+    expect(said[1]).toBe(0); // 0.02 is inside the dead zone
+    for (let i = 0; i < D; i++) expect(heard[i], `tick ${i} should still be silent`).toBe(0);
+    expect(heard[D], 'the tick-0 message lands exactly D ticks later').toBe(1);
+    expect(heard[D + 1]).toBe(0);
+  });
+
+  it('only re-decides every commIntervalTicks, and keeps transmitting in between', () => {
+    const { said } = drive({ commTokens: 4, commIntervalTicks: 5 }, (t) => (t < 5 ? 1 : -1), 10);
+    expect(said.slice(0, 5).every((v) => v === 1)).toBe(true);
+    expect(said[5]).toBe(-1);            // the next decision point
+    expect(said.slice(5, 10).every((v) => v === -1)).toBe(true);
+  });
+
+  it('leaves the default channel exactly as it was', () => {
+    const { heard, said } = drive({}, (t) => (t % 2 === 0 ? 0.37 : -0.81), 6);
+    for (let i = 0; i < 6; i++) {
+      expect(said[i]).toBeCloseTo(i % 2 === 0 ? 0.37 : -0.81, 5); // no quantisation
+      expect(heard[i]).toBe(said[i]);                             // no delay
+    }
   });
 });
 

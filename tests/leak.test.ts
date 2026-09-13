@@ -49,8 +49,17 @@ describe('observation schema', () => {
     expect(fields).toEqual(['mate0.dx', 'mate0.dist']);
   });
 
-  it('binds comm fields to the radio', () => {
-    expect(moved((w) => { w.agents[1].comm[0] = 0.5; })).toEqual(['mate0.comm0']);
+  it('binds comm fields to the radio WIRE, not to what the speaker is currently thinking', () => {
+    // Before D2 the observation read `agent.comm` directly, so setting that field was the whole channel.
+    // Now what a listener hears is the wire — quantised, and `commDelayTicks` behind the speaker — so the
+    // speaker's current intent is deliberately NOT observable. This test moving to `commSaid` + the wire is
+    // the point of the phase, not a workaround: if setting `comm` still moved the observation, the delay and
+    // the quantiser would both be decorative.
+    expect(moved((w) => { w.agents[1].comm[0] = 0.5; }), 'raw intent must not be audible').toEqual([]);
+    expect(moved((w) => {
+      w.agents[1].comm[0] = 0.5;
+      w.transmitFor(w.agents[1]); // what actually leaves the radio
+    })).toEqual(['mate0.comm0']);
   });
 });
 
