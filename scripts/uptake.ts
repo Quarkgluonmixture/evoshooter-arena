@@ -1,7 +1,7 @@
 /**
  * ROADMAP D2, search side — listener uptake: if every speaker were already informative, does evolution learn to LISTEN?
  *
- *   node scripts/uptake.ts train runs/d2-radio-s1.json --seed 1 --out runs/uptake-informed-s1.json [--gens 40]
+ *   node scripts/uptake.ts train runs/d2-radio-s1.json --seed 1 --out runs/uptake-informed-s1.json [--gens 40] [--snap-every 10]
  *   node scripts/uptake.ts eval runs/uptake-informed-s1.json runs/d2-radio-s1.json ... [--n 24]
  *
  * commstep's random one-sided mutations could not resolve a stepping stone either way (GOTCHAS #26 ④), so this uses
@@ -19,7 +19,7 @@
  * (+1 <-> -1: same timing, wrong site) / off. A listener that uses what the
  * call SAYS loses fitness when it is flipped; one that uses only "someone is talking" does not.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { normalizeSim, type EvoConfig, type SimConfig } from '../src/core/config.ts';
 import { hashSeed } from '../src/core/rng.ts';
@@ -88,23 +88,40 @@ if (cmd === 'train') {
   const out = flags.get('out');
   if (!Number.isFinite(seed) || !out) throw new Error('train needs --seed (the control run\'s trainer seed) and --out');
   const gens = num('gens', control.hof[0].length);
-  const trainer = new Trainer(control.evo, sim, seed);
-  // Same genome length ⇒ same initial populations — but only if the seed is right. Prove it: the control run's
-  // gen-0 champion must be one of these genomes, bit for bit (GOTCHAS #27).
-  for (const t of [0, 1] as const) {
-    const g0 = control.hof[t][0].genome;
-    const found = trainer.pops[t].some((g) => g.length === g0.length && g.every((v, i) => v === Math.fround(g0[i])));
-    if (!found) throw new Error(`colour ${t}: the control's gen-0 champion is not in this initial population — wrong --seed?`);
+  const snapEvery = num('snap-every', 10);
+  // A long run on a shared machine can be killed for memory (two 120-gen runs were, at gen 34–36, 2026-09-13), so the
+  // trainer is snapshotted every `snapEvery` generations and a rerun with the same --out resumes from it.
+  // ⚠ `Trainer.snapshot()` re-seeds the RNG, so a snapshotted run is deterministic but not bit-identical to one that
+  // never snapshotted. The pairing that matters here is the INITIAL population, which is asserted before gen 0.
+  const snapPath = `${out}.snap.json`;
+  let trainer: Trainer;
+  if (existsSync(snapPath)) {
+    trainer = Trainer.restore(JSON.parse(readFileSync(snapPath, 'utf8')));
+    console.log(`uptake train — resumed ${snapPath} at gen ${trainer.gen} of ${gens} (initial populations were asserted when it started)`);
+  } else {
+    trainer = new Trainer(control.evo, sim, seed);
+    // Same genome length ⇒ same initial populations — but only if the seed is right. Prove it: the control run's
+    // gen-0 champion must be one of these genomes, bit for bit (GOTCHAS #27).
+    for (const t of [0, 1] as const) {
+      const g0 = control.hof[t][0].genome;
+      const found = trainer.pops[t].some((g) => g.length === g0.length && g.every((v, i) => v === Math.fround(g0[i])));
+      if (!found) throw new Error(`colour ${t}: the control's gen-0 champion is not in this initial population — wrong --seed?`);
+    }
+    console.log(`uptake train — control ${basename(files[0])}, seed ${seed}, ${gens} gens, pop ${trainer.evo.popSize}; initial populations match the control ✓`);
   }
-  console.log(`uptake train — control ${basename(files[0])}, seed ${seed}, ${gens} gens, pop ${trainer.evo.popSize}; initial populations match the control ✓`);
   console.log(`scaffold: ${SCAFFOLD}`);
   console.log('gen |  bestR   meanR |  bestB   meanB | objR  objB | 1stShot | ms');
   const ev = new InformedEvaluator(trainer);
-  for (let g = 0; g < gens; g++) {
+  while (trainer.gen < gens) {
     const r = await trainer.runGeneration(ev);
     const [R, B] = r.teams;
     console.log(`${String(r.gen).padStart(3)} | ${f3(R.best)} ${f3(R.mean)} | ${f3(B.best)} ${f3(B.mean)} | ` +
       `${R.popMetrics.objectiveProgress.toFixed(2)}  ${B.popMetrics.objectiveProgress.toFixed(2)} | ${R.popMetrics.firstContact.toFixed(1).padStart(7)} | ${r.elapsedMs}`);
+    if (snapEvery > 0 && trainer.gen % snapEvery === 0 && trainer.gen < gens) {
+      writeFileSync(snapPath, JSON.stringify(trainer.snapshot()));
+      // RSS next to every snapshot: if a run dies for memory again, this says whether the process itself was growing
+      console.log(`    snapshot at gen ${trainer.gen} · rss ${(process.memoryUsage().rss / 1048576).toFixed(0)} MB`);
+    }
   }
   writeFileSync(out, JSON.stringify({
     scaffold: SCAFFOLD,
@@ -114,6 +131,7 @@ if (cmd === 'train') {
     sim: trainer.sim,
     hof: trainer.hof.map((h) => h.map((e) => ({ gen: e.gen, fitness: e.fitness, genome: Array.from(e.genome) }))),
   }));
+  if (existsSync(snapPath)) unlinkSync(snapPath);
   console.log(`saved ${out}`);
 } else {
   const N = num('n', 24);
