@@ -1055,3 +1055,27 @@ D 与 C′ **共享同一批初始种群**（长度相同 ⇒ 同一条 rng 抽�
 seed 1 四项全面变好（kills 1.98 → 2.87、首枪 9.3 → 6.7 s），seed 2 涨跌互见（accuracy .260 → **.343**，kills 3.14 → 2.95）。
 ⇒ **光是把输入重新排个序，就能在 2 个 seed 上制造出和「真效应」同量级的差**。
 ⛔ 以后任何 2-seed 的行为侧 A/B，效应量都不可信，只能读方向 —— 这是本仓第一次把这条量出来。
+
+## [2026-09-13 03:40] C2 收尾：尸体的沉默上了探针，kill feed 的边界钉死  #ship #decision
+
+C2 Build 清单剩下的三条，逐条落地：
+
+**「死亡玩家不得继续给活人 radio truth」—— 实现本来就对，但没人守着。** 上探针 `A1-P26`：
+同时动**三条**通道（comm 总线、脚步音频、队友开火 cue），断言**一个字段都不动**。
+⭐ 正向护栏：同样的改动在**活着**的队友身上会动 `mate0.hp / firing / comm0 / comm1 / audio0.footstep`
+⇒ 尸体的沉默是真的，不是「三条通道都死了」的空过。
+（为什么本来就对：`hear()` 的配对循环两端都跳过死人 ⇒ 尸体不出声；comm/hp 在 V11 已清零；位置在 `A1-P24` 关闭。）
+
+**kill feed 的边界。** `world.events` 带精确坐标与身份，它有两个合法消费者：观战器（它是**观察者不是玩家**，
+可以看见一切）和 `hear()`（把开火变成枪声 —— 那是**物理**不是 feed）。
+⇒ 在类型上标成 **SPECTATOR CHANNEL**，⛔ 任何 policy 都不得读。
+**玩家真正拿到的 kill feed 就是人数通道**（`self.aliveMine` / `self.aliveEnemy` / `mate*.alive`）
+加上他听见的东西 —— 全都不含「在哪」。⇒ C2 那条「kill feed without death coordinate」满足了。
+
+**explicit round lifecycle：判定为已足够，真正缺的那半属于 E2。** `t` / `timeLeft` / `done` / `winner` /
+armed 状态已经把回合状态完整表达出来了；还缺的是 **freeze-time / opening prior**，
+而那是 E2（Team DNA / opening prior）的活 ⛔ 不在 C2 里做。
+观战器那个滚动 kill feed **UI** 仍留在 `TODO.md` —— 它是可视化，不是世界规则。
+
+⇒ **C2 的世界规则部分收齐**：26 条 probe（新增 P24/P25/P26 三条），88 测试，观测普查回到
+**100 字段 / 97 legal / 3 truth-form / 0 hidden**。

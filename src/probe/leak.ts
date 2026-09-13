@@ -814,6 +814,52 @@ export const LEAK_PROBES: LeakProbe[] = [
     },
   },
   {
+    id: 'A1-P26',
+    kind: 'counterfactual',
+    test: 'T2',
+    title: 'a corpse keeps talking, walking or shooting',
+    expect: 'clean',
+    run: (cfg) => {
+      // ROADMAP C2: "dead players / spectators must not keep handing the living radio truth." Three channels
+      // a corpse could still leak through — the comm bus, footstep audio, and the teammate firing cue — so
+      // move all of them at once and require silence on all of them.
+      const loudenAndTalk = (w: World, id: number) => {
+        const a = w.agents[id];
+        a.vx = 5;
+        a.vz = 5;
+        a.firing = true;
+        a.hp = 99;
+        for (let c = 0; c < cfg.commDim; c++) a.comm[c] = c % 2 === 0 ? 1 : -1;
+      };
+      const dead = counterfactual(cfg, {
+        setup: (w) => {
+          standObserver(w);
+          place(w, MATE, 0, -6, Math.PI / 2); // 4 m away, in plain sight, well inside earshot
+          w.agents[MATE].alive = false;
+          w.aliveCount[0]--;
+          for (let m = 2; m < cfg.teamSize; m++) place(w, m, -28 - m, -28, 0);
+        },
+        mutate: (w) => loudenAndTalk(w, MATE),
+      });
+      const names = dead.changed.map((f) => f.name);
+      if (names.length > 0) return { status: 'leak', fields: names, detail: `a corpse moved [${names.join(', ')}]` };
+      // Positive guardrail: the same mutations on a LIVING teammate have to be heard, or this is clean
+      // because all three channels are dead rather than because the corpse is (GOTCHAS #11).
+      const live = counterfactual(cfg, {
+        setup: (w) => {
+          standObserver(w);
+          place(w, MATE, 0, -6, Math.PI / 2);
+          for (let m = 2; m < cfg.teamSize; m++) place(w, m, -28 - m, -28, 0);
+        },
+        mutate: (w) => loudenAndTalk(w, MATE),
+      });
+      const liveNames = live.changed.map((f) => f.name);
+      return liveNames.length > 0
+        ? { status: 'clean', fields: [], detail: `a corpse is silent, while the same mutations on a living teammate move [${liveNames.join(', ')}]` }
+        : { status: 'leak', fields: [], detail: 'comm, audio and the firing cue are all dead for the living too — this probe is measuring nothing' };
+    },
+  },
+  {
     id: 'A1-P25',
     kind: 'counterfactual',
     test: 'T2',

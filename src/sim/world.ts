@@ -93,6 +93,17 @@ export interface ShotEvent {
   x1: number; y1: number; z1: number;
 }
 export interface KillEvent { kind: 'kill'; victim: number; killer: number; x: number; z: number }
+
+/**
+ * ⚠ SPECTATOR CHANNEL. These carry exact coordinates and identities, and they exist for two consumers: the
+ * viewer (which is an observer, not a player, and is allowed to see everything) and `hear()`, which turns a
+ * shot into gunshot audio — that is physics, not a feed.
+ *
+ * ⛔ No policy may read `world.events`. ROADMAP C2 requires the player-facing kill feed to carry no death
+ * coordinate, and the feed players actually get is the alive-count channel (`self.aliveMine`,
+ * `self.aliveEnemy`, `mate*.alive`) plus whatever they heard — none of which says where. A corpse reports
+ * that it is dead and nothing else (`A1-P24`, `A1-P26`).
+ */
 export type WorldEvent = ShotEvent | KillEvent;
 
 /** Raw per-team accumulators; turned into human metrics by match.ts. */

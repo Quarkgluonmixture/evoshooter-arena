@@ -466,8 +466,17 @@ scripted/reference agents 能证明：
   `World` 构造时断言 `map.sites.length === cfg.siteCount`（观测布局从 cfg 推出，不一致会静默错位）。
 - ⭐ **顺带量到的噪声上界**：两臂共享同一批初始种群、只把 100 个同内容字段**重排顺序**，
   就能在 2 个 seed 上造出和「真效应」同量级的差 ⇒ ⛔ 2-seed 的行为侧 A/B 只读方向，不读效应量。
-- ⬜ **还没做**：explicit round lifecycle · kill feed 作为**可被观战消费的公开事件源** ·
-  「死亡玩家/spectator 不得继续给活人 radio truth」的规则化（⚠ comm/hp 已对死人清零，但这条还没有探针守）。
+- ✅ **「死亡玩家不得继续给活人 radio truth」已规则化并上探针**：`A1-P26` 同时动**三条**通道
+  （comm 总线、脚步音频、队友开火 cue）再断言**一个字段都不动**；正向护栏确认同样的改动在**活着**的队友身上
+  会动 `mate0.hp / firing / comm0 / comm1 / audio0.footstep` ⇒ 尸体的沉默是真的不是空过。
+  （实现层本来就对：`hear()` 的配对循环跳过死人，所以尸体不出声；comm/hp 在 V11 已清零；位置在 `A1-P24` 关闭。）
+- ✅ **kill feed 的边界已钉死**：`world.events` 标注为 **SPECTATOR CHANNEL**（带精确坐标与身份，
+  只给观战器和 `hear()` 的枪声物理用），⛔ **任何 policy 都不得读它**。
+  **玩家真正拿到的 kill feed 就是人数通道**（`self.aliveMine` / `self.aliveEnemy` / `mate*.alive`）
+  加上他听见的东西 —— 全都不含「在哪」。
+- ⬜ **剩下的**：explicit round lifecycle 目前已由 `t` / `timeLeft` / `done` / `winner` / armed 状态隐式表达，
+  真正缺的是 **freeze-time / opening prior**，而那是 **E2** 的活，⛔ 不在 C2 里做。
+  观战器那个滚动 kill feed UI 仍在 `TODO.md`（可视化，不是世界规则）。
 
 ### Build
 
