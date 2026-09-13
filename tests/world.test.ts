@@ -375,6 +375,62 @@ describe('capture rounds (ROADMAP C1a)', () => {
     expect(w.winner).toBe(0);
   });
 
+  it('⭐ reports the sites in each team\'s OWN frame, so the same genome plays the same game in either colour', () => {
+    // This is GOTCHAS #17 again, one channel later. The objective block was emitted in world site order, so
+    // red's obj0 was the site on its right and blue's obj0 was the site on its LEFT. A mirror test that runs
+    // with one site cannot see that, and the consequence is not subtle: the same genome, mirrored, captured
+    // a site as blue and never entered one as red — a permanent red/blue species difference (VISION §11.2)
+    // arriving through the observation rather than through the schedule.
+    const two = { ...ccfg, siteCount: 2 as const };
+    const map2 = generateMap(DEFAULT_EVO.mapSeed, two);
+    const w = new World(two, map2, 3, { attackers: 0 });
+    const [A] = map2.sites;
+    for (let i = 0; i < T; i++) {
+      // red near site A; blue at the exact 180° rotation of each red body, so the two rows must agree
+      const x = A.x - 2 + i * 0.8;
+      const z = A.z + 1 - i * 0.4;
+      Object.assign(w.agents[i], { x, z, yaw: Math.PI / 2, vx: 1 + i, vz: 2 });
+      Object.assign(w.agents[T + i], { x: -x, z: -z, yaw: -Math.PI / 2, vx: -(1 + i), vz: -2 });
+    }
+    w.t = 2.5;
+    w.observe();
+    w.observe();
+    const dim = w.obsDim;
+    const fields = obsSchema(two);
+    // the channel has to be exercised, or this passes on a row of zeros
+    const selfIn = fields.find((f) => f.name === 'obj0.selfIn')!.index;
+    expect(w.obs[selfIn], 'red slot 0 should be standing in its own obj0').toBe(1);
+    for (let s = 0; s < T; s++) {
+      const red = w.obs.slice(s * dim, (s + 1) * dim);
+      const blue = w.obs.slice((T + s) * dim, (T + s + 1) * dim);
+      for (let k = 0; k < dim; k++) {
+        expect(Math.abs(red[k] - blue[k]), `slot ${s} field ${fields[k].name}`).toBeLessThan(1e-6);
+      }
+    }
+  });
+
+  it('gives neither colour an edge at attacking (mirror match, both role assignments)', () => {
+    // The koth fairness test has a mirror-match band; capture needs its own, because "which colour attacks"
+    // is a second axis it could go wrong on.
+    const two = { ...cfg, roundMode: 'capture' as const, siteCount: 2 as const };
+    const map2 = generateMap(DEFAULT_EVO.mapSeed, two);
+    const shape2 = shapeFor(two, DEFAULT_EVO.hidden);
+    const rng = new Rng(4);
+    const wins = [0, 0];
+    const total = [0, 0];
+    for (let k = 0; k < 3; k++) {
+      const g = randomGenome(shape2, rng);
+      for (const attackers of [0, 1] as const) {
+        for (let m = 0; m < 4; m++) {
+          const r = runMatch(new NeuralPolicy(shape2, g), new NeuralPolicy(shape2, g), map2, 500 + m, two, { attackers });
+          total[attackers]++;
+          if (r.winner === attackers) wins[attackers]++;
+        }
+      }
+    }
+    expect(Math.abs(wins[0] / total[0] - wins[1] / total[1]), `${wins[0]}/${total[0]} vs ${wins[1]}/${total[1]}`).toBeLessThan(0.25);
+  });
+
   it('⭐ cannot be defended everywhere: holding one site does not stop a capture at the other', () => {
     // The entire reason two sites is a different game. Defenders sit on A in force; attackers walk onto B.
     const two = { ...ccfg, siteCount: 2 as const };

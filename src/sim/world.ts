@@ -201,6 +201,17 @@ export class World {
   readonly attackers: Team;
 /** capture meter per site, 0..1. Fills while attackers hold that site alone, decays when none are in it. */
   readonly capture: number[];
+  /**
+   * siteOrder[team][s] = world site index reported in that team's observation slot `s`.
+   *
+   * The objective block MUST be ordered in the team's own frame. Emitting sites in world index order makes
+   * red's `obj0` the site on its right and blue's `obj0` the site on its left, so the same genome behaves
+   * differently depending on its colour — a permanent red/blue species difference arriving through the
+   * observation (VISION §11.2), and invisible to a mirror test that only runs with one site.
+   * Sorting by team-frame x (then z) is position-based, so it holds for any layout rather than assuming the
+   * two sites are each other's mirror.
+   */
+  private readonly siteOrder: [number[], number[]];
   /** index of the armed site, or -1. Only one can ever be armed: there is one bomb, not one per site. */
   armedSite = -1;
   /** seconds left on the countdown once armed. */
@@ -243,6 +254,13 @@ export class World {
     this.attackers = opts.attackers ?? RED;
     this.armedT = cfg.armedSeconds;
     this.capture = map.sites.map(() => 0);
+    this.siteOrder = [0, 1].map((team) => {
+      const sg = team === RED ? 1 : -1;
+      return map.sites
+        .map((s, i) => ({ i, x: sg * s.x, z: sg * s.z }))
+        .sort((a, b) => b.x - a.x || b.z - a.z)
+        .map((e) => e.i);
+    }) as [number[], number[]];
     this.cosHalfFov = Math.cos((cfg.fovDeg * Math.PI) / 360);
     this.halfFov = (cfg.fovDeg * Math.PI) / 360;
     this.cosAimCone = Math.cos((cfg.aimConeDeg * Math.PI) / 180);
@@ -674,7 +692,8 @@ export class World {
       for (let s = 0; s < T; s++) o[p++] = s === a.slot ? 1 : 0;
 
       // --- objective HUD, one block per site, then the round-wide public state (ROADMAP C2)
-      for (let si = 0; si < cfg.siteCount; si++) {
+      for (let slot = 0; slot < cfg.siteCount; slot++) {
+        const si = this.siteOrder[team][slot];
         const s = this.map.sites[si];
         const dx = s.x - a.x;
         const dz = s.z - a.z;
