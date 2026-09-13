@@ -11,36 +11,23 @@
 
 ## Current cursor（2026-09-13）
 
-**C1/C2 世界学得动**（baseline：首枪 33 s → 7–8 s、accuracy .08 → .29、
-⭐ objectiveProgress .08 → **.23/.35**，旧 KOTH 四十代钉在 .01–.04）。
+⭐⭐ **下一刀 = E1（player identity split）/ V7「一个脑子穿五个身体」。**
 
-**D1 已在新世界重开并收掉（2026-09-13，两个预测都错，结论更干净）**：
-① world 的 3 秒记忆在这个世界**本来就不承重**（A/B 初始种群相同，拿掉它 objectiveProgress 反而略升）；
-② recurrent state **仍然是学出来的常数**（`recprobe` 的 alien 档 var=0.000 与 live 打平且多数更好）；
-③ ⭐⭐ `npm run memdemand` 直接问世界：记忆价值 **~2 s 达峰 24%**，而**完全不追、只守点位的参照拿 38%** ——
-**追击本身就是错的**。⇒ **需求侧限制，不是搜索侧**；D1 ⛔ 不再算本世界背着的债。
-⚠ 窄结论：只测了**追击式**记忆。「记住敌人承诺了哪个点位 / 队友死在哪侧 / 他在换弹」都没测。
-
-**D2 也走完了（2026-09-13）**：通道改造完（`commTokens` / `commIntervalTicks` / `commDelayTicks`，默认全关）、
-分析工具做完（`npm run radio`）、**两种电台下都测不到任何意义**（符号熵 ≈2.07/2.32、MI **0–1%**、
-静默率 ≈均匀；有限电台下 `off` 的 objective 还**高于** `normal`）。
-
-⭐⭐ **但这次和 D1 不同：世界确实为通信付大钱。** `npm run memdemand` 的 telepathy 档
-（瞬间免费共享队友视野 = 任何电台的上界）把守方胜率 **13% → 42%**（+29pp），
-telepathy + 记忆 **47%** 是唯一打得过「不追」参照（38%）的配置，并把 armed 率 76–88% 压到 **58%**。
-⚠ telepathy 共享**精确坐标**，是宽松上界 ⇒ 说法是「共享接触信息最多值 29pp，有限电台能拿到多少未知」。
+理由是 D 程序留下的一张表（两条都是**先问世界、再问进化**问出来的，方法在 `npm run memdemand`）：
 
 | | 世界付的钱 | 进化用了吗 | 堵在哪 |
 |---|---|---|---|
-| 记忆（追击用法） | 小，且**不如不追** | 没用 | **需求侧** ⇒ D1 不再算债 |
-| **通信**（共享接触） | **大（+29pp）** | 没用 | **不是需求侧** |
+| 记忆（**追击**用法） | 小（~2 s 峰 24%），且**不如「不追」参照的 38%** | 没用（当常数偏置） | **需求侧** ⇒ D1 ⛔ 不再算债 |
+| **通信**（共享接触） | **大：13% → 42%（+29pp）**，armed 率 76–88% → **58%** | 没用（满熵噪声、MI 0–1%） | **不是需求侧** |
 
-⭐⭐ **下一刀 = E1（player identity split）/ V7「一个脑子穿五个身体」。** 理由：一队共享一个网络 ⇒
-同一批权重既要学「说的时候怎么编码」又要学「听的时候怎么解码」，且没有个体身份可分化；
-E1 同时解锁 D2 还缺的 **team-crossplay** 分析（speaker 与 listener 现在是同一个对象）。
-⛔ 不要再调电台参数或加训练预算去救 D2；⛔ 也不要为救 D1 改世界（要改得先有「记忆回报 > 站位回报」的理由）。
+⇒ 一队共享一个网络 ⇒ 同一批权重既要学「说的时候怎么编码」又要学「听的时候怎么解码」，
+且没有个体身份可分化。**E1 同时解锁 D2 还欠的 team-crossplay**（speaker 与 listener 现在是同一个对象）。
+⛔ 不要再调电台参数或加训练预算救 D2；⛔ 也不要为救 D1 改世界（要改先有「记忆回报 > 站位回报」的理由）。
+⚠ 两条结论都窄：记忆只测了**追击**用法；telepathy 共享**精确坐标**是宽松上界。
+全文与数字在 `docs/ROADMAP.md` 的 D1 / D2 节，经过在 `LOG.md`。
 
-**还欠的小活**（不挡主线，在 `TODO.md`）：kill feed UI · 双点位的 HUD/观战渲染（现在只画 site 0）。
+**C1/C2 世界学得动**（baseline：首枪 33 s → 7–8 s、accuracy .08 → .29、
+⭐ objectiveProgress .08 → **.23/.35**，旧 KOTH 四十代钉在 .01–.04）。
 
 **已关闭**：A0–A4 · V11/V12 · V6a · **D1（实现 ship、默认不翻、行为 exit 未过）** ·
 **C1a/C1b/C1c（C1 CLOSED，exit 3/3）** · **C2 的世界规则部分**。细节在 `docs/ROADMAP.md`，经过在 `LOG.md`。
@@ -48,7 +35,8 @@ E1 同时解锁 D2 还缺的 **team-crossplay** 分析（speaker 与 listener �
 **默认值仍是旧世界**：`roundMode: 'koth'` · `siteCount: 1` · `recurrentDim: 0` · `memorySeconds: 3`。
 ⇒ 浏览器和 `npm run dev` 看到的还是单点位 KOTH。⛔ 翻默认是一次单独的决定，不要搭车。
 
-## 六件仪器（强弱 / 信息 / 继承 / 拓扑，各管一段）
+## 八件仪器（强弱 / 信息 / 继承 / 拓扑 / 需求，各管一段）
+⭐ **两件最新的回答的是「世界付不付钱」** —— 先问世界，再问进化找不找得到。这是 C1 立下的方法。
 | 命令 | 回答什么 | ⛔ 别拿它干什么 |
 |---|---|---|
 | `npm run leaks [--mem N --rec N]` | 当期信息泄漏矩阵，**不一致返回非零**（是闸不是报告） | variant 配置下是诊断、不失败构建 |
@@ -58,6 +46,8 @@ E1 同时解锁 D2 还缺的 **team-crossplay** 分析（speaker 与 listener �
 | `npm run recprobe` | 消融要配 **in-distribution 对照**（live/wiped/frozen/alien） | ⛔ 只跑「有/无」两档会读反（坑 #24） |
 | `npm run mapprobe [--sites 2] [--self-test]` | 地图拓扑（可行通路 / 通路数 / choke / 出生点视线）；`--self-test` 在 CI | ⛔ 给对称性背书前先过 self-test（坑 #25） |
 | `npm run c1exit` | C1 exit 的四问，reference bot 向**世界**提问 | ⛔ 读到 FAIL 先证明工具到达了断言（坑 #26） |
+| `npm run memdemand` | ⭐ **世界为记忆 / 通信付多少钱**（扫 reference bot 的记忆档 + telepathy 上界） | ⛔ 别把 telepathy 当合法策略，它只是上界 |
+| `npm run radio` | 电台上有什么：符号熵 / 静默率 / MI + `off`/`shuffled`/`alien` 三档消融 | ⛔ 高 MI 只是相关；语言 claim 要三层证据（VISION §7.4） |
 
 ## ⚠ 动手前必扫的几条（正文在 `GOTCHAS.md`）
 - ⓪ **内部指标全绿 ≠ 打得过外面**（#23）· ladder 的 50%/100% 可能是**没发生的比赛**（#20）·
@@ -98,6 +88,7 @@ E1 同时解锁 D2 还缺的 **team-crossplay** 分析（speaker 与 listener �
 否则 kit 的 `gotchas-contract` hook 会解析出 0 条（**静默失守**，本仓被它哑了整整一晚）。
 
 ## 链接
-LOG 接手 `tail -n 150 LOG.md`（检索 `grep -n '^## ' LOG.md LOG-archive/*.md`）。
+LOG 接手 `tail -n 150 LOG.md`（live 从 2026-09-13 00:25 起 = C1 关闭之后；
+检索 **live + 全部归档**：`grep -n '^## ' LOG.md LOG-archive/*.md`）。
 `docs/VISION.md` · `docs/SUBSTRATE.md` · `docs/ROADMAP.md` · 三份专门合同（E5/E6/E7/G2–G4 时才读，清单在 `CLAUDE.md`）
 · `README.md` · `GOTCHAS.md` · `TODO.md` · `LOG.md` · `src/core/config.ts` · `scripts/train.ts`
