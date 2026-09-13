@@ -1142,3 +1142,18 @@ armed 状态已经把回合状态完整表达出来了；还缺的是 **freeze-t
 两文件版本把前两个位置参数解构出来、默默忽略其余，所以 `--last 5` 一直被当成第三个文件而没人发现；
 改成接 N 个文件之后它立刻去开一个叫 `5` 的 run。
 ⭐ 这是「旧代码靠**忽略**多余输入而不是靠**解析正确**撑着」的典型 —— 扩展它的那一刻账就来了。
+
+## [2026-09-13 04:15] CHECKPOINT 轮转：191 行 → 79 行  #decision
+
+这一晚 CHECKPOINT 从 A0 一路被追加到 191 行，里头有两天前的「现状（截至 2026-09-11 晚）」、
+一整节已经被 C1 解决掉的「目标压力已归零」、以及一节基本是 VISION §14 / CLAUDE.md 的手抄副本。
+按 checkpoint 纪律（硬上限 1–2 页，live 内容变 stale 就挤进 LOG）重写成 79 行：
+
+- 删掉所有已入档的现场（都在 LOG 里了），「新 docs 先读」那节压成一句指向 `CLAUDE.md`（那边本来就有接手顺序）。
+- 「工作纪律摘要」原有 13 条里有 9 条是 VISION/合同的复述 ⇒ 只留 4 条 checkpoint 级的，其余指过去。
+  ⭐ 新增一条过去没写下的：`src/sim/nav.ts` / `src/brain/scripted.ts` / `world.events` 三者都是
+  reference/analysis/spectator 专用，⛔ evolving policy 一个都不许碰。
+- ⭐ 新增**六件仪器一张表**（leaks / crossplay / yardstick / inherit / recprobe / mapprobe / c1exit），
+  每行写「回答什么」和「⛔ 别拿它干什么」—— 这一晚新增的五件工具之前散在五条 LOG 里，接手的人找不到。
+- 「⚠ 动手前必扫」按**失败族**重排成五行，每行挂对应坑号，而不是按时间顺序堆。
+- Ops 速查补一条实测：**macOS runner 排队可能十几分钟**，⛔ 别把「还没跑」当成失败（今晚踩过，一个 monitor 白等十分钟）。
