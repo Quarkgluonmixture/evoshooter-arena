@@ -11,17 +11,17 @@
 
 ## Current cursor（2026-09-13）
 
-⭐⭐ **进行中 = Phase D2s（radio search efficiency）的 Probe 0：先修 radiouse 的尺子**（计划在 `docs/ROADMAP.md` Phase D2s，cursor 以 §4 为准）。
+⭐⭐ **进行中 = Phase D2s（radio search efficiency）：尺子已修完，Probe 1 待冻结**（计划与进度在 `docs/ROADMAP.md` Phase D2s，cursor 以 §4 为准）。
+⭐ 内容读数 = `radiouse` 的 `replay`（另一场同一 tick 的整队电台）；`speaker` 会把节奏 / 同步 / 时钟读成内容（坑 #31），D2b 的「更正」已撤回。
 由来：D2 选项 1（只加预算，300 代 × 2 seed）读完 —— 依赖真实电台的冠军出现过三次、一次也没在血统里留住，发送端无内容 ⇒ 按用户认可的顺序开搜索效率 phase。
 ⚠ 本机会以内存不足杀长任务：`train.ts` / `uptake train` 带 `--snap-every` 时，同一条命令重跑即续上。
-⚠ `npm run radiouse` 的对照门槛 P3'' 没过（D2s Probe 0 就是修它）；它顺带更正了 D2b 接收端结论的一半（对照冠军**确实**依赖自己的电台）。
 
 D 程序留下的表（**先问世界、再问进化**，方法 `npm run memdemand`）：
 
 | | 世界付的钱 | 进化用了吗 | 堵在哪 |
 |---|---|---|---|
 | 记忆（**追击**用法） | 小（~2 s 峰 24%），且**不如「不追」参照的 38%** | 没用（当常数偏置） | **需求侧** ⇒ D1 ⛔ 不再算债 |
-| **通信**（共享接触） | **大：13% → 42%（+29pp）**，armed 率 76–88% → **58%** | 发送端无内容（按冠军拆开最高 4–9%，唯一的 9% 按比赛阶段条件化后 0.9%）；接收端时有依赖、留不住 | **不是需求侧** |
+| **通信**（共享接触） | **大：13% → 42%（+29pp）**，armed 率 76–88% → **58%** | 发送端无内容（按冠军拆开最高 4–9%，唯一的 9% 按比赛阶段条件化后 0.9%）；接收端：电台是承重输入，但对照组用的是它的形状（节奏 / 同步 / 时钟）不是本场内容（replay 读数） | **不是需求侧** |
 
 原计划是 E1（「一个脑子穿五个身体 ⇒ 电台学不会」）。**E1 的 probe-first 把这个前提推翻了**（`npm run identity`）：
 slot one-hot 本身就是每人一条 40 维的第一层 bias，而且进化用上了 —— carrier 身份 36–66%（去掉电台特征 31–55%），
@@ -57,7 +57,7 @@ chance 20%，16/16 格。说与听在 MLP 里本来就是不同权重；team-cro
 | `npm run radiodemand` | 一条**合法**有限电台值多少（手写一符号报点走真实量化 / 间隔 / 延迟，对照 telepathy 上界；静音行必须与私有视野逐场相同，否则脚本报错） | ⛔ 只是协议空间里的一个点：低分只约束这个协议 |
 | `npm run commstep` | 只突变「说」/「听」权重（配同尺寸对照），看单边台阶存不存在 | ⛔ 实测分辨率不够：六类在同一冠军内同起同落（坑 #26 ④），别拿它判「学不会」 |
 | `npm run uptake -- train/eval` | 说话者完美（注入报点）时进化学不学得会听：normal / flipped / off，对手取同臂所有 run | ⛔ 脚手架 run 带 `scaffold` 字段：不得当种群来源，不得和正常 run 进同一张 crossplay |
-| `npm run radiouse -- <runs> --gens a,b` | 被测队**自己的**电台依赖：normal / speaker（同说话者换时刻）/ frozen（常数码）/ shuffled / off，只动被测队 | ⛔ 对照门槛 P3'' 未过；comm0 / comm1 仍各自抽（坑 #29、TODO） |
+| `npm run radiouse -- <runs> --gens a,b` | 被测队**自己的**电台依赖，只动被测队：⭐ `replay`（另一场同一 tick 的整队电台 = 内容读数）+ speaker / frozen / shuffled / off，每种带换种子的噪声底 | ⛔ 别拿 Δspeaker 当内容（坑 #31）；单冠军「依赖」要 \|Δ\| > 2 × 自己的噪声底 |
 
 ## ⚠ 动手前必扫的几条（正文在 `GOTCHAS.md`）
 - ⓪ **内部指标全绿 ≠ 打得过外面**（#23）· ladder 的 50%/100% 可能是**没发生的比赛**（#20）·

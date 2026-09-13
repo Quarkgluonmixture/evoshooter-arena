@@ -12,9 +12,6 @@
       V4 那种「target-slot 不再驱动转身」可能一个数字都不动 ⇒ 工具照跑，把「依赖自动瞄准的冠军打没有自动瞄准的」
       报成强弱差。⇒ **动 V4 之前先定死它的 A/B 怎么做**。已写进 `scripts/crossplay.ts` 头部的 KNOWN LIMIT。
 - [ ] **exploitability 探针**：只针对当前冠军训练一个挑战者去打它（SUBSTRATE §10.4 五项里唯一还没工具的）。
-- [ ] `scripts/radiouse.ts` 的 `speaker` / `shuffled` 对 comm0 与 comm1 **各自独立**抽替换值 ⇒ 说话者两个通道的联合编码被打散
-      （坑 #29 闸的未覆盖处）。改成按（说话者，时刻）抽**成对**的值，再在 d2-radio 第 39 代对照上重看 P3''。
-      （`radio.ts` 固定步长取池的老问题已被 radiouse 取代：它的接收端一半不再是权威。）
 - [ ] `objectiveProgress` 在角色互换后是攻/守**两种量的混合**（已写进 `TeamMetrics` 注释）。
       要按角色分别看的话得拆成两个指标，各带自己的分母。
 
