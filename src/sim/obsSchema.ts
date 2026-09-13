@@ -13,7 +13,7 @@
  *   hidden      the observer cannot legally know it at all — A2/A3 must remove the channel.
  */
 import type { SimConfig } from '../core/config.ts';
-import { SELF_BASE, MATE_FEATS_BASE, ENEMY_FEATS, OBJ_FEATS, OBJ_GLOBAL, AUDIO_CLASSES, obsDim } from './world.ts';
+import { SELF_BASE, MATE_FEATS_BASE, ENEMY_FEATS, OBJ_FEATS_BASE, objFeats, objGlobal, AUDIO_CLASSES, obsDim } from './world.ts';
 
 export type Channel = 'self' | 'objective' | 'geometry' | 'teammate' | 'comm' | 'enemy' | 'audio';
 export type Legality = 'legal' | 'truth-form' | 'hidden';
@@ -62,11 +62,15 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`obj${s}.dist`, 'objective', 'legal');
     push(`obj${s}.selfIn`, 'objective', 'legal', undefined, 'proprioception: I can tell whether I am standing in it');
     push(`obj${s}.mineIn`, 'objective', 'legal', undefined, 'derived from the teammate position HUD');
-    push(`obj${s}.armed`, 'objective', 'legal', undefined,
-      'public round state: a plant is announced and audible. How far an UNFINISHED capture has got is not here');
+    if (cfg.roundMode === 'capture') {
+      push(`obj${s}.armed`, 'objective', 'legal', undefined,
+        'public round state: a plant is announced and audible. How far an UNFINISHED capture has got is not here');
+    }
   }
-  push('obj.countdown', 'objective', 'legal', undefined, 'public round timer on the armed site, 0 when nothing is armed');
-  push('obj.defuse', 'objective', 'legal', undefined, 'public defuse progress on the armed site');
+  if (cfg.roundMode === 'capture') {
+    push('obj.countdown', 'objective', 'legal', undefined, 'public round timer on the armed site, 0 when nothing is armed');
+    push('obj.defuse', 'objective', 'legal', undefined, 'public defuse progress on the armed site');
+  }
 
   // --- geometry sensing
   for (let k = 0; k < cfg.lidarRays; k++) {
@@ -111,7 +115,9 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
   if (f.length !== expected) {
     throw new Error(`obsSchema drift: schema has ${f.length} fields, world.obsDim is ${expected}`);
   }
-  if (SELF_BASE !== 19 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6 || OBJ_FEATS !== 6 || OBJ_GLOBAL !== 2 || AUDIO_CLASSES !== 2) {
+  if (SELF_BASE !== 19 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6 || OBJ_FEATS_BASE !== 5
+    || objFeats(cfg) !== OBJ_FEATS_BASE + (cfg.roundMode === 'capture' ? 1 : 0) || objGlobal(cfg) !== (cfg.roundMode === 'capture' ? 2 : 0)
+    || AUDIO_CLASSES !== 2) {
     throw new Error('obsSchema drift: world.ts feature-group widths changed, re-derive the field names');
   }
   return f;

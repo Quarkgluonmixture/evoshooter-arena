@@ -113,10 +113,15 @@ freshly acquired target is harder to hit than one you have been tracking for hal
 **Team frame.** Blue perceives the world rotated 180°, so both populations solve the *same* problem and any genome
 can play either colour. That is what makes "champion vs its own past self" and "gen 0 vs latest" fair comparisons.
 
-**Observation (103 inputs with one site, 109 with two).** Own state + slot one-hot, then one block per objective
-site (relative vector, distance, whether I am standing in it, how many of us are, and whether it is armed) plus the
-round-wide public state (countdown on the armed site, defuse progress); then 13 geometry rays, 4 teammate slots
-(relative position, health, firing *if I can see him*, comm), 3 enemy contact slots, and 4 hearing sectors.
+**Observation (100 inputs in the shipped one-zone round; 103 or 109 in a capture round).** Own state + slot
+one-hot, then one block per objective site (relative vector, distance, whether I am standing in it, how many of us
+are) plus — only in a capture round, where there is a round state to report — whether each site is armed, the
+countdown on the armed one, and the defuse progress. Then 13 geometry rays, 4 teammate slots (relative position,
+health, firing *if I can see him*, comm), 3 enemy contact slots, and 4 hearing sectors.
+
+The round-state fields are withheld rather than zeroed outside a capture round on purpose. A field that cannot
+vary is not information, and a constant input is not free: it is a parameter with nothing to learn from, plus a
+row of weights that mutation can only waste. The build that emitted them unconditionally measurably regressed.
 
 Two things the objective HUD deliberately does **not** carry. It does not count enemies standing on the point —
 that was a free occupancy radar. And it reports only that a site *is armed*, never how far an unfinished capture

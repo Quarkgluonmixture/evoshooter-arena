@@ -21,15 +21,27 @@ export const A_COMM0 = 10; // 10..11 comm channel
 export const SELF_BASE = 19;
 export const MATE_FEATS_BASE = 6;
 export const ENEMY_FEATS = 6;
-/** per objective site: dx, dz, dist, I am in it, how many of us are in it, it is armed */
-export const OBJ_FEATS = 6;
-/** round-wide public state: countdown remaining, defuse progress (ROADMAP C2) */
-export const OBJ_GLOBAL = 2;
+/** per objective site, always: dx, dz, dist, I am in it, how many of us are in it */
+export const OBJ_FEATS_BASE = 5;
+
+/**
+ * The round-state fields exist only in `capture` mode, where there is a round state to report. In `koth`
+ * there is nothing to be armed, so emitting `armed` / `countdown` / `defuse` would hand every brain three
+ * inputs that are identically zero for the whole of its life — plus 3 x hidden[0] weights that can only
+ * dilute mutation. A field that cannot vary is not information, and ⛔ a constant input is not harmless:
+ * it is a free parameter with nothing to learn from.
+ */
+export function objFeats(cfg: SimConfig): number {
+  return OBJ_FEATS_BASE + (cfg.roundMode === 'capture' ? 1 : 0); // + armed
+}
+export function objGlobal(cfg: SimConfig): number {
+  return cfg.roundMode === 'capture' ? 2 : 0; // countdown, defuse
+}
 
 export const AUDIO_CLASSES = 2; // footstep, gunshot
 
 export function obsDim(cfg: SimConfig): number {
-  return SELF_BASE + cfg.teamSize + cfg.siteCount * OBJ_FEATS + OBJ_GLOBAL + cfg.lidarRays
+  return SELF_BASE + cfg.teamSize + cfg.siteCount * objFeats(cfg) + objGlobal(cfg) + cfg.lidarRays
     + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
     + cfg.enemySlots * ENEMY_FEATS + cfg.audioSectors * AUDIO_CLASSES;
 }
@@ -662,12 +674,14 @@ export class World {
         o[p++] = siteCount[team][si] / T;
         // Whether a site is armed is public: in a real round it is announced and audible. How far a capture
         // has GOT is not — you have to be there to see it, which is what leaves the attackers a window.
-        o[p++] = this.armedSite === si ? 1 : 0;
         // The enemy count inside the site used to be here (V12): it reported bodies nobody had seen,
         // a free occupancy radar. The legal channel for "they are taking it" is the public round state.
+        if (cfg.roundMode === 'capture') o[p++] = this.armedSite === si ? 1 : 0;
       }
-      o[p++] = this.armedSite >= 0 ? Math.max(0, this.armedT / cfg.armedSeconds) : 0;
-      o[p++] = this.defuse;
+      if (cfg.roundMode === 'capture') {
+        o[p++] = this.armedSite >= 0 ? Math.max(0, this.armedT / cfg.armedSeconds) : 0;
+        o[p++] = this.defuse;
+      }
 
       // --- lidar
       this.lidar(a, o, p);
