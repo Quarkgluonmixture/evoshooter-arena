@@ -4,6 +4,7 @@
  */
 import type { Policy } from './policy.ts';
 import type { SimConfig } from '../core/config.ts';
+import type { ArenaMap } from '../sim/map.ts';
 import { ACT_DIM, A_MOVE_X, A_MOVE_Z, A_FIRE, A_TARGET0, A_AIM, A_COMM0, type World } from '../sim/world.ts';
 import { obsSchema } from '../sim/obsSchema.ts';
 import { navDir } from '../sim/nav.ts';
@@ -255,6 +256,39 @@ export class TeamSightHunterPolicy extends MemoryHunterPolicy {
   }
 }
 
+/** index of the site on `team`'s left in its own frame */
+export function leftSite(map: ArenaMap, team: number): number {
+  const sg = team === 0 ? 1 : -1;
+  let best = 0;
+  map.sites.forEach((s, i) => { if (sg * s.x < sg * map.sites[best].x) best = i; });
+  return best;
+}
+
+/**
+ * The one-symbol site callout every D2 radio probe speaks: +1 = the nearest enemy `speaker` can see is nearest his team's
+ * left site, -1 = the other site, 0 = he sees nobody. Built from the speaker's own sight, so it is legal information, but
+ * the protocol is HAND-WRITTEN — which is why it lives with the reference bots. It is the single definition shared by
+ * `RadioCallerPolicy` and the analysis-only injector in src/probe/radioCall.ts (the firewall lets probes import this
+ * file, never the other way round). ⛔ No evolving policy may call it (VISION §7.1: messages have no preset meaning).
+ */
+export function siteCall(world: World, speaker: number): number {
+  const me = world.agents[speaker];
+  if (!me.alive) return 0;
+  let best = -1;
+  let bestD = Infinity;
+  for (const e of world.agents) {
+    if (!e.alive || e.team === me.team || !world.visible[speaker * world.n + e.id]) continue;
+    const d = Math.hypot(e.x - me.x, e.z - me.z);
+    if (d < bestD) { bestD = d; best = e.id; }
+  }
+  if (best < 0) return 0;
+  const e = world.agents[best];
+  const sites = world.map.sites;
+  let near = 0;
+  sites.forEach((s, i) => { if (Math.hypot(s.x - e.x, s.z - e.z) < Math.hypot(sites[near].x - e.x, sites[near].z - e.z)) near = i; });
+  return near === leftSite(world.map, me.team) ? 1 : -1;
+}
+
 /**
  * ROADMAP D2c. A `MemoryHunterPolicy(0)` whose ONE extra source of information is the real radio — what a
  * finite, delayed, quantised channel can buy, measured next to the telepathy upper bound above.
@@ -274,14 +308,6 @@ export class RadioCallerPolicy extends MemoryHunterPolicy {
   private idxFor: SimConfig | null = null;
   constructor() { super(0); }
 
-  /** index of the site on `team`'s left in its own frame */
-  private static leftSite(world: World, team: number): number {
-    const sg = team === 0 ? 1 : -1;
-    let best = 0;
-    world.map.sites.forEach((s, i) => { if (sg * s.x < sg * world.map.sites[best].x) best = i; });
-    return best;
-  }
-
   private heardSite(world: World, agent: number): number {
     if (this.idxFor !== world.cfg) {
       this.idxFor = world.cfg;
@@ -291,7 +317,7 @@ export class RadioCallerPolicy extends MemoryHunterPolicy {
     for (const idx of this.commIdx) {
       const v = world.obs[base + idx];
       if (Math.abs(v) < 0.25) continue;
-      const left = RadioCallerPolicy.leftSite(world, world.agents[agent].team);
+      const left = leftSite(world.map, world.agents[agent].team);
       return v > 0 || world.map.sites.length < 2 ? left : 1 - left;
     }
     return -1;
@@ -304,16 +330,9 @@ export class RadioCallerPolicy extends MemoryHunterPolicy {
 
   override act(world: World, agent: number): void {
     super.act(world, agent);
-    const seen = this.visibleEnemy(world, agent);
-    let say = 0;
-    if (seen) {
-      const sites = world.map.sites;
-      let near = 0;
-      sites.forEach((s, i) => { if (Math.hypot(s.x - seen.x, s.z - seen.z) < Math.hypot(sites[near].x - seen.x, sites[near].z - seen.z)) near = i; });
-      // ±3 saturates tanh (0.995), which every quantiser setting rounds to its outermost symbol
-      say = near === RadioCallerPolicy.leftSite(world, world.agents[agent].team) ? 3 : -3;
-    }
-    world.act[agent * ACT_DIM + A_COMM0] = say;
+    // `siteCall` above is the one protocol definition, shared with the probe injector so every probe speaks the same words;
+    // ±3 saturates tanh (0.995), which every quantiser setting rounds to its outermost symbol
+    world.act[agent * ACT_DIM + A_COMM0] = 3 * siteCall(world, agent);
   }
 }
 

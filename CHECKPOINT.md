@@ -11,7 +11,8 @@
 
 ## Current cursor（2026-09-13）
 
-⭐⭐ **下一刀 = D2 的 search 侧：先问「进化有没有台阶可走」**（候选探针与 VISION 对照在 `docs/ROADMAP.md` §4，cursor 以那里为准）。
+⭐⭐ **下一刀 = D2 listener 侧：先排除预算 —— 完美报点的脚手架训 120 代学不学得会听**（链条与 VISION 对照在 `docs/ROADMAP.md` §4，cursor 以那里为准）。
+随机突变台阶探针分辨率不够、没下结论（坑 #26 ④）；**listener uptake 已答：说话者完美，40 代也没学会听 ⇒ 堵点在 listener 侧**。
 
 D 程序留下的表（**先问世界、再问进化**，方法 `npm run memdemand`）：
 
@@ -52,6 +53,8 @@ chance 20%，16/16 格。说与听在 MLP 里本来就是不同权重；team-cro
 | `npm run radio` | 电台上有什么：符号熵 / 静默率 / MI + `off`/`shuffled`/`alien` 三档消融 | ⛔ 高 MI 只是相关；语言 claim 要三层证据（VISION §7.4） |
 | `npm run identity [--drop comm0,comm1]` | 同队五个人是**五个人还是五个身体**（one-hot 旋转拉丁方：body vs carrier + 随机标签对照） | ⛔ 低 carrier 只说明「这个分类器在这些特征上找不到」（坑 #28） |
 | `npm run radiodemand` | 一条**合法**有限电台值多少（手写一符号报点走真实量化 / 间隔 / 延迟，对照 telepathy 上界；静音行必须与私有视野逐场相同，否则脚本报错） | ⛔ 只是协议空间里的一个点：低分只约束这个协议 |
+| `npm run commstep` | 只突变「说」/「听」权重（配同尺寸对照），看单边台阶存不存在 | ⛔ 实测分辨率不够：六类在同一冠军内同起同落（坑 #26 ④），别拿它判「学不会」 |
+| `npm run uptake -- train/eval` | 说话者完美（注入报点）时进化学不学得会听：normal / flipped / off，对手取同臂所有 run | ⛔ 脚手架 run 带 `scaffold` 字段：不得当种群来源，不得和正常 run 进同一张 crossplay |
 
 ## ⚠ 动手前必扫的几条（正文在 `GOTCHAS.md`）
 - ⓪ **内部指标全绿 ≠ 打得过外面**（#23）· ladder 的 50%/100% 可能是**没发生的比赛**（#20）·

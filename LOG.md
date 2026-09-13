@@ -519,3 +519,62 @@ G = 30pp。拿回：5 符号无延迟 **93%** · D2 配置 **91%** · 薄电台 
 量法：对现有冠军只突变 comm 输出行 / 只突变 `mate*.comm*` 输入列 / 两边一起，看 team fitness 变化的分布。
 
 ⚠ 只证明了**一个**协议点：它说明够用的电台存在，不说明进化能找到的协议长什么样 · 攻方是手写 bot，不是进化出来的对手。
+
+## [2026-09-13 16:32] D2 search 侧 · 台阶探针：随机突变看不到台阶 —— 但这把尺子的分辨率没过关  #measure #incident
+
+**仪器** `npm run commstep`（预测冻结在 `runs/d2-commstep-predictions.txt`）：d2-radio 两个 seed 的 4 个末代冠军，
+每个突变体只动一类权重，对同 run 另一色的冠军打双角色；benefit = 训练种子**和**留出种子上都赢过未突变的冠军。
+类别：listener（第一层 `mate*.comm*` 列，σ 0.1）/ speaker（comm 输出行，σ 0.2）/ 各自同尺寸的非 comm 对照；
+外加 `informed` 上下文：队友消息全换成**有信息的**一符号报点，问「假如说话者已经有信息，突变听者会不会被选中」。
+每类 24 个突变体 × 4 冠军 = 96。
+
+| 合计 benefit | 实验类 | 同尺寸对照 |
+|---|---|---|
+| listener（evolved） | 20% | 14% |
+| speaker（evolved） | 17% | 15% |
+| listener（informed） | 20% | 19% |
+
+inert（突变完全不影响比赛）0%。**对冻结预测**：P1（evolved 下无特殊台阶）✅ 6pp / 2pp · P2（informed 下出现台阶）**❌ +1pp / 0pp**。
+
+### ⚠⚠ 许可暂停：按坑 #26 先问测量有没有到达断言 —— 没有证据说到达了
+
+1. **六类读数在同一个冠军内同起同落**：s1 蓝方所有类 25–63%，s1 红方所有类 0–8%。
+   决定 benefit 的是「这个冠军对这个对手离局部最优多远」，不是突变落在哪 —— 实验类和对照类**分不开**，正是尺子看不见类别差的样子。
+2. `informed` 上下文本身把 s1 红方的基线从 **1.104 砸到 −0.540**（没见过的输入分布），此后 listener 与对照都在回归均值（train>0 67% / 79%）。
+3. 12 场的 team fitness 标准误与单个突变的真实效应同量级，而 benefit 是**符号**判定。
+⇒ P2 的失败**不能**按冻结许可读成「listener 侧学不会」，它同样兼容「有台阶，但这把尺子看不见」。已补进坑 #26 作第 ④ 例。
+
+### 下一刀：让进化本身当仪器 —— listener uptake
+
+两个种群训练时听到的队友消息全被换成有信息的一符号报点（分析专用脚手架），配置与 seed 抄自 d2-radio（genome 长度相同 ⇒ 同一批初始种群）。
+读数在同一上下文里比 **normal / flipped（左右对调：时机与静默不变、内容错）/ off**，对照组是 d2-radio 的冠军。
+学会听 ⇒ 缺的台阶在 speaker 侧；学不会 ⇒ listener 侧的可学性 / 容量 / 预算才是堵点。预测冻结在 `runs/d2-uptake-predictions.txt`。
+顺带：报点协议只留**一份**定义 = `src/brain/scripted.ts` 的 `siteCall`（`RadioCallerPolicy` 用它说话），`src/probe/radioCall.ts` 只放注入器并 import 它，commstep / uptake 共用。
+⚠ **#incident**：第一版把协议放进 `src/probe/` 再让 `scripted.ts` 去 import —— **方向反了**，T8 分析防火墙测试（`tests/leak.test.ts`：sim / brain / evo / worker / render / ui 不得 import probe）当场变红。闸起作用了；改成 probe → brain 之后转绿，radiodemand 输出逐字不变。
+
+## [2026-09-13 16:47] D2 search 侧 · listener uptake：说话者完美，40 代也没学会听 —— 堵点在 listener 侧  #measure #decision
+
+**实验** `npm run uptake`（预测冻结在 `runs/d2-uptake-predictions.txt`）：配置与 seed 抄自 d2-radio，训练中两个种群听到的队友消息
+全换成**有信息的**一符号报点（`src/probe/radioCall.ts`，分析专用脚手架）。两个 seed 的初始种群都**断言**与对照相同 ✓（坑 #27）。
+读数：每个冠军 vs 同 run 另一色冠军，24 种子 × 2 角色，被测队听到 normal / flipped（左右对调：时机与静默不变、内容错）/ off。
+
+| 臂 | Δcontent = normal − flipped（4 个冠军） | off − normal |
+|---|---|---|
+| INFORMED（训练时就听完美报点） | −0.188 · −0.038 · −0.061 · −0.020（**0/4 为正**，均值 −0.077） | +0.283 · +0.033 · +0.051 · −0.021（off 更差只有 **1/4**） |
+| CONTROL（d2-radio 冠军） | +0.271 · +0.014 · −0.450 · −0.090（均值 −0.064） | +0.136 · −0.107 · +0.064 · −0.486 |
+
+**对冻结预测**：P1（informed 学会用内容）**❌** · P2（对照合计 |Δ| < 0.10）✅ —— 但只是 +0.27 与 −0.45 正负抵消 · P3（informed 离不开这个输入）**❌**。
+
+**坑 #26 检查**：报点确实送到（calling 7–13%，off 模式断言为 0）；同样的编辑能把对照冠军的 fitness 推 ±0.45 ⇒ 读数**能**动；
+informed 冠军 3/4 个 |Δcontent| ≤ 0.06、|Δoff| ≤ 0.05 ⇒ 它们确实没在听。
+⚠ 真弱点：s2 那一对胜率 98% / 2%，**贴着天花板**；s1 红方听真话反而比听反话 / 不听更差。
+
+### 结论（按冻结许可）
+
+⭐ **就算说话者完美，40 代也没长出听者 ⇒ 堵点在 listener 侧（可学性 / 容量 / 预算），不是 speaker 侧的鸡生蛋。**
+
+### 下一刀：先排除预算
+
+三个候选里先查**预算**：它既不改世界也不改大脑（VISION §14.1 一次一根杠杆）。**记忆排最后**：radiodemand 的手写听者没有任何记忆就拿到 91%。
+同一 informed 臂训 **120 代**。读数在跑之前改成「同臂所有 run 的另一色冠军都打一遍」，避开天花板，并用它**重读 40 代基线**（P0）。
+预测冻结在 `runs/d2-uptake120-predictions.txt`。
