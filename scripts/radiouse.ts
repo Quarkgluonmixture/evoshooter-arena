@@ -1,7 +1,10 @@
 /**
  * ROADMAP D2 — does an evolved team USE its own radio, and for what the messages say? Receiver side, one team at a time.
  *
- *   node scripts/radiouse.ts runs/a.json [more.json ...] [--gens 39,149,last] [--n 24] [--seed 7070]
+ *   node scripts/radiouse.ts runs/a.json [more.json ...] [--gens 39,149,last] [--n 24] [--seed 7070] [--observe tag:B,tag:R]
+ *
+ * `--observe` reads only the listed champions (run tag + colour); every other entry still serves as an opponent.
+ * Each champion's draws are seeded by its own team and match indices, so filtering changes no number.
  *
  * Each champion (at each requested hall-of-fame generation) plays the other colour's champion of every run in its arm —
  * same rules, same generation — while the OBSERVED team's incoming radio (every `mate*.comm*` field it reads) is:
@@ -69,6 +72,7 @@ const num = (k: string, d: number) => (flags.has(k) ? Number(flags.get(k)) : d);
 const N = num('n', 24);
 const BASE = num('seed', 7070);
 const GEN_SPEC = (flags.get('gens') ?? 'last').split(',').map((s) => s.trim()).filter(Boolean);
+const OBSERVE = flags.has('observe') ? new Set(flags.get('observe')!.split(',').map((s) => s.trim()).filter(Boolean)) : null;
 
 interface RunHofEntry { gen: number; fitness: number; genome: number[] }
 interface RunFile { evo: EvoConfig; sim: SimConfig; hof: [RunHofEntry[], RunHofEntry[]]; scaffold?: string }
@@ -97,6 +101,13 @@ for (const path of files) {
 for (const x of entries) {
   for (const y of entries) {
     if (x.arm === y.arm && x.rules !== y.rules) throw new Error(`${x.tag} and ${y.tag} share an arm but were trained under different rules or maps`);
+  }
+}
+
+if (OBSERVE) {
+  for (const k of OBSERVE) {
+    const [tag, colour] = k.split(':');
+    if (!entries.some((e) => e.tag === tag) || (colour !== 'R' && colour !== 'B')) throw new Error(`--observe ${k} matches no run (want <tag>:R or <tag>:B)`);
   }
 }
 
@@ -156,6 +167,7 @@ for (const entry of entries) {
   const interval = Math.max(1, entry.sim.commIntervalTicks);
   const delay = entry.sim.commDelayTicks;
   for (const team of [0, 1] as const) {
+    if (OBSERVE && !OBSERVE.has(`${entry.tag}:${team === 0 ? 'R' : 'B'}`)) continue;
     // what this team HEARS in normal play: pooled, and per speaker (team slot) x channel
     const heard = new Reservoir(hashSeed(BASE, 0x5e5, team));
     const bySpeaker = Array.from({ length: T }, (_, s) => new Reservoir(hashSeed(BASE, 0x5e6, team, s)));
