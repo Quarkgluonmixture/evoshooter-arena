@@ -18,14 +18,19 @@ export const A_COMM0 = 10; // 10..11 comm channel
 
 /* --------------------------------------------------------------- observation */
 
-export const SELF_BASE = 20;
+export const SELF_BASE = 19;
 export const MATE_FEATS_BASE = 6;
 export const ENEMY_FEATS = 6;
+/** per objective site: dx, dz, dist, I am in it, how many of us are in it, it is armed */
+export const OBJ_FEATS = 6;
+/** round-wide public state: countdown remaining, defuse progress (ROADMAP C2) */
+export const OBJ_GLOBAL = 2;
 
 export const AUDIO_CLASSES = 2; // footstep, gunshot
 
 export function obsDim(cfg: SimConfig): number {
-  return SELF_BASE + cfg.teamSize + 4 + cfg.lidarRays + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
+  return SELF_BASE + cfg.teamSize + cfg.siteCount * OBJ_FEATS + OBJ_GLOBAL + cfg.lidarRays
+    + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
     + cfg.enemySlots * ENEMY_FEATS + cfg.audioSectors * AUDIO_CLASSES;
 }
 
@@ -209,6 +214,9 @@ export class World {
     this.losPair = new Uint8Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
     this.aliveCount = [cfg.teamSize, cfg.teamSize];
+    if (map.sites.length !== cfg.siteCount) {
+      throw new Error(`map has ${map.sites.length} site(s) but cfg.siteCount is ${cfg.siteCount} — the observation layout is derived from cfg, so they must agree`);
+    }
     this.attackers = opts.attackers ?? RED;
     this.armedT = cfg.armedSeconds;
     this.capture = map.sites.map(() => 0);
@@ -558,8 +566,8 @@ export class World {
       }
     }
 
-    // 3. per-team spread + zone counts + heat
-    const zoneCount: [number, number] = [0, 0];
+    // 3. per-team spread + per-site occupancy + heat
+    const siteCount: [number[], number[]] = [this.map.sites.map(() => 0), this.map.sites.map(() => 0)];
     for (let team = 0; team < 2; team++) {
       const base = team === RED ? 0 : T;
       let sum = 0;
@@ -567,7 +575,7 @@ export class World {
       for (let i = 0; i < T; i++) {
         const a = ag[base + i];
         if (!a.alive) continue;
-        if (this.inZone(a)) zoneCount[team]++;
+        for (let si = 0; si < this.map.sites.length; si++) if (this.inSite(a, si)) siteCount[team][si]++;
         if (this.heat) {
           const cells = cfg.heatCells;
           const cx = Math.min(cells - 1, Math.max(0, Math.floor(((a.x + cfg.arenaHalf) / (2 * cfg.arenaHalf)) * cells)));
@@ -628,7 +636,6 @@ export class World {
       o[p++] = a.hp / cfg.hp;
       o[p++] = a.ammo / cfg.magSize;
       o[p++] = a.reloadT > 0 ? 1 : 0;
-      o[p++] = this.inZone(a) ? 1 : 0;
       o[p++] = a.aim ? 1 : 0;
       o[p++] = timeLeft;
       // how the round is going, in [-1, 1]. Same legal HUD channel in both modes; only the scale differs,
@@ -643,17 +650,24 @@ export class World {
       o[p++] = speed / cfg.maxSpeed;
       for (let s = 0; s < T; s++) o[p++] = s === a.slot ? 1 : 0;
 
-      // --- zone
-      {
-        const dx = this.map.zoneX - a.x;
-        const dz = this.map.zoneZ - a.z;
+      // --- objective HUD, one block per site, then the round-wide public state (ROADMAP C2)
+      for (let si = 0; si < cfg.siteCount; si++) {
+        const s = this.map.sites[si];
+        const dx = s.x - a.x;
+        const dz = s.z - a.z;
         o[p++] = (sg * dx) / half;
         o[p++] = (sg * dz) / half;
         o[p++] = Math.min(1, Math.hypot(dx, dz) / half);
-        o[p++] = zoneCount[team] / T;
-        // The enemy count inside the zone used to be here (V12): it reported bodies nobody had seen,
-        // a free occupancy radar. The legal channel for "they are taking it" is the score margin.
+        o[p++] = this.inSite(a, si) ? 1 : 0;
+        o[p++] = siteCount[team][si] / T;
+        // Whether a site is armed is public: in a real round it is announced and audible. How far a capture
+        // has GOT is not — you have to be there to see it, which is what leaves the attackers a window.
+        o[p++] = this.armedSite === si ? 1 : 0;
+        // The enemy count inside the site used to be here (V12): it reported bodies nobody had seen,
+        // a free occupancy radar. The legal channel for "they are taking it" is the public round state.
       }
+      o[p++] = this.armedSite >= 0 ? Math.max(0, this.armedT / cfg.armedSeconds) : 0;
+      o[p++] = this.defuse;
 
       // --- lidar
       this.lidar(a, o, p);

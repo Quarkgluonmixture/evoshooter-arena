@@ -13,7 +13,7 @@
  *   hidden      the observer cannot legally know it at all — A2/A3 must remove the channel.
  */
 import type { SimConfig } from '../core/config.ts';
-import { SELF_BASE, MATE_FEATS_BASE, ENEMY_FEATS, AUDIO_CLASSES, obsDim } from './world.ts';
+import { SELF_BASE, MATE_FEATS_BASE, ENEMY_FEATS, OBJ_FEATS, OBJ_GLOBAL, AUDIO_CLASSES, obsDim } from './world.ts';
 
 export type Channel = 'self' | 'objective' | 'geometry' | 'teammate' | 'comm' | 'enemy' | 'audio';
 export type Legality = 'legal' | 'truth-form' | 'hidden';
@@ -43,7 +43,6 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
   push('self.hp', 'self', 'legal');
   push('self.ammo', 'self', 'legal');
   push('self.reloading', 'self', 'legal');
-  push('self.inZone', 'objective', 'legal');
   push('self.aiming', 'self', 'legal');
   push('self.timeLeft', 'objective', 'legal');
   push('self.scoreDiff', 'objective', 'legal');
@@ -56,11 +55,18 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
   push('self.speed', 'self', 'legal');
   for (let s = 0; s < cfg.teamSize; s++) push(`self.slot${s}`, 'self', 'legal', undefined, 'own identity one-hot');
 
-  // --- objective HUD (SUBSTRATE §3.1)
-  push('obj.dx', 'objective', 'legal');
-  push('obj.dz', 'objective', 'legal');
-  push('obj.dist', 'objective', 'legal');
-  push('obj.mineInZone', 'objective', 'legal', undefined, 'derived from the teammate position HUD');
+  // --- objective HUD (SUBSTRATE §3.1), one block per site + the round-wide public state (ROADMAP C2)
+  for (let s = 0; s < cfg.siteCount; s++) {
+    push(`obj${s}.dx`, 'objective', 'legal');
+    push(`obj${s}.dz`, 'objective', 'legal');
+    push(`obj${s}.dist`, 'objective', 'legal');
+    push(`obj${s}.selfIn`, 'objective', 'legal', undefined, 'proprioception: I can tell whether I am standing in it');
+    push(`obj${s}.mineIn`, 'objective', 'legal', undefined, 'derived from the teammate position HUD');
+    push(`obj${s}.armed`, 'objective', 'legal', undefined,
+      'public round state: a plant is announced and audible. How far an UNFINISHED capture has got is not here');
+  }
+  push('obj.countdown', 'objective', 'legal', undefined, 'public round timer on the armed site, 0 when nothing is armed');
+  push('obj.defuse', 'objective', 'legal', undefined, 'public defuse progress on the armed site');
 
   // --- geometry sensing
   for (let k = 0; k < cfg.lidarRays; k++) {
@@ -105,7 +111,7 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
   if (f.length !== expected) {
     throw new Error(`obsSchema drift: schema has ${f.length} fields, world.obsDim is ${expected}`);
   }
-  if (SELF_BASE !== 20 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6 || AUDIO_CLASSES !== 2) {
+  if (SELF_BASE !== 19 || MATE_FEATS_BASE !== 6 || ENEMY_FEATS !== 6 || OBJ_FEATS !== 6 || OBJ_GLOBAL !== 2 || AUDIO_CLASSES !== 2) {
     throw new Error('obsSchema drift: world.ts feature-group widths changed, re-derive the field names');
   }
   return f;

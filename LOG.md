@@ -987,3 +987,38 @@ comm 和 hp 在 V11 那一刀就已经对死人清零了，位置没有。
 否则这条绿是因为整个通道死了，不是因为尸体闭嘴了（坑 #11）。
 ⭐ **实测过它有鉴别力**：把旧行为临时放回去，探针立刻变 `LEAK`（`mate3.dx, mate3.dz`），闸也标了 `!`。
 （是 `mate3` 不是 `mate0`，因为死人被排到队友序列末尾 —— 顺带确认了那个排序也在工作。）
+
+## [2026-09-13 02:55] C2 主刀：公开回合状态进观测（obsDim 100 → 103，旧 genome 全作废）  #ship #measure
+
+这一刀是 C1 之后真正的解锁项：进化 agent 终于能看见**点位在哪**和**哪个点位 armed**。
+
+**观测的目标区块从「一个 zone」改成「每个 site 一块 + 全局回合状态」**：
+每个 site 六个字段（相对向量 dx/dz、距离、**我**在不在里面、**我方几个人**在里面、**它 armed 没有**），
+外加两个全局字段（armed 点位的**倒计时**、**defuse 进度**）。
+顺手删掉 `self.inZone`（和 `obj0.selfIn` 重复，单一真源）⇒ `SELF_BASE` 20 → 19。
+⇒ **obsDim 100 → 103**（单点位）/ **109**（双点位），genome **5324 → 5444**。
+⛔ **所有既存 genome 作废** —— 这是 ROADMAP 早就登记过的 C2 代价。
+
+### ⭐ 刻意不公开的那一格
+
+`objN.armed` 是公开的（一次 plant 在真实回合里是**会播报、有声音**的），
+但**未完成的 capture 进度不公开** —— 想看着表填满，你得人在那里。
+这给攻方留了一个窗口，也是「公开」和「全知」的分界线。
+同一条边界上还有上一刀的结论：死掉的队友只报「他死了」，不报「死在哪」。
+
+**合同守卫**：`World` 构造时断言 `map.sites.length === cfg.siteCount` ——
+观测布局是从 cfg 推出来的，两者不一致就会静默错位。labMap 也跟着按 cfg 生成点位。
+
+### 新探针 `A1-P25`（这就是 C2 的 Probe 原文）
+
+「目标状态变化时，只有 legal HUD 字段改变，不夹带敌情」：在 capture 模式下把一个点位设成 armed，
+断言**恰好只有** `obj0.armed` 与 `obj.countdown` 变化。
+⭐ **两个方向都实测过有鉴别力**：把 `obj.countdown` 打成常数 0，探针立刻报
+`the plant moved only [obj0.armed]: the public round state is not reaching the observation`（正向护栏生效）。
+当前 **24 条 probe，矩阵与登记表一致**（exit 0）。
+
+### bench：多了三个字段反而更快
+
+交错配对（`git stash` A,B,A,B，严格前台，load ≈ 5）：
+旧 **63.4 / 63.0** ms/match → 新 **60.7 / 60.8** ms/match ⇒ **快约 4%**，两轮同号。
+真因应该是删掉 `self.inZone` 省掉了每 agent 每 tick 一次距离计算，而新增的三个字段都是现成值。

@@ -47,7 +47,11 @@ export function labMap(cfg: SimConfig, boxes: Box[]): ArenaMap {
     spawns[0].push({ x: -26 + s, z: -27 });
     spawns[1].push({ x: 26 - s, z: 27 });
   }
-  return { seed: -1, boxes, spawns, sites: [{ x: 0, z: 0 }], zoneX: 0, zoneZ: 0 };
+  // the site layout has to match cfg.siteCount, because the observation layout is derived from cfg
+  const sites = cfg.siteCount === 2
+    ? [{ x: cfg.siteOffset, z: 0 }, { x: -cfg.siteOffset, z: 0 }]
+    : [{ x: 0, z: 0 }];
+  return { seed: -1, boxes, spawns, sites, zoneX: sites[0].x, zoneZ: sites[0].z };
 }
 
 export function place(w: World, id: number, x: number, z: number, yaw: number): void {
@@ -807,6 +811,39 @@ export const LEAK_PROBES: LeakProbe[] = [
       return names.length === 1 && names[0] === 'mate0.firing'
         ? { status: 'clean', fields: [], detail: 'I can see him shoot, and that is the only thing it tells me' }
         : { status: 'leak', fields: names, detail: `expected exactly mate0.firing to move, got [${names.join(', ')}]` };
+    },
+  },
+  {
+    id: 'A1-P25',
+    kind: 'counterfactual',
+    test: 'T2',
+    title: 'arming a site announces only what a round announcement announces',
+    expect: 'clean',
+    run: (cfg) => {
+      // ROADMAP C2's probe, literally: when the objective state changes, ONLY legal HUD fields move and no
+      // enemy truth comes with it. Run in capture mode, because `armed` has no meaning in koth.
+      const ccfg: SimConfig = { ...cfg, roundMode: 'capture' };
+      const d = counterfactual(ccfg, {
+        setup: (w) => {
+          standObserver(w);
+          place(w, ENEMY, 0, 10, -Math.PI / 2); // on the far side of the wall: never legally visible
+          for (let m = 1; m < cfg.teamSize; m++) place(w, m, -28 - m, -28, 0);
+          for (let e = 1; e < cfg.teamSize; e++) place(w, cfg.teamSize + e, 28 - e, 28, 0);
+        },
+        boxes: [MID_WALL],
+        mutate: (w) => { w.armedSite = 0; w.armedT = ccfg.armedSeconds; },
+      });
+      const names = d.changed.map((f) => f.name);
+      const allowed = new Set(['obj0.armed', 'obj.countdown']);
+      const extra = names.filter((n) => !allowed.has(n));
+      if (extra.length > 0) {
+        return { status: 'leak', fields: extra, detail: `arming the site also moved [${extra.join(', ')}]` };
+      }
+      // Positive guardrail: the announcement has to actually arrive, or this is clean because the channel
+      // does not exist (GOTCHAS #11).
+      return names.length === allowed.size
+        ? { status: 'clean', fields: [], detail: `the plant moves exactly [${names.join(', ')}] — the announcement and its clock, nothing about where anyone is` }
+        : { status: 'leak', fields: names, detail: `the plant moved only [${names.join(', ') || 'nothing'}]: the public round state is not reaching the observation` };
     },
   },
   {

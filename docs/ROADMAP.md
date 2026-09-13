@@ -451,6 +451,17 @@ scripted/reference agents 能证明：
 
 **Question**：人数变化、目标状态和时间压力能否成为所有玩家合法公共信息并推动再规划？
 
+### 进度（2026-09-13）
+
+- ✅ **死亡坐标已关闭**：死掉的队友只报 `alive = 0`，位置三个字段清零（探针 `A1-P24`，实测有鉴别力）。
+- ✅ **公开目标状态已进观测**：每个 site 一块（相对向量 / 距离 / 我在不在 / 我方几人在 / **armed**）
+  + 全局（**倒计时** / **defuse 进度**）。obsDim **100 → 103**（单点位）/ **109**（双点位），
+  genome 5324 → **5444**，⛔ **旧 genome 全作废**。探针 `A1-P25` = 本 phase 的 Probe 原文。
+  ⭐ **未完成的 capture 进度刻意不公开** —— plant 会播报，看表填满得人在现场。
+  `World` 构造时断言 `map.sites.length === cfg.siteCount`（观测布局从 cfg 推出，不一致会静默错位）。
+- ⬜ **还没做**：explicit round lifecycle · kill feed 作为**可被观战消费的公开事件源** ·
+  「死亡玩家/spectator 不得继续给活人 radio truth」的规则化（⚠ comm/hp 已对死人清零，但这条还没有探针守）。
+
 ### Build
 
 - explicit round lifecycle；

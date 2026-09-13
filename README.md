@@ -113,10 +113,15 @@ freshly acquired target is harder to hit than one you have been tracking for hal
 **Team frame.** Blue perceives the world rotated 180°, so both populations solve the *same* problem and any genome
 can play either colour. That is what makes "champion vs its own past self" and "gen 0 vs latest" fair comparisons.
 
-**Observation (100 inputs).** Own state + slot one-hot, zone vector and own occupancy, 13 geometry rays, 4 teammate
-slots (relative position, health, firing *if I can see him*, comm), 3 enemy contact slots, and 4 hearing sectors.
-The objective HUD does not count enemies standing on the point — that was a free occupancy radar; the legal way to
-learn they are taking it is the score margin moving.
+**Observation (103 inputs with one site, 109 with two).** Own state + slot one-hot, then one block per objective
+site (relative vector, distance, whether I am standing in it, how many of us are, and whether it is armed) plus the
+round-wide public state (countdown on the armed site, defuse progress); then 13 geometry rays, 4 teammate slots
+(relative position, health, firing *if I can see him*, comm), 3 enemy contact slots, and 4 hearing sectors.
+
+Two things the objective HUD deliberately does **not** carry. It does not count enemies standing on the point —
+that was a free occupancy radar. And it reports only that a site *is armed*, never how far an unfinished capture
+has got: a plant is announced and audible, but watching the meter fill is something you have to be there for, which
+is what leaves the attackers a window. A dead teammate reports only that he is dead, never where he died.
 
 A contact is a *percept*, not a coordinate: bearing relative to where I am looking, a range cue, and a quality —
 visible body fraction × distance falloff × eccentricity falloff — with every directional number multiplied by how sure
