@@ -11,7 +11,7 @@
 
 ## Current cursor（2026-09-13）
 
-⭐⭐ **下一刀 = D2c：问世界「一条合法的有限电台值多少」**（cursor 的权威在 `docs/ROADMAP.md` §4）。
+⭐⭐ **下一刀 = D2 的 search 侧：先问「进化有没有台阶可走」**（候选探针与 VISION 对照在 `docs/ROADMAP.md` §4，cursor 以那里为准）。
 
 D 程序留下的表（**先问世界、再问进化**，方法 `npm run memdemand`）：
 
@@ -23,8 +23,9 @@ D 程序留下的表（**先问世界、再问进化**，方法 `npm run memdema
 原计划是 E1（「一个脑子穿五个身体 ⇒ 电台学不会」）。**E1 的 probe-first 把这个前提推翻了**（`npm run identity`）：
 slot one-hot 本身就是每人一条 40 维的第一层 bias，而且进化用上了 —— carrier 身份 36–66%（去掉电台特征 31–55%），
 chance 20%，16/16 格。说与听在 MLP 里本来就是不同权重；team-crossplay 现在就能做（按 slot 分发 Policy）。
-⇒ 架构假说削弱，剩 **search** 与 **channel**。telepathy 共享**精确坐标**，只是宽松上界 ⇒ 先量有限电台。
-⛔ 出结果前不训练、不造 player block；⛔ 也不要为救 D1 改世界（要改先有「记忆回报 > 站位回报」的理由）。
+⇒ 架构假说削弱。**D2c 又排除了 channel**（`npm run radiodemand`）：手写一符号报点只走真实电台链路，
+守方 13% → 40%，拿回 telepathy 增益的 93%（D2 训练配置 91%）⇒ **剩 search / selection**。
+⛔ 不改电台、不加通信奖励、不造 player block；⛔ 也不要为救 D1 改世界（要改先有「记忆回报 > 站位回报」的理由）。
 ⚠ 记忆只测了**追击**用法。全文在 `docs/ROADMAP.md` 的 D1 / D2 / E1 节，经过在 `LOG.md`。
 
 **C1/C2 世界学得动**（baseline：首枪 33 s → 7–8 s、accuracy .08 → .29、
@@ -50,6 +51,7 @@ chance 20%，16/16 格。说与听在 MLP 里本来就是不同权重；team-cro
 | `npm run memdemand` | ⭐ **世界为记忆 / 通信付多少钱**（扫 reference bot 的记忆档 + telepathy 上界） | ⛔ 别把 telepathy 当合法策略，它只是上界 |
 | `npm run radio` | 电台上有什么：符号熵 / 静默率 / MI + `off`/`shuffled`/`alien` 三档消融 | ⛔ 高 MI 只是相关；语言 claim 要三层证据（VISION §7.4） |
 | `npm run identity [--drop comm0,comm1]` | 同队五个人是**五个人还是五个身体**（one-hot 旋转拉丁方：body vs carrier + 随机标签对照） | ⛔ 低 carrier 只说明「这个分类器在这些特征上找不到」（坑 #28） |
+| `npm run radiodemand` | 一条**合法**有限电台值多少（手写一符号报点走真实量化 / 间隔 / 延迟，对照 telepathy 上界；静音行必须与私有视野逐场相同，否则脚本报错） | ⛔ 只是协议空间里的一个点：低分只约束这个协议 |
 
 ## ⚠ 动手前必扫的几条（正文在 `GOTCHAS.md`）
 - ⓪ **内部指标全绿 ≠ 打得过外面**（#23）· ladder 的 50%/100% 可能是**没发生的比赛**（#20）·

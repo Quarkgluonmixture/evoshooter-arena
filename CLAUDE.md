@@ -37,5 +37,7 @@
 ## Git / ops
 
 - 提交按显式路径 stage；push 走个人号，方法见 CHECKPOINT。
+- ⭐ **push 自主**（用户 2026-09-13 授权，覆盖全局「push 先问」）：commit 后直接推，不必再问。
+- ⭐ **遇到不确定的判断，先拿 `docs/VISION.md` 过一遍再决定**（用户 2026-09-13）：对照相关章节写明依据，而不是弹回去问。
 - ⛔ 不要为了做新 roadmap 一次同时重写 perception + recurrent brain + individual genomes + map objective + league scheduler；无法归因就是失败。
 - ⛔ **不要现在实现 E7。** 文化合同现在只负责把门的位置和违规形状钉死；真正施工必须等 E1–E6 的 identity/club/league/ecology 能分别测量后再开。

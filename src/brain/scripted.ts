@@ -3,7 +3,9 @@
  * (tests + baselines) — the evolving agents never see them and no tactic is scripted into the game.
  */
 import type { Policy } from './policy.ts';
-import { ACT_DIM, A_MOVE_X, A_MOVE_Z, A_FIRE, A_TARGET0, A_AIM, type World } from '../sim/world.ts';
+import type { SimConfig } from '../core/config.ts';
+import { ACT_DIM, A_MOVE_X, A_MOVE_Z, A_FIRE, A_TARGET0, A_AIM, A_COMM0, type World } from '../sim/world.ts';
+import { obsSchema } from '../sim/obsSchema.ts';
 import { navDir } from '../sim/nav.ts';
 
 export class IdlePolicy implements Policy {
@@ -182,6 +184,11 @@ export class MemoryHunterPolicy implements Policy {
     return best;
   }
 
+  /** Where to go when there is nobody to chase or remember. Overridden by the radio listener below. */
+  protected idleSite(world: World, agent: number): { x: number; z: number } {
+    return world.map.sites[world.agents[agent].slot % world.map.sites.length];
+  }
+
   act(world: World, agent: number): void {
     if (this.world !== world) {
       this.world = world;
@@ -205,7 +212,7 @@ export class MemoryHunterPolicy implements Policy {
     if (seen) { tx = seen.x; tz = seen.z; stop = 2; }
     else if (world.t - mem.t <= this.seconds) { tx = mem.x; tz = mem.z; stop = 1.5; }
     else {
-      const site = world.map.sites[a.slot % world.map.sites.length];
+      const site = this.idleSite(world, agent);
       tx = site.x;
       tz = site.z;
       stop = world.cfg.zoneRadius * 0.5;
@@ -245,6 +252,68 @@ export class TeamSightHunterPolicy extends MemoryHunterPolicy {
       if (d < bestD) { bestD = d; best = { x: e.x, z: e.z }; }
     }
     return best;
+  }
+}
+
+/**
+ * ROADMAP D2c. A `MemoryHunterPolicy(0)` whose ONE extra source of information is the real radio — what a
+ * finite, delayed, quantised channel can buy, measured next to the telepathy upper bound above.
+ *
+ * Speaker: while I can see an enemy, I transmit which site he is nearest (+1 for the site on my team's left in
+ * its own frame, -1 for the other) and silence otherwise. One symbol, the crudest callout there is.
+ * Listener: reads ONLY its own observation's `mate*.comm0` fields, so the world's quantiser, send interval and
+ * delay all apply; while a teammate is calling, it goes to the called site instead of its own.
+ *
+ * ⛔ The protocol is hand-written, which is exactly why it lives here and never in a population: it asks the
+ * world what a legal radio is worth, it is not a vocabulary for anyone to inherit (VISION §7.1).
+ * With every teammate message muted it must play bit-identically to `MemoryHunterPolicy(0)` —
+ * `scripts/radiodemand.ts` asserts that, and it is the proof that the radio is the only thing this adds.
+ */
+export class RadioCallerPolicy extends MemoryHunterPolicy {
+  private commIdx: number[] = [];
+  private idxFor: SimConfig | null = null;
+  constructor() { super(0); }
+
+  /** index of the site on `team`'s left in its own frame */
+  private static leftSite(world: World, team: number): number {
+    const sg = team === 0 ? 1 : -1;
+    let best = 0;
+    world.map.sites.forEach((s, i) => { if (sg * s.x < sg * world.map.sites[best].x) best = i; });
+    return best;
+  }
+
+  private heardSite(world: World, agent: number): number {
+    if (this.idxFor !== world.cfg) {
+      this.idxFor = world.cfg;
+      this.commIdx = obsSchema(world.cfg).filter((f) => /^mate\d+\.comm0$/.test(f.name)).map((f) => f.index);
+    }
+    const base = agent * world.obsDim;
+    for (const idx of this.commIdx) {
+      const v = world.obs[base + idx];
+      if (Math.abs(v) < 0.25) continue;
+      const left = RadioCallerPolicy.leftSite(world, world.agents[agent].team);
+      return v > 0 || world.map.sites.length < 2 ? left : 1 - left;
+    }
+    return -1;
+  }
+
+  protected override idleSite(world: World, agent: number): { x: number; z: number } {
+    const s = this.heardSite(world, agent);
+    return s >= 0 ? world.map.sites[s] : super.idleSite(world, agent);
+  }
+
+  override act(world: World, agent: number): void {
+    super.act(world, agent);
+    const seen = this.visibleEnemy(world, agent);
+    let say = 0;
+    if (seen) {
+      const sites = world.map.sites;
+      let near = 0;
+      sites.forEach((s, i) => { if (Math.hypot(s.x - seen.x, s.z - seen.z) < Math.hypot(sites[near].x - seen.x, sites[near].z - seen.z)) near = i; });
+      // ±3 saturates tanh (0.995), which every quantiser setting rounds to its outermost symbol
+      say = near === RadioCallerPolicy.leftSite(world, world.agents[agent].team) ? 3 : -3;
+    }
+    world.act[agent * ACT_DIM + A_COMM0] = say;
   }
 }
 

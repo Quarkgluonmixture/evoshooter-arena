@@ -25,7 +25,8 @@
     "c1exit": "node scripts/c1exit.ts",
     "memdemand": "node scripts/memdemand.ts",
     "radio": "node scripts/radio.ts",
-    "identity": "node scripts/identity.ts"
+    "identity": "node scripts/identity.ts",
+    "radiodemand": "node scripts/radiodemand.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
