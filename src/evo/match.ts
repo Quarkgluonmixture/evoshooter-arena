@@ -134,9 +134,16 @@ export function summarize(world: World): MatchResult {
   };
 }
 
-/** Advance one tick with the given policies (used by both the trainer and the live viewer). */
-export function stepMatch(world: World, red: Policy, blue: Policy): void {
+/**
+ * Advance one tick with the given policies (used by both the trainer and the live viewer).
+ *
+ * `afterObserve` runs between `observe()` and the policies acting, which is the only place an ablation can
+ * edit what a brain is about to read without teaching the simulation about ablations. ⚠ Analysis only —
+ * `scripts/radio.ts` uses it to mute, shuffle or transplant the radio; nothing in the training path passes it.
+ */
+export function stepMatch(world: World, red: Policy, blue: Policy, afterObserve?: (w: World) => void): void {
   world.observe();
+  afterObserve?.(world);
   for (let i = 0; i < world.n; i++) {
     if (!world.agents[i].alive) continue;
     (world.agents[i].team === 0 ? red : blue).act(world, i);
