@@ -15,11 +15,16 @@
  *   role oracle         everyone holds the site the attack actually goes to — the ceiling of perfect assignment, not a legal
  *                       strategy (reference-only, reads engine truth, like telepathy in memdemand).
  *
+ * E2 (team DNA / opening prior) asks a second question on the same ruler — what is round-start AGREEMENT worth?
+ *   independent coins   every player draws its own site, same per-player marginal as the 3/2 split, no agreement;
+ *   common plan (coin)  one team-level draw picks the whole split ⇒ agreement kept, the plan varies per round.
+ * The gap `common plan 3/2` − `independent coins` is the price of agreeing, with the marginal held fixed.
+ *
  * ⚠ Scripted roles are ONE point in role space: a small number bounds THIS role set, not every possible individuality.
  * ⛔ Reference bots never enter the evolving population (CLAUDE.md), and nothing here is a training path.
  */
 import { DEFAULT_SIM, type SimConfig } from '../src/core/config.ts';
-import { hashSeed } from '../src/core/rng.ts';
+import { Rng, hashSeed } from '../src/core/rng.ts';
 import { generateMap, type ArenaMap } from '../src/sim/map.ts';
 import { stepMatch, summarize } from '../src/evo/match.ts';
 import { World } from '../src/sim/world.ts';
@@ -73,7 +78,15 @@ const ATTACKS: { name: string; make: () => Policy }[] = [
 ];
 const SPLIT = [0, 0, 0, 1, 1];
 
-interface Row { label: string; make: () => Policy; control?: boolean }
+/** Every player draws its own site: same per-player marginal as SPLIT, no agreement about who is where. */
+const independentCoins = (seed: number): number[] => {
+  const rng = new Rng(seed);
+  return SPLIT.map(() => (rng.int(5) < 3 ? 0 : 1));
+};
+/** One team-level draw picks the whole split: agreement kept, the plan itself varies from round to round. */
+const teamCoin = (seed: number): number[] => (new Rng(seed).int(2) === 0 ? SPLIT : SPLIT.map((s) => 1 - s));
+
+interface Row { label: string; make: (seed: number) => Policy; control?: boolean }
 const ROWS: Row[] = [
   { label: 'identical x5 (ctl)', make: () => new MemoryHunterPolicy(0), control: true },
   { label: 'per-player const', make: () => new SiteDefenderPolicy(SPLIT) },
@@ -85,6 +98,9 @@ const ROWS: Row[] = [
     new SiteDefenderPolicy(0), new SiteDefenderPolicy(1), new CamperPolicy(),
     new EagerRotateDefenderPolicy(0, 1, 12), new ReactiveDefenderPolicy(1),
   ]) },
+  { label: 'independent coins', make: (seed) => new SiteDefenderPolicy(independentCoins(seed)) },
+  { label: 'common plan (coin)', make: (seed) => new SiteDefenderPolicy(teamCoin(seed)) },
+  { label: 'common plan stack A', make: () => new SiteDefenderPolicy(0) },
   { label: 'role oracle (ub)', make: () => new OracleDefenderPolicy(SPLIT) },
 ];
 
@@ -111,9 +127,11 @@ for (const row of ROWS) {
     for (const mapSeed of SEEDS) {
       for (const attackers of [0, 1] as const) {
         for (let m = 0; m < N; m++) {
-          const world = new World(base, maps.get(mapSeed)!, hashSeed(8642, mapSeed, m), { attackers });
+          const matchSeed = hashSeed(8642, mapSeed, m);
+          const world = new World(base, maps.get(mapSeed)!, matchSeed, { attackers });
           const A = atk.make();
-          const D = row.make();
+          // the randomised rows draw from the match seed, so a rerun reads the same table
+          const D = row.make(hashSeed(matchSeed, attackers));
           const defender = attackers === 0 ? 1 : 0;
           while (!world.done) stepMatch(world, attackers === 0 ? A : D, attackers === 0 ? D : A);
           const r = summarize(world);
@@ -147,5 +165,11 @@ console.log(`  P2  per-player constant beats identical x5 by >= 15pp     ${pp('p
 console.log(`  P3  identical x5 == radiodemand's 'private 0s' row        run: npm run radiodemand (same seeds / bots / sim)`);
 console.log(`  headroom: role oracle − best roles x5                     ${pp('role oracle (ub)',
   means.get('roles x5 (a)')! >= means.get('roles x5 (b)')! ? 'roles x5 (a)' : 'roles x5 (b)')}`);
+console.log('against runs/e2-priordemand-predictions.txt:');
+console.log(`  P1  agreement pays: common plan 3/2 − independent coins >= 10pp   ${pp('per-player const', 'independent coins')}`);
+console.log(`  P2  common plan (coin) within 5pp of common plan 3/2              ${pp('common plan (coin)', 'per-player const')}`);
+console.log(`  P3  control rows unchanged: identical x5 13% · const 38% · oracle 43%  ${
+  [['identical x5 (ctl)', 13], ['per-player const', 38], ['role oracle (ub)', 43]]
+    .map(([k, v]) => `${(means.get(k as string)! * 100).toFixed(0)}${Math.round(means.get(k as string)! * 100) === v ? '✓' : '✗'}`).join(' · ')}`);
 console.log('cell / mean = DEFENDER win share. armed = rounds where a site got armed. sight = sighting ticks per match.');
 console.log('⚠ ONE point in role space: a small number bounds THIS role set, not every possible individuality.');
