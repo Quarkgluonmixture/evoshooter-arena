@@ -18,8 +18,10 @@ import { genomeLength } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
 import { stepMatch } from '../src/evo/match.ts';
 import { World } from '../src/sim/world.ts';
-import { PacifistRusherPolicy, SiteAttackerPolicy, SiteDefenderPolicy } from '../src/brain/scripted.ts';
-import { median, tradeStats, type KillRecord, type TradeOptions } from '../src/probe/detect.ts';
+import { PacifistRusherPolicy, PostHolderPolicy, SiteAttackerPolicy, SiteDefenderPolicy } from '../src/brain/scripted.ts';
+import {
+  crossfireTick, median, newCrossfireStats, tradeStats, type CrossfireStats, type KillRecord, type TradeOptions,
+} from '../src/probe/detect.ts';
 
 const argv = process.argv.slice(2);
 const files: string[] = [];
@@ -135,5 +137,65 @@ for (const row of rows) {
     + `${pad(`${answered}`, 10)}${pad(chance > 0 ? (traded / chance).toFixed(2) : '—', 7)}`
     + `${pad(gaps.length ? `${median(gaps).toFixed(2)}s` : '—', 11)}${pad(anchor === null ? '—' : `seed ${anchor.seed} atk${anchor.attackers} t${anchor.tick}`, 26)}`);
 }
+/* ------------------------------------------------------------------ crossfire */
+
+const SEP = num('separation', 60);
+/** scripted controls: the same bots, split across both sites or stacked on one — the geometry does the talking */
+const site0 = scriptedMap.sites[0];
+/** two posts on OPPOSITE sides of site 0: an enemy on the site is between them, which is the angle we are after */
+const flankPosts = [
+  { x: site0.x - 7, z: site0.z - 2 }, { x: site0.x + 7, z: site0.z + 2 },
+  { x: site0.x - 7, z: site0.z + 2 }, { x: site0.x + 7, z: site0.z - 2 }, { x: site0.x, z: site0.z - 8 },
+];
+/** the same five bodies bunched at one post: same map, same shooting, no angle */
+const bunchedPosts = [{ x: site0.x - 1, z: site0.z - 7 }, { x: site0.x, z: site0.z - 7 }, { x: site0.x + 1, z: site0.z - 7 },
+  { x: site0.x - 1, z: site0.z - 8 }, { x: site0.x + 1, z: site0.z - 8 }];
+const crossRows: Row[] = [
+  { label: 'scripted: flanking (+)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(flankPosts), observe: 1 },
+  { label: 'scripted: bunched (−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(bunchedPosts), observe: 1 },
+  ...rows.filter((r) => !r.label.startsWith('scripted')),
+];
+
+function playCrossfire(row: Row, seed: number, attackers: 0 | 1, st: CrossfireStats): void {
+  const w = new World(row.sim, row.map, seed, { attackers });
+  const red = row.red();
+  const blue = row.blue();
+  let lastDamage = 0;
+  while (!w.done) {
+    stepMatch(w, red, blue);
+    const dealt = w.stats[row.observe].damageDealt;
+    crossfireTick(
+      st,
+      { team: row.observe, teamSize: row.sim.teamSize, n: w.n, tick: w.tick, minSeparationDeg: SEP },
+      (id) => w.agents[id].alive,
+      (id) => w.agents[id],
+      (viewer, target) => w.visible[viewer * w.n + target] === 1,
+      dealt - lastDamage,
+    );
+    lastDamage = dealt;
+  }
+}
+
+console.log(`\ncrossfire detector — an enemy seen by >= 2 teammates at least ${SEP}° apart (angle AT the enemy)`);
+console.log(`${padr('observed team', 24)}${pad('seen ticks', 11)}${pad('crossfire', 10)}${pad('share', 7)}${pad('median sep', 11)}${pad('dmg share', 10)}${pad('first (replay anchor)', 26)}`);
+for (const row of crossRows) {
+  const st = newCrossfireStats();
+  let anchor: { seed: number; attackers: 0 | 1; tick: number } | null = null;
+  for (let m = 0; m < N; m++) {
+    for (const attackers of [0, 1] as const) {
+      const seed = hashSeed(31337, m);
+      const before = st.firstAt;
+      playCrossfire(row, seed, attackers, st);
+      if (anchor === null && before === null && st.firstAt !== null) anchor = { seed, attackers, tick: st.firstAt };
+    }
+  }
+  st.separations.sort((a, b) => a - b);
+  const share = st.seenTicks ? st.crossTicks / st.seenTicks : NaN;
+  const dmg = st.totalDamage > 0 ? st.crossDamage / st.totalDamage : NaN;
+  console.log(`${padr(row.label, 24)}${pad(String(st.seenTicks), 11)}${pad(String(st.crossTicks), 10)}`
+    + `${pad(Number.isNaN(share) ? 'n/a' : pct(share), 7)}${pad(st.separations.length ? `${median(st.separations).toFixed(0)}°` : '—', 11)}`
+    + `${pad(Number.isNaN(dmg) ? 'n/a' : pct(dmg), 10)}${pad(anchor === null ? '—' : `seed ${anchor.seed} atk${anchor.attackers} t${anchor.tick}`, 26)}`);
+}
+
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');
 console.log('   birth / stability / intervention before any "they learned to trade"). ⛔ detector output never enters training.');

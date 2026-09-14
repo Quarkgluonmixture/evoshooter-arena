@@ -89,6 +89,35 @@ export class SiteAttackerPolicy implements Policy {
   }
 }
 
+/**
+ * Holds a fixed post per team slot, in WORLD coordinates, and shoots whatever slot 0 offers. Built for G2's
+ * crossfire control: two bots on opposite sides of the same site see an enemy between them from a wide angle,
+ * which "everyone walks to the site centre" never produces.
+ * ⚠ Deliberately NOT mirrored per team (unlike the site bots): the point of this one is an exact geometric
+ * arrangement, so the two colours are not symmetric — ⛔ never use it for a fairness or mirror test.
+ */
+export class PostHolderPolicy implements Policy {
+  private readonly posts: { x: number; z: number }[];
+  constructor(posts: { x: number; z: number }[]) { this.posts = posts; }
+  act(world: World, agent: number): void {
+    const off = agent * ACT_DIM;
+    const act = world.act;
+    act.fill(0, off, off + ACT_DIM);
+    const a = world.agents[agent];
+    const sg = a.team === 0 ? 1 : -1;
+    const p = this.posts[a.slot % this.posts.length];
+    const tx = p.x;
+    const tz = p.z;
+    if (Math.hypot(tx - a.x, tz - a.z) > 0.8) {
+      const [gx, gz] = navDir(world.map, world.cfg, a.x, a.z, tx, tz);
+      act[off + A_MOVE_X] = sg * gx * 3;
+      act[off + A_MOVE_Z] = sg * gz * 3;
+    }
+    act[off + A_FIRE] = 1;
+    act[off + A_TARGET0] = 1;
+  }
+}
+
 /** Pressures one site, then leaves for another at a fixed time — the crudest possible fake. */
 export class FakeAttackerPolicy extends SiteAttackerPolicy {
   private readonly second: number;
