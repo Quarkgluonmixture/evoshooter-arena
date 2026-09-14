@@ -6,6 +6,7 @@ import { HistoryStore, type StoreJSON } from './ui/store.ts';
 import { LineChart } from './ui/charts.ts';
 import { Heatmap } from './ui/heatmap.ts';
 import { MatchViewer } from './render/viewer.ts';
+import { commLight } from './render/scene.ts';
 import { TEAM_CSS } from './render/scene.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
@@ -27,9 +28,20 @@ const boot = (() => {
     // spectator show it without flipping the defaults, which is a separate decision (CHECKPOINT)
     sites: u.searchParams.get('sites') === '2' ? (2 as const) : (1 as const),
     capture: u.searchParams.get('mode') === 'capture',
+    // the radio rules travel with the run too: a champion trained on 5 held symbols plays a DIFFERENT game on a
+    // continuous one, and the genome length is identical, so nothing would complain
+    tokens: Number(u.searchParams.get('tokens')) || 0,
+    interval: Number(u.searchParams.get('interval')) || 1,
+    delay: Number(u.searchParams.get('delay')) || 0,
   };
 })();
-const bootSim = { siteCount: boot.sites, ...(boot.capture ? { roundMode: 'capture' as const } : {}) };
+const bootSim = {
+  siteCount: boot.sites,
+  commTokens: boot.tokens,
+  commIntervalTicks: boot.interval,
+  commDelayTicks: boot.delay,
+  ...(boot.capture ? { roundMode: 'capture' as const } : {}),
+};
 let trainer = new Trainer({ popSize: boot.pop, mapSeed: boot.mapSeed }, bootSim, boot.seed);
 let evaluator: WorkerEvaluator | null = null;
 const store = new HistoryStore();
@@ -134,9 +146,9 @@ function updateSpectator(): void {
     ($('pov-hp') as HTMLElement).style.width = `${Math.max(0, (a.hp / trainer.sim.hp) * 100)}%`;
     ($('pov-hp') as HTMLElement).style.background = `hsl(${120 * (a.hp / trainer.sim.hp)} 70% 55%)`;
     $('pov-ammo').textContent = `${'▮'.repeat(a.ammo)}${'▯'.repeat(trainer.sim.magSize - a.ammo)}`;
-    const mag = Math.min(1, Math.hypot(a.comm[0], a.comm[1]));
-    const hue = ((Math.atan2(a.comm[1], a.comm[0]) / (2 * Math.PI) + 1) % 1) * 360;
-    ($('pov-comm') as HTMLElement).style.background = `hsl(${hue} 90% ${20 + 45 * mag}%)`;
+    // same rule as the in-world light: what LEFT the radio, as a symbol when the radio is quantised
+    const [hue, light] = commLight(trainer.sim, a.commSaid);
+    ($('pov-comm') as HTMLElement).style.background = `hsl(${hue * 360} 90% ${light * 100}%)`;
   } else {
     dmgEl.style.opacity = '0';
   }
@@ -466,9 +478,14 @@ $('export').onclick = () => {
     // the arena geometry depends on siteCount, and the scene is built once: importing a two-site run into a
     // one-site page drew the wrong map and coloured the wrong objective
     const rs = data.trainer.sim;
-    if ((rs.siteCount ?? 1) !== trainer.sim.siteCount || rs.roundMode !== trainer.sim.roundMode) {
-      const q = `?map=${data.trainer.evo.mapSeed}&sites=${rs.siteCount ?? 1}${rs.roundMode === 'capture' ? '&mode=capture' : ''}`;
-      alert(`This run is ${rs.roundMode} with ${rs.siteCount ?? 1} site(s); reload with ${q} first.`);
+    const mine = trainer.sim;
+    const differs = (rs.siteCount ?? 1) !== mine.siteCount || rs.roundMode !== mine.roundMode
+      || (rs.commTokens ?? 0) !== mine.commTokens || (rs.commIntervalTicks ?? 1) !== mine.commIntervalTicks
+      || (rs.commDelayTicks ?? 0) !== mine.commDelayTicks;
+    if (differs) {
+      const q = `?map=${data.trainer.evo.mapSeed}&sites=${rs.siteCount ?? 1}${rs.roundMode === 'capture' ? '&mode=capture' : ''}`
+        + `&tokens=${rs.commTokens ?? 0}&interval=${rs.commIntervalTicks ?? 1}&delay=${rs.commDelayTicks ?? 0}`;
+      alert(`This run is ${rs.roundMode}, ${rs.siteCount ?? 1} site(s), radio ${rs.commTokens ? `${2 * (rs.commTokens ?? 0) + 1} symbols every ${rs.commIntervalTicks}t (+${rs.commDelayTicks}t)` : 'continuous'};\nreload with ${q} first.`);
       return;
     }
     const t = Trainer.restore(data.trainer);

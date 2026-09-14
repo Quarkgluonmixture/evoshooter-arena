@@ -928,3 +928,19 @@ D2c 也量过信息值 13%→40% ⇒ 「改世界」的前提不成立（VISION 
 **不是接线坏了**；⛔ 没有据此下「kill feed 没生效」的结论。
 ② 换成会打的一对（d2-radio-s1 红 vs d2-radio-s2 蓝，`?sites=2&mode=capture`）：8.2 秒时 feed 出现 `B2 ✕ R5` / `R3 ✕ B2`，
 最多同时 5 行、无 console error，截图 /tmp/evo-killfeed.png（双点位环也在同一张图里）。
+
+## [2026-09-14 12:22] 观战：通信灯改成**符号**，并修掉「页面用另一套电台规则播冠军」  #ship #incident
+
+两个同族缺陷，都是「观战演的不是训练那个世界」：
+1. **灯读错了字段**：渲染用的是 `a.comm`（没说出口的意图），真正上电台的是 `a.commSaid`（量化 + 按发送间隔保持）。已改成 `commSaid`。
+2. **页面的电台规则和 run 不一致**：`?sites=2&mode=capture` 下 `commTokens` 仍是 0，于是用 5 符号电台训出来的冠军在**连续电台**里播 ——
+   而 commDim 没变 ⇒ **基因组长度一样，没有任何东西会报错**。这是我在验证第 1 条时撞见的。
+   已加 `?tokens=&interval=&delay=`，并把导入检查从「点位数 / 回合模式」扩到**整套电台规则**，提示里直接给出该用的 URL。
+
+新的纯函数 `commLight(cfg, said)`（`src/render/scene.ts` 导出，POV 指示器与世界里的灯共用一份映射）：
+量化电台下 slot 0 的符号决定色相、slot 1 决定亮度档，**静默（0）= 暗**；连续电台仍走旧的角度 / 幅度色带。
+`tests/render.test.ts` 钉住四条：同一符号永远同一颜色 · 不同符号色相互不相同 · 静默暗 / 有话亮 · 连续模式仍是斜坡。
+
+**验证**：`?sites=2&mode=capture&tokens=2&interval=5&delay=3` 下播 d2-radio 的冠军，页面读到 `commTokens 2`、
+实发符号是量化值（1.0 / −1.0 / 0.5 / 0），从活体材质抽到的 HSL 按符号分色（−1 → 色相 0）；无 console error。
+⚠ 之前那次「tokens 0」的读数就是第 2 条缺陷的现场证据 —— ⛔ 没拿它当「灯不工作」的结论。

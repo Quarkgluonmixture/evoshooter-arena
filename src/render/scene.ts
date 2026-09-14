@@ -63,6 +63,25 @@ export interface SceneToggles {
 }
 
 /** All rendering state for one arena. Pure view: reads a World, never mutates it. */
+/**
+ * Colour of a radio light from what was actually transmitted.
+ * Quantised radio (`commTokens > 0`): slot 0's symbol picks a hue off a fixed wheel and slot 1's symbol sets the
+ * brightness step, so two identical symbols always look identical and silence (0) is dark — the eye can read the
+ * vocabulary. Continuous radio (the pre-D2 baseline): the old angle/magnitude ramp.
+ */
+export function commLight(cfg: SimConfig, said: Float32Array): [hue: number, light: number] {
+  const k = cfg.commTokens;
+  if (k <= 0) {
+    const mag = Math.min(1, Math.hypot(said[0], said[1] ?? 0));
+    return [(Math.atan2(said[1] ?? 0, said[0]) / (2 * Math.PI) + 1) % 1, 0.15 + 0.45 * mag];
+  }
+  const sym = Math.max(-k, Math.min(k, Math.round(said[0] * k)));
+  const other = said.length > 1 ? Math.max(-k, Math.min(k, Math.round(said[1] * k))) : 0;
+  if (sym === 0 && other === 0) return [0, 0.08]; // silence is a choice, and it reads as dark
+  const hue = (sym + k) / (2 * k + 1);
+  return [hue, 0.3 + 0.3 * (Math.abs(other) / k)];
+}
+
 export class ArenaScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -534,11 +553,12 @@ export class ArenaScene {
         const hp = a.hp / this.cfg.hp;
         v.hpFg.scale.x = Math.max(0.02, hp);
         v.hpMat.color.setHSL(0.33 * hp, 0.8, 0.55);
-        // comm channel → hue by angle, brightness by magnitude
-        const mag = Math.min(1, Math.hypot(a.comm[0], a.comm[1]));
-        const hue = (Math.atan2(a.comm[1], a.comm[0]) / (2 * Math.PI) + 1) % 1;
-        v.commMat.emissive.setHSL(hue, 0.9, 0.15 + 0.45 * mag);
-        v.commMat.color.setHSL(hue, 0.8, 0.1 + 0.3 * mag);
+        // What actually LEFT the radio (`commSaid`), never the unexpressed urge (`comm`): with commTokens > 0 the
+        // world quantises and holds a symbol, so the light is a SYMBOL too — a continuous ramp would draw a
+        // channel this world does not have (ROADMAP D2a).
+        const [hue, light] = commLight(this.cfg, a.commSaid);
+        v.commMat.emissive.setHSL(hue, 0.9, light);
+        v.commMat.color.setHSL(hue, 0.8, Math.max(0, light - 0.05));
         v.fovMat.opacity = a.firing ? 0.22 : 0.1;
         const si = this.siteAt(a.x, a.z);
         if (si >= 0) { if (a.team === 0) rz[si]++; else bz[si]++; }
