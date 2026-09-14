@@ -39,6 +39,8 @@ This is a *watch-and-steer* game, like breeding fighters rather than driving one
    language yet; if lights turn stable and role-like (e.g. the zone-holder glows one colour), signalling emerged.
 6. Steering levers (all in the panel, reset to apply): **map seed** changes the arena, **seed** re-rolls the initial
    populations, **population** trades speed for diversity. Export a run before changing anything you might regret.
+   The world itself comes from the URL: `?sites=2&mode=capture&tokens=2&interval=5&delay=3` gives the two-site
+   capture round with a five-symbol radio that the headless runs train in (the page defaults stay single-site koth).
 7. Long runs: leave a tab evolving for an hour (≈ 1–2 s per generation with 8 workers), then come back and compare
    "halfway vs latest". The headless CLI does the same without graphics and prints the win rates.
 
@@ -50,8 +52,9 @@ This is a *watch-and-steer* game, like breeding fighters rather than driving one
 | Translucent cone | 110° field of view (what the network can "see"); brighter while firing |
 | Bar above head | health (4 hits to die) |
 | Ring on the ground | aim mode: half speed, no movement accuracy penalty |
-| Light on the head | the 2-value **comm channel** the agent broadcasts to teammates — hue = direction, brightness = magnitude. Random noise at gen 0; if it settles into stable, role-like colours, signalling has evolved |
-| Zone ring | 1 point/s for the side with more living agents inside. Wiping the enemy banks the remaining time |
+| Light on the head | what that agent is **saying on the radio** right now (what left the wire, not the unexpressed urge). With a quantised radio each symbol has its own colour and silence is dark; with the continuous radio it is a hue/brightness ramp. Random at gen 0; if a symbol becomes stable and situational, signalling has evolved |
+| Zone / site rings | every objective is drawn (both sites in a two-site round, not just the first). In koth, 1 point/s for the side with more living agents inside; in capture rounds the armed site pulses. Wiping the enemy banks the remaining time |
+| Kill feed (top right) | who killed whom, off the spectator event channel — the players themselves only get the alive-count channel |
 | Tall walls | block sight and movement |
 | Low walls | block movement and hide legs/torso — the head stays exposed |
 | Tracer + muzzle flash | a round leaving the gun |
@@ -68,10 +71,16 @@ Right-hand panel:
   the two sides answer each other. Note that *in cover while threatened* counts only threats the agent itself
   knows about (its own sighting, or its own three-second memory), so it is not comparable with runs from before
   contacts became private.
-- **Where they go** — occupancy heat-maps per team with a generation scrubber.
+- **Where they go** — occupancy heat-maps per team with a generation scrubber, with the cells they **fired from**
+  overlaid in amber (both layers share one denominator, so a busy-but-quiet cell stays dark in the fire layer).
+- **Who beats whom** — load the JSON that `npm run crossplay -- <runs> --out runs/xp.json` writes and the matrix is
+  drawn here: win shares, decisive edges, non-transitive cycles, `··` for pairs that never met. Every number is the
+  CLI's; the page computes none of them.
 - **Time travel** — pit any generation's champion against any other. "gen 0 vs latest" is the fastest way to *feel*
   the change.
-- **Save / load** — export the whole run (populations, hall of fame, history) and import it later.
+- **Save / load** — export the whole run (populations, hall of fame, history) and import it later. An imported run
+  brings its own world: if its map, round mode or radio rules differ from the page's, the view is rebuilt around the
+  run rather than playing its champions under the wrong rules.
 
 ## Spectating (CS:GO-observer style)
 
@@ -81,7 +90,9 @@ Right-hand panel:
 | `Tab` / `Space` (`Shift` reverses) | next living agent |
 | `V` | toggle first ↔ third person (first person hides your own body, draws the weapon, and shows a crosshair + HP/ammo/comm HUD) |
 | `F` | free orbit camera (drag / wheel) |
-| `D` | auto-director: follows whoever is firing, being shot, closest to enemies or holding the zone; cuts after ≥ 2.6 s when someone else is clearly more interesting (never mid-burst), and ~1 s after its subject dies |
+| drag / wheel in third person | swing the camera around the player you are following, or pull the boom back; a cut or a new player resets it |
+| `↺ last kill` | rebuild the match from its seed and replay the last kill at 0.35× (nothing is recorded per tick — the sim is deterministic) |
+| `D` | auto-director: follows whoever is firing, being shot, closest to enemies or holding the zone; cuts after ≥ 2.6 s when someone else is clearly more interesting (never mid-burst), and ~1 s after its subject dies. Cuts fade through black so a jump reads as a cut |
 
 The chase camera rises over cover instead of pulling into the subject's back, and both follow cameras track the
 *interpolated* pose: the sim runs at 15 Hz while the display runs at refresh rate, so the pose drawn each frame is
