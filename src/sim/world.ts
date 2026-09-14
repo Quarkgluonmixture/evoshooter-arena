@@ -190,6 +190,9 @@ export class World {
    * what a speaker is currently saying is not the same object as what a listener currently hears.
    */
   private readonly commWire: Float32Array;
+  /** lidar scratch: boxes sorted by distance to the agent being sensed, and that distance (see `orderBoxesFor`) */
+  private readonly boxOrder: Int32Array;
+  private readonly boxNear: Float32Array;
   /**
    * brain[i*recurrentDim + k]: player i's own recurrent state, carried from last tick (ROADMAP D1).
    * It lives here rather than on the policy on purpose — policies are cached per genome and replayed
@@ -256,6 +259,8 @@ export class World {
     this.audio = new Float32Array(this.n * cfg.audioSectors * AUDIO_CLASSES);
     this.brain = new Float32Array(this.n * cfg.recurrentDim);
     this.commWire = new Float32Array(this.n * cfg.commDim * (cfg.commDelayTicks + 1));
+    this.boxOrder = new Int32Array(map.boxes.length);
+    this.boxNear = new Float32Array(map.boxes.length);
     this.audioPath = new Float32Array(this.n * this.n);
     this.losPair = new Uint8Array(this.n * this.n);
     this.stats = [newStats(cfg.commDim), newStats(cfg.commDim)];
@@ -523,11 +528,39 @@ export class World {
     return (Math.cos(me.yaw) * dx + Math.sin(me.yaw) * dz) / d >= this.cosHalfFov;
   }
 
+  /**
+   * Order the boxes by how close they get to this agent, nearest first, into the reusable `boxOrder` /
+   * `boxNear` scratch. A ray's distance to a box can never be shorter than the box's nearest point, so once a
+   * ray's best hit is closer than the next box's nearest distance, every remaining box is irrelevant — an exact
+   * early-out, ⛔ not an approximation: the distances themselves are untouched, so readings stay bit-identical.
+   */
+  private orderBoxesFor(a: Agent): number {
+    const boxes = this.map.boxes;
+    const n = boxes.length;
+    for (let i = 0; i < n; i++) {
+      const b = boxes[i];
+      const dx = a.x < b.minX ? b.minX - a.x : a.x > b.maxX ? a.x - b.maxX : 0;
+      const dz = a.z < b.minZ ? b.minZ - a.z : a.z > b.maxZ ? a.z - b.maxZ : 0;
+      this.boxNear[i] = Math.sqrt(dx * dx + dz * dz);
+      this.boxOrder[i] = i;
+    }
+    // insertion sort: 32 boxes, already nearly sorted from tick to tick, and it allocates nothing
+    for (let i = 1; i < n; i++) {
+      const idx = this.boxOrder[i];
+      const key = this.boxNear[idx];
+      let j = i - 1;
+      while (j >= 0 && this.boxNear[this.boxOrder[j]] > key) { this.boxOrder[j + 1] = this.boxOrder[j]; j--; }
+      this.boxOrder[j + 1] = idx;
+    }
+    return n;
+  }
+
   private lidar(a: Agent, out: Float32Array, off: number): void {
     const cfg = this.cfg;
     const half = cfg.arenaHalf;
     const bucket = Math.floor(this.t / cfg.perceptBucketSeconds);
     const lg = Math.log1p(cfg.geomRangeError);
+    const nBoxes = this.orderBoxesFor(a);
     for (let k = 0; k < cfg.lidarRays; k++) {
       const ang = a.yaw + this.lidarOffsets[k];
       const dx = Math.cos(ang);
@@ -539,8 +572,10 @@ export class World {
       if (dz > 1e-9) best = Math.min(best, (half - a.z) / dz);
       else if (dz < -1e-9) best = Math.min(best, (-half - a.z) / dz);
       const boxes = this.map.boxes;
-      for (let i = 0; i < boxes.length; i++) {
-        const t = rayBoxDist2D(a.x, a.z, dx, dz, boxes[i]);
+      for (let i = 0; i < nBoxes; i++) {
+        const bi = this.boxOrder[i];
+        if (this.boxNear[bi] >= best) break; // every remaining box is at least this far away
+        const t = rayBoxDist2D(a.x, a.z, dx, dz, boxes[bi]);
         if (t < best) best = t;
       }
       // same treatment as a visual contact: blurred, then snapped to a multiplicative lattice, so the
