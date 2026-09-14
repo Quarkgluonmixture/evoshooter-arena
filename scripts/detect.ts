@@ -43,7 +43,11 @@ function playAndCollect(sim: SimConfig, map: ArenaMap, seed: number, red: Policy
   const kills: KillRecord[] = [];
   while (!w.done) {
     stepMatch(w, red, blue);
-    for (const ev of w.events) if (ev.kind === 'kill') kills.push({ tick: w.tick, killer: ev.killer, victim: ev.victim, x: ev.x, z: ev.z });
+    for (const ev of w.events) {
+      if (ev.kind !== 'kill') continue;
+      // alive counts after this tick's kills: the pool a teammate's next shot could have picked from
+      kills.push({ tick: w.tick, killer: ev.killer, victim: ev.victim, x: ev.x, z: ev.z, aliveEnemies: [w.aliveCount[0], w.aliveCount[1]] });
+    }
   }
   return { kills, ticks: w.tick };
 }
@@ -91,8 +95,10 @@ for (const path of files) {
 
 console.log(`trade detector — window ${WINDOW}s, radius ${RADIUS}m, ${N} seeds x 2 role assignments per row`);
 console.log('a death is TRADED when a teammate kills the killer inside the window and inside the radius;');
-console.log("null = the same kills with the answering kill's TIME redrawn inside the match (64 redraws)\n");
-console.log(`${padr('observed team', 24)}${pad('deaths', 8)}${pad('traded', 8)}${pad('rate', 7)}${pad('null', 7)}${pad('x null', 7)}${pad('far', 6)}${pad('median gap', 11)}${pad('first trade (replay anchor)', 26)}`);
+console.log("null = the same kills with the answering kill's TIME redrawn inside the match (64 redraws);");
+console.log('lift = traded / expected-if-the-answering-kill-had-picked-uniformly-among-living-enemies, counted over the');
+console.log('       deaths that got any answer inside the window and radius — it keeps every real time and place\n');
+console.log(`${padr('observed team', 24)}${pad('deaths', 8)}${pad('traded', 8)}${pad('rate', 7)}${pad('null', 7)}${pad('x null', 7)}${pad('far', 6)}${pad('answered', 10)}${pad('lift', 7)}${pad('median gap', 11)}${pad('first trade (replay anchor)', 26)}`);
 
 for (const row of rows) {
   const opts: TradeOptions = { windowSeconds: WINDOW, radius: RADIUS, dt: row.sim.dt, teamSize: row.sim.teamSize };
@@ -101,6 +107,8 @@ for (const row of rows) {
   let far = 0;
   let nullSum = 0;
   let nullN = 0;
+  let answered = 0;
+  let chance = 0;
   const gaps: number[] = [];
   let anchor: { seed: number; attackers: 0 | 1; tick: number } | null = null;
   for (let m = 0; m < N; m++) {
@@ -113,6 +121,8 @@ for (const row of rows) {
       far += st.far;
       gaps.push(...st.gaps);
       if (st.deaths) { nullSum += st.nullRate * st.deaths; nullN += st.deaths; }
+      answered += st.answered;
+      chance += st.chance;
       // a replay anchor needs the seed too, or "tick 213" points at nothing reproducible
       if (anchor === null && st.firstAt !== null) anchor = { seed, attackers, tick: st.firstAt };
     }
@@ -122,6 +132,7 @@ for (const row of rows) {
   const nul = nullN ? nullSum / nullN : NaN;
   console.log(`${padr(row.label, 24)}${pad(String(deaths), 8)}${pad(String(traded), 8)}${pad(Number.isNaN(rate) ? 'n/a' : pct(rate), 7)}`
     + `${pad(Number.isNaN(nul) ? 'n/a' : pct(nul), 7)}${pad(nul > 0 ? (rate / nul).toFixed(1) : '—', 7)}${pad(String(far), 6)}`
+    + `${pad(`${answered}`, 10)}${pad(chance > 0 ? (traded / chance).toFixed(2) : '—', 7)}`
     + `${pad(gaps.length ? `${median(gaps).toFixed(2)}s` : '—', 11)}${pad(anchor === null ? '—' : `seed ${anchor.seed} atk${anchor.attackers} t${anchor.tick}`, 26)}`);
 }
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');
