@@ -204,6 +204,11 @@ function playSelection(): boolean {
   return true;
 }
 viewer.onFinished = () => { playSelection(); };
+const killReplayBtn = $('kill-replay') as HTMLButtonElement;
+killReplayBtn.onclick = () => {
+  // deterministic sim ⇒ the same seed replays the same match; nothing is recorded per tick
+  if (!viewer.replayLastKill()) status('no kill in this match yet');
+};
 
 /* ------------------------------------------------------------- kill feed */
 

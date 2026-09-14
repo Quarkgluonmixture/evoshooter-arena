@@ -23,8 +23,12 @@ export class MatchViewer {
   onKill: ((killer: number, victim: number) => void) | null = null;
   /** Fired when a new match is loaded, so per-match overlays (the kill feed) can clear. */
   onNewMatch: (() => void) | null = null;
+  /** ticks at which somebody died this match — the anchors for a slow-motion replay */
+  readonly killTicks: number[] = [];
   private red: Policy | null = null;
   private blue: Policy | null = null;
+  /** what `load` was called with, so a replay can rebuild the SAME match from the seed (the sim is deterministic) */
+  private lastLoad: { red: Float32Array; blue: Float32Array; seed: number; labels: MatchLabels } | null = null;
   private acc = 0;
   private hold = 0;
   private readonly frameEvents: WorldEvent[] = [];
@@ -42,6 +46,8 @@ export class MatchViewer {
   }
 
   load(red: Float32Array, blue: Float32Array, seed: number, labels: MatchLabels): void {
+    this.lastLoad = { red, blue, seed, labels };
+    this.killTicks.length = 0;
     const shape = shapeFor(this.cfg, this.hidden);
     this.red = new NeuralPolicy(shape, red);
     this.blue = new NeuralPolicy(shape, blue);
@@ -60,6 +66,30 @@ export class MatchViewer {
     return this.world !== null && !this.world.done;
   }
 
+  /**
+   * Rebuild this match from its seed and fast-forward to `preroll` ticks before the last kill, then play slowly.
+   * Nothing is stored per tick: the simulation is deterministic, so the same seed and genomes replay the same match
+   * (this is the cheap half of DISCOVERY-EXPLAINABILITY-CONTRACT §5's forkable replay — same branch, no fork).
+   */
+  replayLastKill(preroll = 45, speed = 0.35): boolean {
+    const at = this.killTicks[this.killTicks.length - 1];
+    if (!this.lastLoad || at === undefined) return false;
+    const { red, blue, seed, labels } = this.lastLoad;
+    this.load(red, blue, seed, labels);
+    const w = this.world;
+    if (!w || !this.red || !this.blue) return false;
+    const target = Math.max(0, at - preroll);
+    while (w.tick < target && !w.done) {
+      this.scene.captureTick(w);
+      stepMatch(w, this.red, this.blue);
+    }
+    this.scene.sync(w, 1, false);
+    this.rig.reset(w);
+    this.acc = 0;
+    this.speed = speed;
+    return true;
+  }
+
   /** Advance by `realDt` seconds of wall-clock time. */
   frame(realDt: number): void {
     const w = this.world;
@@ -72,7 +102,12 @@ export class MatchViewer {
         while (this.acc >= this.cfg.dt && steps < 12 && !w.done) {
           this.scene.captureTick(w); // snapshot the pose we are interpolating FROM
           stepMatch(w, this.red, this.blue);
-          for (const ev of w.events) this.frameEvents.push(ev);
+          for (const ev of w.events) {
+            this.frameEvents.push(ev);
+            // ⚠ record the tick HERE, not where the effects are drained: a frame runs up to 12 sim steps, so a tick
+            // taken after the loop depends on wall-clock speed — and a replay anchored to it lands in the wrong place
+            if (ev.kind === 'kill') this.killTicks.push(w.tick);
+          }
           this.acc -= this.cfg.dt;
           steps++;
           advanced = true;
