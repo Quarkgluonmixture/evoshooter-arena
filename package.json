@@ -31,7 +31,8 @@
     "uptake": "node scripts/uptake.ts",
     "radiouse": "node scripts/radiouse.ts",
     "roledemand": "node scripts/roledemand.ts",
-    "exploit": "node scripts/exploit.ts"
+    "exploit": "node scripts/exploit.ts",
+    "detect": "node scripts/detect.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
