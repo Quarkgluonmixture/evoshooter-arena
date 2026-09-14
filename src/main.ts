@@ -188,6 +188,27 @@ function playSelection(): boolean {
 }
 viewer.onFinished = () => { playSelection(); };
 
+/* ------------------------------------------------------------- kill feed */
+
+const killFeed = $('killfeed');
+const KILL_ROWS = 5;
+const KILL_HOLD_MS = 5000;
+viewer.onNewMatch = () => killFeed.replaceChildren();
+viewer.onKill = (killer, victim) => {
+  const T = trainer.sim.teamSize;
+  const name = (id: number) => `${id < T ? 'R' : 'B'}${(id % T) + 1}`;
+  const cls = (id: number) => (id < T ? 'red' : 'blue');
+  const row = document.createElement('div');
+  row.className = 'kf-row';
+  row.innerHTML = `<span class="${cls(killer)}">${name(killer)}</span><i>✕</i><span class="${cls(victim)}">${name(victim)}</span>`;
+  killFeed.appendChild(row);
+  while (killFeed.childElementCount > KILL_ROWS) killFeed.firstElementChild?.remove();
+  setTimeout(() => {
+    row.classList.add('out');
+    setTimeout(() => row.remove(), 400);
+  }, KILL_HOLD_MS);
+};
+
 let last = performance.now();
 function raf(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);

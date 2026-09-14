@@ -19,6 +19,10 @@ export class MatchViewer {
   /** seconds to hold the final frame before `onFinished` fires */
   holdSeconds = 2.5;
   onFinished: (() => void) | null = null;
+  /** Spectator-only: one call per kill, for the feed. ⛔ Never wire a policy to this (world.events is observer-side). */
+  onKill: ((killer: number, victim: number) => void) | null = null;
+  /** Fired when a new match is loaded, so per-match overlays (the kill feed) can clear. */
+  onNewMatch: (() => void) | null = null;
   private red: Policy | null = null;
   private blue: Policy | null = null;
   private acc = 0;
@@ -46,6 +50,7 @@ export class MatchViewer {
     this.acc = 0;
     this.hold = 0;
     this.finishedNotified = false;
+    this.onNewMatch?.();
     this.scene.bindWorld(this.world);
     this.scene.sync(this.world, 1, false);
     this.rig.reset(this.world);
@@ -89,7 +94,10 @@ export class MatchViewer {
       // FX are spawned after sync so they attach to the pose that is actually on screen
       for (const ev of this.frameEvents) {
         if (ev.kind === 'shot') this.scene.addShot(ev, w);
-        else this.scene.addKill(ev, w);
+        else {
+          this.scene.addKill(ev, w);
+          this.onKill?.(ev.killer, ev.victim);
+        }
       }
     }
     this.rig.update(w, realDt, this.frameEvents);

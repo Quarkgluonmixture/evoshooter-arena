@@ -31,6 +31,14 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .pips.blue i { background: var(--blue); }
 .pips i.on { opacity: 1; }
 
+/* Kill feed — reads `world.events` through the viewer, which is the SPECTATOR channel; players never see it. */
+#killfeed { position: absolute; top: 62px; right: 14px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; pointer-events: none; }
+.kf-row { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; background: rgba(10,11,14,0.55); border-radius: 4px; padding: 3px 8px; opacity: 1; transition: opacity 0.4s; }
+.kf-row.out { opacity: 0; }
+.kf-row .red { color: var(--red); }
+.kf-row .blue { color: var(--blue); }
+.kf-row i { font-style: normal; color: var(--text-2); }
+
 #banner { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 30px; font-weight: 700; letter-spacing: 0.04em; text-shadow: 0 2px 18px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.3s; pointer-events: none; text-align: center; }
 #banner.show { opacity: 1; }
 #banner small { display: block; font-size: 14px; font-weight: 400; color: var(--text-2); margin-top: 4px; }

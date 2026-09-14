@@ -917,3 +917,14 @@ D2c 也量过信息值 13%→40% ⇒ 「改世界」的前提不成立（VISION 
   —— 之前只比 mapSeed，把双点位 run 导进单点位页面会画错整张地图。
 - 验证（借 evofootball 的 playwright，端口 5983，先 `curl | grep title` 确认是本项目）：`?sites=2&mode=capture` 截图**两个点位环都在**、
   中间隔断在；默认页仍是单点位一个环、无 console error。截图 /tmp/evo-2site.png · /tmp/evo-1site.png。
+
+## [2026-09-14 12:19] 观战：kill feed 上线（走 world.events 的观战通道）  #ship
+
+`MatchViewer` 新增 `onKill` / `onNewMatch` 两个**只给观战器**的回调（⛔ 任何 policy 都不得接到它们上面 —— `world.events` 是 SPECTATOR CHANNEL）；
+页面右上角滚动「击杀者 ✕ 被击杀者」，按队伍着色，最多 5 行、5 秒淡出，换一场自动清空。⛔ 没有另造事件源。
+
+**验证经过（两次，第一次是空读数）**：
+① 先用 `runs/smoke-30.json` 的末代冠军播了一整场：t 走到 40、done，但 **0 枪 0 死** ⇒ feed 当然是空的 —— 这是坑 #13/#18 的老形状（两条策略互相不接触），
+**不是接线坏了**；⛔ 没有据此下「kill feed 没生效」的结论。
+② 换成会打的一对（d2-radio-s1 红 vs d2-radio-s2 蓝，`?sites=2&mode=capture`）：8.2 秒时 feed 出现 `B2 ✕ R5` / `R3 ✕ B2`，
+最多同时 5 行、无 console error，截图 /tmp/evo-killfeed.png（双点位环也在同一张图里）。
