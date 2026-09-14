@@ -45,6 +45,11 @@ export class CameraRig {
   private initialised = false;
   /** cover grown by the camera radius, so the boom never grazes a corner */
   private readonly padded: Box[];
+  /** third person: where the viewer has dragged the boom around the subject (reset on every cut) */
+  private orbitYaw = 0;
+  private orbitUp = 0;
+  private orbitDist = 1;
+  private dragging = false;
 
   constructor(scene: ArenaScene) {
     this.scene = scene;
@@ -52,6 +57,39 @@ export class CameraRig {
       minX: b.minX - CAM_RADIUS, maxX: b.maxX + CAM_RADIUS,
       minZ: b.minZ - CAM_RADIUS, maxZ: b.maxZ + CAM_RADIUS, h: b.h,
     }));
+    // third person used to be welded to the subject's heading: you could never look at their flank. Dragging
+    // swings the boom around them; the frame still follows the subject, and any cut puts it back (`resetOrbit`).
+    const el = scene.renderer.domElement;
+    el.addEventListener('pointerdown', (e) => {
+      if (this.mode !== 'third' || e.button !== 0) return;
+      this.dragging = true;
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!this.dragging || this.mode !== 'third') return;
+      this.orbitYaw += e.movementX * 0.006;
+      this.orbitUp = Math.max(-2.2, Math.min(9, this.orbitUp + e.movementY * 0.03));
+    });
+    const stop = (e: PointerEvent) => {
+      if (!this.dragging) return;
+      this.dragging = false;
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    el.addEventListener('pointerup', stop);
+    el.addEventListener('pointercancel', stop);
+    el.addEventListener('wheel', (e) => {
+      if (this.mode !== 'third') return;
+      e.preventDefault();
+      this.orbitDist = Math.max(0.55, Math.min(2.4, this.orbitDist * (e.deltaY > 0 ? 1.1 : 1 / 1.1)));
+    }, { passive: false });
+  }
+
+  /** Back to over-the-shoulder. A cut or a new subject must not inherit where the last one was dragged. */
+  private resetOrbit(): void {
+    this.orbitYaw = 0;
+    this.orbitUp = 0;
+    this.orbitDist = 1;
+    this.dragging = false;
   }
 
   setMode(mode: CamMode): void {
@@ -80,6 +118,7 @@ export class CameraRig {
   }
 
   select(id: number, world: World | null): void {
+    this.resetOrbit();
     if (!world || id < 0 || id >= world.n) return;
     this.subject = id;
     this.shotT = 0;
@@ -163,6 +202,7 @@ export class CameraRig {
   }
 
   private cut(world: World, id: number, reason: string): void {
+    this.resetOrbit();
     this.subject = id;
     this.shotT = 0;
     this.deadT = 0;
@@ -269,10 +309,15 @@ export class CameraRig {
     } else {
       // over-the-shoulder: pull back, step to one side, and CLIMB when cover shortens the boom
       // (shrinking the distance alone put the camera inside the subject whenever its back was to a wall)
-      const rx = -Math.sin(this.smoothYaw);
-      const rz = Math.cos(this.smoothYaw);
-      const b = this.boom(p.x + rx * CHASE_SIDE, p.z + rz * CHASE_SIDE, -fx, -fz, CHASE_BACK);
-      this.tmp.set(p.x - fx * b.back + rx * CHASE_SIDE, b.up, p.z - fz * b.back + rz * CHASE_SIDE);
+      // the boom hangs off the dragged heading; the LOOK target stays on the subject's own heading, so orbiting
+      // moves the eye around them instead of swinging the frame off them
+      const oy = this.smoothYaw + this.orbitYaw;
+      const ox = Math.cos(oy);
+      const oz = Math.sin(oy);
+      const rx = -Math.sin(oy);
+      const rz = Math.cos(oy);
+      const b = this.boom(p.x + rx * CHASE_SIDE, p.z + rz * CHASE_SIDE, -ox, -oz, CHASE_BACK * this.orbitDist);
+      this.tmp.set(p.x - ox * b.back + rx * CHASE_SIDE, Math.max(1.2, b.up + this.orbitUp), p.z - oz * b.back + rz * CHASE_SIDE);
       // look just ahead of the subject, not 8 m down-range: that pushed them to the edge of frame
       const target = this.tgt.set(p.x + fx * 3 + rx * CHASE_SIDE * 0.4, 1.45, p.z + fz * 3 + rz * CHASE_SIDE * 0.4);
       if (!this.initialised) {
