@@ -412,9 +412,13 @@ const METRIC_LABELS: Record<keyof TeamMetrics, { title: string; format: (v: numb
   damageDealt: { title: 'Damage dealt', format: one, min: 0 },
   damageTaken: { title: 'Damage taken', format: one, min: 0 },
   zoneScore: { title: 'Zone points', format: one, min: 0 },
+  // role-specific: only defined in the matches where this team had that job (NaN otherwise)
+  attackProgress: { title: 'Attack progress (attacking matches)', format: two, min: 0, max: 1 },
+  defendProgress: { title: 'Defuse progress (defending matches)', format: two, min: 0, max: 1 },
 };
 const SHOWN: (keyof TeamMetrics)[] = [
   'accuracy', 'zoneShare', 'coverRatio', 'spread', 'engageDist', 'flankRate', 'firstContact', 'commActivity', 'aimUsage', 'moveFraction', 'kills', 'survivors',
+  'attackProgress', 'defendProgress',
 ];
 const metricCharts: { key: keyof TeamMetrics; chart: LineChart }[] = [];
 {

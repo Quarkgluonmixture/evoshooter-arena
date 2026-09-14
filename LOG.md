@@ -1006,3 +1006,15 @@ g0 均值 **14%**（进步是真的），但**末代 g299 是 65%，而 g225 = 6
 再用**默认单点位 koth** 的页面导入它 —— 点位 1 → **2**、模式 koth → **capture**、`commTokens` 0 → **2**，
 `#view-canvas` 里仍然**只有一个 canvas**（旧的被移除，没泄漏），状态栏：「adopted its world: map 7, capture, 2 site(s), radio 5 symbols/5t/+3t」，比赛自动开播；无 console error。
 坑 #33 的闸同步更新：行为从「拒绝」改成「采用」，不变量不变 —— ⛔ 绝不在与 run 不同的规则下播它的冠军。
+
+## [2026-09-14 16:15] 度量：拆出 attackProgress / defendProgress，均值改成按「这一格有没有定义」求  #ship
+
+`objectiveProgress` 一个数装了两种量（我进攻时的占领进度 / 我防守时的拆除进度），角色一互换，聚合值就随**角色配比**动。
+- 新增 `attackProgress` / `defendProgress`：不是自己那份工作时为 **NaN**（koth 下两者都是 NaN）。
+- `meanMetrics` 改成**只对有定义的比赛求平均**（⛔ 不把 NaN 当 0），全无定义时保持 NaN；图表本来就跳过非有限点。
+- ⭐ 旧的 `objectiveProgress` **保留不动** —— 它是历史序列（README / CHECKPOINT 里的 .08 → .23/.35 都是它），换口径会让跨 phase 的数不可比（坑 #12）。
+- JSON 没有 NaN ⇒ 导出时变 `null`；`HistoryStore.loadJSON` 读回时统一还原成 NaN，别让 null 漏进 `number` 字段。
+
+`tests/metrics.test.ts`（新，5 条）钉住：攻方只有 attackProgress、守方只有 defendProgress（两种攻守分配各测一遍）· koth 下两者皆无 ·
+均值分母是「有定义的场次」（0.8/NaN/NaN → **0.8** 而不是 0.27）· 全 NaN 仍是 NaN · JSON 往返后 null 还原成 NaN。
+⚠ 顺带被 world 自带的守卫抓了一次：我在 koth 配置下复用了双点位地图，`World` 直接报错 —— 这道守卫是对的，测试改成按配置生成地图。

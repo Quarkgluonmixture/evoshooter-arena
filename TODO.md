@@ -8,8 +8,6 @@
 - [ ] ⚠ **cross-play 的漏网之鱼：动作语义变了但 SimConfig 没变。** drift guard 只比 `SimConfig`，
       V4 那种「target-slot 不再驱动转身」可能一个数字都不动 ⇒ 工具照跑，把「依赖自动瞄准的冠军打没有自动瞄准的」
       报成强弱差。⇒ **动 V4 之前先定死它的 A/B 怎么做**。已写进 `scripts/crossplay.ts` 头部的 KNOWN LIMIT。
-- [ ] `objectiveProgress` 在角色互换后是攻/守**两种量的混合**（已写进 `TeamMetrics` 注释）。
-      要按角色分别看的话得拆成两个指标，各带自己的分母。
 
 ## 观战 / 导播
 - [ ] 导播切镜头淡入淡出。（击杀慢动作回放已做：`MatchViewer.replayLastKill` 从 seed 重建，⛔ 不存快照。）

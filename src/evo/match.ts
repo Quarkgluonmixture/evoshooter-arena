@@ -30,12 +30,20 @@ export interface TeamMetrics {
    * objective being engaged at all", ⛔ not for comparing attacking to defending.
    */
   objectiveProgress: number;
+  /**
+   * The same thing split so each half carries its own denominator: `NaN` when this team did not have that job
+   * this match (and always in koth, which has no attacker). ⭐ `meanMetrics` averages over the matches where a
+   * metric is defined, so "attack progress" is now comparable across generations even though roles swap.
+   */
+  attackProgress: number;
+  defendProgress: number;
   reloads: number;
 }
 
 export const METRIC_KEYS = [
   'zoneScore', 'kills', 'deaths', 'survivors', 'damageDealt', 'damageTaken', 'shots', 'accuracy', 'zoneShare',
-  'coverRatio', 'spread', 'engageDist', 'flankRate', 'aimUsage', 'moveFraction', 'commActivity', 'firstContact', 'sightTicks', 'objectiveProgress', 'reloads',
+  'coverRatio', 'spread', 'engageDist', 'flankRate', 'aimUsage', 'moveFraction', 'commActivity', 'firstContact', 'sightTicks', 'objectiveProgress',
+  'attackProgress', 'defendProgress', 'reloads',
 ] as const satisfies readonly (keyof TeamMetrics)[];
 
 export interface MatchResult {
@@ -81,6 +89,9 @@ export function deriveMetrics(st: TeamStats, world: World, team: 0 | 1): TeamMet
     objectiveProgress: cfg.roundMode === 'capture'
       ? (team === world.attackers ? Math.max(...world.capture, world.armedSite >= 0 ? 1 : 0) : world.defuse)
       : Math.min(1, world.score[team] / (cfg.matchSeconds * cfg.zonePointsPerSecond)),
+    attackProgress: cfg.roundMode === 'capture' && team === world.attackers
+      ? Math.max(...world.capture, world.armedSite >= 0 ? 1 : 0) : NaN,
+    defendProgress: cfg.roundMode === 'capture' && team !== world.attackers ? world.defuse : NaN,
     reloads: st.reloads,
   };
 }
@@ -167,12 +178,19 @@ export function runMatch(
   return summarize(world);
 }
 
+/**
+ * Average each metric over the matches where it is DEFINED: a role-specific metric is `NaN` in the matches where
+ * this team had the other job, and counting those as 0 would report "attack progress went down" when all that
+ * changed is how often the team attacked (the mixed `objectiveProgress` is kept as the historical series).
+ * A metric with no defined match stays `NaN`, and every chart already skips non-finite points.
+ */
 export function meanMetrics(list: TeamMetrics[]): TeamMetrics {
   const out = {} as Record<keyof TeamMetrics, number>;
   for (const k of METRIC_KEYS) {
     let s = 0;
-    for (const m of list) s += m[k];
-    out[k] = list.length ? s / list.length : 0;
+    let n = 0;
+    for (const m of list) if (Number.isFinite(m[k])) { s += m[k]; n++; }
+    out[k] = n ? s / n : NaN;
   }
   return out as TeamMetrics;
 }

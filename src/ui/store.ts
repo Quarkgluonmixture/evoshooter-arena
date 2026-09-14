@@ -9,6 +9,17 @@ export interface StoreReport {
 }
 export interface StoreJSON { reports: StoreReport[] }
 
+/**
+ * JSON has no NaN: a metric that was undefined for a team (a role-specific one, see `meanMetrics`) comes back as
+ * `null`. Turn it back into NaN on the way in, so "not measured here" stays one value everywhere instead of
+ * leaking a null into a `number` field.
+ */
+function reviveMetrics(m: TeamMetrics): TeamMetrics {
+  const out = { ...m } as Record<string, number>;
+  for (const k of Object.keys(out)) if (!Number.isFinite(out[k])) out[k] = NaN;
+  return out as unknown as TeamMetrics;
+}
+
 /** Everything the UI needs to plot evolution and time-travel through champions. */
 export class HistoryStore {
   readonly reports: GenReport[] = [];
@@ -26,7 +37,12 @@ export class HistoryStore {
       const teams = [0, 1].map((t) => {
         const src = r.teams[t];
         const champ = hof[t].find((e) => e.gen === r.gen)?.genome ?? new Float32Array(0);
-        return { ...src, champion: champ };
+        return {
+          ...src,
+          championMetrics: reviveMetrics(src.championMetrics),
+          popMetrics: reviveMetrics(src.popMetrics),
+          champion: champ,
+        };
       }) as GenReport['teams'];
       this.reports.push({
         ...r,
