@@ -21,8 +21,6 @@
 
 ## 可视化
 - [ ] 热力图区分「移动」与「开火位置」两层。
-- [ ] 把 cross-play 矩阵搬进页面（小图），观察非传递/循环。CLI 已有 `npm run crossplay`，
-      ⛔ 别另写一套算法——读它的 `--out` JSON，或直接复用 `scripts/crossplay.ts` 的矩阵计算。
 
 ## 工程
 - [ ] `lidar()` 的 ray-box 求交是 O(射线 × 箱子)（13 × 32），A3.3 之后 bench +22%。加个空间索引（网格/BVH）

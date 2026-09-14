@@ -106,6 +106,12 @@
         <div class="heat-row"><canvas id="heat-red"></canvas><canvas id="heat-blue"></canvas></div>
       </section>
       <section>
+        <h2>Who beats whom</h2>
+        <p class="hint">Load a matrix from <code>npm run crossplay -- &lt;runs&gt; --out runs/xp.json</code>. Every number here is the CLI's; the page only draws it.</p>
+        <div class="row small"><label class="file"><input id="xp-import" type="file" accept="application/json" /> load cross-play…</label></div>
+        <div id="xp-view" class="hint">no matrix loaded</div>
+      </section>
+      <section>
         <h2>Save / load</h2>
         <div class="row small">
           <button id="export">export run (.json)</button>

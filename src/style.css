@@ -119,3 +119,20 @@ label.file { cursor: pointer; border: 1px solid var(--line); border-radius: 7px;
 #cam-modes button { padding: 4px 9px; font-size: 12px; border-color: transparent; }
 #cam-modes button.on { background: #2a5a9a; }
 kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, monospace; color: var(--text); }
+
+/* Cross-play matrix — drawn from scripts/crossplay.ts --out; ⛔ the page computes none of these numbers. */
+#xp-view { overflow-x: auto; }
+.xp { border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+/* the sidebar is narrower than 8 entrants: truncate the label, keep the full name in the tooltip, scroll if needed */
+.xp th { font-weight: 600; color: var(--text-2); padding: 2px 4px; text-align: right; white-space: nowrap; max-width: 104px; overflow: hidden; text-overflow: ellipsis; }
+.xp td { padding: 3px 4px; text-align: center; border: 1px solid rgba(255,255,255,0.05); color: var(--text); }
+.xp td.xp-diag { color: var(--text-2); background: rgba(255,255,255,0.02); }
+.xp td.xp-dead { color: var(--text-2); letter-spacing: 1px; }
+.xp td.xp-edge { font-weight: 700; box-shadow: 0 0 0 1px rgba(255,255,255,0.35) inset; }
+.xp td.xp-mean, .xp th.xp-mean { color: var(--text-2); background: rgba(255,255,255,0.03); }
+.xp-maps { display: flex; gap: 4px; margin-top: 4px; }
+.xp-maps button { font-size: 11px; padding: 2px 8px; }
+.xp-maps button.on { background: #2a5a9a; }
+.xp-foot { font-size: 11px; color: var(--text-2); margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+.xp-foot .xp-note { opacity: 0.7; }
+.xp .xp-i { display: inline-block; min-width: 12px; color: var(--text-2); opacity: 0.75; }

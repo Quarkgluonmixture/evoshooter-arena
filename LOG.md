@@ -950,3 +950,16 @@ D2c 也量过信息值 13%→40% ⇒ 「改世界」的前提不成立（VISION 
 `spec-tile` 的名字行加一个 7px 圆点，颜色走 `commLight(trainer.sim, a.commSaid)` —— 与世界里的灯、POV 指示器**同一份映射**（⛔ 没有第二份）；阵亡不显示。
 验证：`?sites=2&mode=capture&tokens=2&interval=5&delay=3` 下播 d2-radio 冠军，10 个点里 7 种颜色，
 同一个 slot-0 符号同一个色相（0.5 → 蓝、1 → 紫、−1 → 红），阵亡那个是透明；无 console error。截图 /tmp/evo-dots.png。
+
+## [2026-09-14 15:25] 观战：cross-play 矩阵进页面（页面只画，不算）  #ship
+
+VISION §11.4（非传递不是 bug，是这个世界的内容）+ §12.1 要求能看清一个时代的结构。做法按 TODO 的硬约束：**不另写一套算法**。
+- 新文件 `src/core/crossplayFile.ts` = `crossplay.ts --out` 的**唯一形状定义**，生产方（CLI）与消费方（页面）共用。
+- `scripts/crossplay.ts` 现在把**它自己算的**派生量也写进 JSON：`decisiveEdges`、`cycles`、`rowMean`（只统计有接触的格子）。
+  顺手把「跨图均值」那段打印改成复用同一个 `rowMean()`（原来是第二份同公式的代码）。
+- `src/ui/crossplayView.ts`：画矩阵（胜率着色、decisive 格描边、**零接触印 `··` 且不着色**）、多图切换、页脚给 margin / mirror 偏置 / decisive 边数 / 非传递循环。
+  ⛔ 视图里除了颜色不算任何东西：我第一版自己算了行均值，当场改掉，改成读 CLI 的 `rowMean`。
+- 侧栏新增「Who beats whom」区，导入 `runs/xp.json`。
+
+**验证**（8 个参赛者 × 2 张图）：页面读数与 CLI 逐项一致 —— 地图 7：16 条 decisive edge、**2 个非传递循环**（`2 > 3 > 6 > 2`）；
+地图 11：21 条、0 个循环；mirror red 84% / 78%（页面会打 ⚠「是地图在决定，不是基因组」）。切图按钮生效，无 console error。截图 /tmp/evo-xp.png。

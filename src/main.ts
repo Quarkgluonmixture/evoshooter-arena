@@ -7,6 +7,8 @@ import { LineChart } from './ui/charts.ts';
 import { Heatmap } from './ui/heatmap.ts';
 import { MatchViewer } from './render/viewer.ts';
 import { commLight } from './render/scene.ts';
+import { renderCrossplay } from './ui/crossplayView.ts';
+import type { CrossplayFile } from './core/crossplayFile.ts';
 import { TEAM_CSS } from './render/scene.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
@@ -468,6 +470,19 @@ $('export').onclick = () => {
   a.download = `evoshooter-run-gen${trainer.gen}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+($('xp-import') as HTMLInputElement).onchange = async (e) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text()) as CrossplayFile;
+    if (!data.entrants || !data.maps?.length) throw new Error('not a cross-play export — run crossplay.ts with --out');
+    const view = $('xp-view');
+    view.classList.remove('hint');
+    renderCrossplay(view, data);
+  } catch (err) {
+    alert(`cross-play load failed: ${(err as Error).message}`);
+  }
 };
 ($('import') as HTMLInputElement).onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];

@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { normalizeSim, type EvoConfig, type SimConfig } from '../src/core/config.ts';
+import type { CrossplayFile } from '../src/core/crossplayFile.ts';
 import { hashSeed } from '../src/core/rng.ts';
 import { generateMap } from '../src/sim/map.ts';
 import { genomeLength } from '../src/brain/mlp.ts';
@@ -251,6 +252,21 @@ function printMatrix(r: MapResult): void {
   console.log();
 }
 
+/** Cells that are decisive AND have contact — the same predicate the printed edge count uses. */
+function decisiveEdges(r: MapResult): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < K; i++) for (let j = 0; j < K; j++) {
+    if (i !== j && r.sight[i][j] > 0 && r.balanced[i][j] >= 0.5 + MARGIN) out.push([i, j]);
+  }
+  return out;
+}
+
+/** Mean side-balanced win share over the cells that actually had contact — null when this entrant met nobody. */
+function rowMean(r: MapResult, i: number): number | null {
+  const live = entrants.map((_, j) => j).filter((j) => j !== i && r.sight[i][j] > 0);
+  return live.length ? live.reduce((s, j) => s + r.balanced[i][j], 0) / live.length : null;
+}
+
 function cycles(r: MapResult): string[] {
   const beats = (i: number, j: number) => r.sight[i][j] > 0 && r.balanced[i][j] >= 0.5 + MARGIN;
   const out: string[] = [];
@@ -268,9 +284,7 @@ function cycles(r: MapResult): string[] {
 for (const r of results) {
   printMatrix(r);
   const cyc = cycles(r);
-  console.log(`  decisive edges (|win - 50%| >= ${(MARGIN * 100).toFixed(0)}pp): ${
-    (() => { let n = 0; for (let i = 0; i < K; i++) for (let j = 0; j < K; j++) if (i !== j && r.sight[i][j] > 0 && r.balanced[i][j] >= 0.5 + MARGIN) n++; return n; })()
-  }`);
+  console.log(`  decisive edges (|win - 50%| >= ${(MARGIN * 100).toFixed(0)}pp): ${decisiveEdges(r).length}`);
   console.log(cyc.length ? `  non-transitive cycles: ${cyc.length} — ${cyc.slice(0, 8).join(' | ')}` : '  non-transitive cycles: none at this margin');
   console.log();
 }
@@ -278,11 +292,8 @@ for (const r of results) {
 if (results.length > 1) {
   console.log('across maps — mean side-balanced win share per entrant (contact-bearing cells only)');
   for (let i = 0; i < K; i++) {
-    const per = results.map((r) => {
-      const live = entrants.map((_, j) => j).filter((j) => j !== i && r.sight[i][j] > 0);
-      return live.length ? live.reduce((s, j) => s + r.balanced[i][j], 0) / live.length : NaN;
-    });
-    console.log(`  ${padr(entrants[i].name, 24)} ${per.map((x, m) => `map ${MAPS[m]}: ${Number.isNaN(x) ? ' n/a' : pad(pctOf(x), 4)}`).join('   ')}`);
+    const per = results.map((r) => rowMean(r, i));
+    console.log(`  ${padr(entrants[i].name, 24)} ${per.map((x, m) => `map ${MAPS[m]}: ${x === null ? ' n/a' : pad(pctOf(x), 4)}`).join('   ')}`);
   }
   console.log();
 }
@@ -297,8 +308,12 @@ if (flags.has('out')) {
     baseSeed: BASE_SEED,
     margin: MARGIN,
     entrants: entrants.map((e) => ({ name: e.name, source: e.source, side: e.side, gen: e.gen, fitness: e.fitness })),
-    maps: results.map((r) => ({ mapSeed: r.mapSeed, winRed: r.winRed, balanced: r.balanced, sight: r.sight, shots: r.shots, mirror: r.mirror })),
-  };
+    // the page draws these; it must never recompute an edge or a cycle from the cells (src/core/crossplayFile.ts)
+    maps: results.map((r) => ({
+      mapSeed: r.mapSeed, winRed: r.winRed, balanced: r.balanced, sight: r.sight, shots: r.shots, mirror: r.mirror,
+      decisiveEdges: decisiveEdges(r), cycles: cycles(r), rowMean: entrants.map((_, i) => rowMean(r, i)),
+    })),
+  } satisfies CrossplayFile;
   writeFileSync(flags.get('out')!, JSON.stringify(out));
   console.log(`saved ${flags.get('out')}`);
 }
