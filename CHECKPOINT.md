@@ -9,13 +9,18 @@
 迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA、side-neutral club league + opponent ecology**
 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round / emergent language 只能自然涌现、事后识别。
 
-## Current cursor（2026-09-13）
+## Current cursor（2026-09-14）
 
-⭐⭐ **停在人工闸门 = Phase D2s（radio search efficiency）：种群 3× 与评估场次 3×（都等算力）都买不到电台内容**，下一步要用户定
-（进度在 `docs/ROADMAP.md` Phase D2s，决定用的四个数在 LOG 2026-09-14；cursor 以 §4 为准）。
+⭐⭐ **进行中 = 观战线（把能看的做对）**，用户 2026-09-14 在闸门上说「看 vision」，依据 VISION §0 第二条北极星（观赏性来自可解释性）+
+§12.1（detection 要能回放到具体 match）选的：⛔ 不改世界、不加算力、不开生态。做完三件（双点位渲染 · kill feed · 电台符号灯 + 规则守卫），
+下一件在 `TODO.md`「观战 / 导播」。
+⚠ **训练侧四个 phase 都停在「不要动工」**，动它们之前先读各自的进度段：D2s（种群 3× / 评估场次 3× 等算力都买不到电台内容）·
+E1（形态级角色比每人一个常数还低 13pp）· E2（共识 −4pp，但**混合**值 +14.5pp，只对会适应的对手兑现）· E6 前置（40 代 best response 只打穿 1/4 冠军）。
 ⭐ 内容读数 = `radiouse` 的 `replay`（另一场同一 tick 的整队电台）；`speaker` 会把节奏 / 同步 / 时钟读成内容（坑 #31），D2b 的「更正」已撤回。
-由来：D2 选项 1（只加预算，300 代 × 2 seed）读完 —— 依赖真实电台的冠军出现过三次、一次也没在血统里留住，发送端无内容 ⇒ 按用户认可的顺序开搜索效率 phase。
+⭐ 单冠军判据一律用**逐场配对 mean ± SE**，⛔ 不拿单次空跑当尺子（坑 #32）。
 ⚠ 本机会以内存不足杀长任务：`train.ts` / `uptake train` 带 `--snap-every` 时，同一条命令重跑即续上。
+⚠ 观战 / 回放入口必须比**整套世界规则**（回合模式 · 点位数 · 电台三参数），genome 长度相同不构成保证（坑 #33）：
+页面用 `?sites=2&mode=capture&tokens=2&interval=5&delay=3` 才是 D2 训练的那个世界。
 
 D 程序留下的表（**先问世界、再问进化**，方法 `npm run memdemand`）：
 
