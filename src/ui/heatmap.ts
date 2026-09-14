@@ -52,10 +52,22 @@ export class Heatmap {
       ctx.fillStyle = bx.h > 2 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.10)';
       ctx.fillRect(toPx(bx.minX), toPx(bx.minZ), toPx(bx.maxX) - toPx(bx.minX), toPx(bx.maxZ) - toPx(bx.minZ));
     }
-    ctx.beginPath();
-    ctx.arc(toPx(this.map.zoneX), toPx(this.map.zoneZ), (this.cfg.zoneRadius / (2 * half)) * S, 0, Math.PI * 2);
+    // every objective site, not just `zoneX/zoneZ` (= site 0): a two-site run drew half its world before
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.stroke();
+    this.map.sites.forEach((site, i) => {
+      ctx.beginPath();
+      ctx.arc(toPx(site.x), toPx(site.z), (this.cfg.zoneRadius / (2 * half)) * S, 0, Math.PI * 2);
+      ctx.stroke();
+      if (this.map.sites.length > 1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = '10px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String.fromCharCode(65 + i), toPx(site.x), toPx(site.z));
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+      }
+    });
     ctx.fillStyle = '#e8e8e6';
     ctx.font = '11px system-ui, sans-serif';
     ctx.textBaseline = 'top';

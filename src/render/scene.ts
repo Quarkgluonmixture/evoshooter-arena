@@ -88,8 +88,8 @@ export class ArenaScene {
   private viewMuzzleMat!: THREE.SpriteMaterial;
   private viewMuzzleT = 0;
   private recoil = 0;
-  private zoneDisc!: THREE.Mesh;
-  private zoneMat!: THREE.MeshBasicMaterial;
+  /** one disc per objective site — `map.sites`, not `map.zoneX/zoneZ`, which is only site 0 */
+  private zoneMats: THREE.MeshBasicMaterial[] = [];
   private zoneT = 0;
   private readonly agentRoot = new THREE.Group();
   private readonly fxRoot = new THREE.Group();
@@ -198,19 +198,22 @@ export class ArenaScene {
       this.scene.add(edges);
     }
 
-    // zone
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(this.cfg.zoneRadius - 0.15, this.cfg.zoneRadius + 0.15, 64),
-      new THREE.MeshBasicMaterial({ color: 0xe8e8e6, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(this.map.zoneX, 0.03, this.map.zoneZ);
-    this.scene.add(ring);
-    this.zoneMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false });
-    this.zoneDisc = new THREE.Mesh(new THREE.CircleGeometry(this.cfg.zoneRadius, 64), this.zoneMat);
-    this.zoneDisc.rotation.x = -Math.PI / 2;
-    this.zoneDisc.position.set(this.map.zoneX, 0.025, this.map.zoneZ);
-    this.scene.add(this.zoneDisc);
+    // objective sites — one ring + disc each; `siteCount: 2` draws both, which `map.zoneX/zoneZ` alone cannot
+    for (const site of this.map.sites) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(this.cfg.zoneRadius - 0.15, this.cfg.zoneRadius + 0.15, 64),
+        new THREE.MeshBasicMaterial({ color: 0xe8e8e6, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(site.x, 0.03, site.z);
+      this.scene.add(ring);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false });
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(this.cfg.zoneRadius, 64), mat);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(site.x, 0.025, site.z);
+      this.scene.add(disc);
+      this.zoneMats.push(mat);
+    }
 
     // spawn pads
     for (let t = 0; t < 2; t++) {
@@ -480,8 +483,9 @@ export class ArenaScene {
   sync(world: World, alpha: number, tickAdvanced: boolean): void {
     const T = this.cfg.teamSize;
     const t = Math.max(0, Math.min(1, alpha));
-    let rz = 0;
-    let bz = 0;
+    // per site, so a two-site world reads correctly instead of colouring site 0 with everyone's presence
+    const rz = this.map.sites.map(() => 0);
+    const bz = this.map.sites.map(() => 0);
     for (let i = 0; i < world.agents.length; i++) {
       const a = world.agents[i];
       const v = this.views[i];
@@ -536,7 +540,8 @@ export class ArenaScene {
         v.commMat.emissive.setHSL(hue, 0.9, 0.15 + 0.45 * mag);
         v.commMat.color.setHSL(hue, 0.8, 0.1 + 0.3 * mag);
         v.fovMat.opacity = a.firing ? 0.22 : 0.1;
-        if (this.inZone(a.x, a.z)) { if (a.team === 0) rz++; else bz++; }
+        const si = this.siteAt(a.x, a.z);
+        if (si >= 0) { if (a.team === 0) rz[si]++; else bz[si]++; }
         v.gun.visible = nearFade > 0.6;
         if (tickAdvanced && (Math.abs(a.x - v.lastX) > 0.05 || Math.abs(a.z - v.lastZ) > 0.05)) {
           this.pushTrail(v, a.x, a.z);
@@ -557,20 +562,32 @@ export class ArenaScene {
       }
     }
     void T;
-    const owner: 0 | 1 | -1 = rz > bz ? 0 : bz > rz ? 1 : -1;
-    if (owner !== -1) {
-      this.zoneMat.color.setHex(TEAM_HEX[owner]);
-      this.zoneMat.opacity = 0.22 + 0.08 * Math.sin(this.zoneT * 6);
-    } else {
-      this.zoneMat.color.setHex(0xffffff);
-      this.zoneMat.opacity = 0.05;
+    for (let i = 0; i < this.zoneMats.length; i++) {
+      const mat = this.zoneMats[i];
+      const owner: 0 | 1 | -1 = rz[i] > bz[i] ? 0 : bz[i] > rz[i] ? 1 : -1;
+      // capture mode: the armed site is the one the round is about, so it pulses whether or not anyone stands in it
+      const armed = world.armedSite === i;
+      if (owner !== -1) {
+        mat.color.setHex(TEAM_HEX[owner]);
+        mat.opacity = (armed ? 0.34 : 0.22) + 0.08 * Math.sin(this.zoneT * 6);
+      } else if (armed) {
+        mat.color.setHex(0xffc66d);
+        mat.opacity = 0.22 + 0.1 * Math.sin(this.zoneT * 6);
+      } else {
+        mat.color.setHex(0xffffff);
+        mat.opacity = 0.05;
+      }
     }
   }
 
-  private inZone(x: number, z: number): boolean {
-    const dx = x - this.map.zoneX;
-    const dz = z - this.map.zoneZ;
-    return dx * dx + dz * dz <= this.cfg.zoneRadius * this.cfg.zoneRadius;
+  /** Index of the site this point stands in, or −1 — the renderer's copy of `World.inSite` for drawing only. */
+  private siteAt(x: number, z: number): number {
+    for (let i = 0; i < this.map.sites.length; i++) {
+      const dx = x - this.map.sites[i].x;
+      const dz = z - this.map.sites[i].z;
+      if (dx * dx + dz * dz <= this.cfg.zoneRadius * this.cfg.zoneRadius) return i;
+    }
+    return -1;
   }
 
   private pushTrail(v: AgentView, x: number, z: number): void {

@@ -23,9 +23,14 @@ const boot = (() => {
     mapSeed: Number(u.searchParams.get('map')) || DEFAULT_EVO.mapSeed,
     pop: Number(u.searchParams.get('pop')) || Number(($('pop') as HTMLSelectElement).value) || DEFAULT_EVO.popSize,
     seed: Number(u.searchParams.get('seed')) || 1,
+    // the world the headless runs actually train in is not the default one; `?sites=2&mode=capture` lets the
+    // spectator show it without flipping the defaults, which is a separate decision (CHECKPOINT)
+    sites: u.searchParams.get('sites') === '2' ? (2 as const) : (1 as const),
+    capture: u.searchParams.get('mode') === 'capture',
   };
 })();
-let trainer = new Trainer({ popSize: boot.pop, mapSeed: boot.mapSeed }, {}, boot.seed);
+const bootSim = { siteCount: boot.sites, ...(boot.capture ? { roundMode: 'capture' as const } : {}) };
+let trainer = new Trainer({ popSize: boot.pop, mapSeed: boot.mapSeed }, bootSim, boot.seed);
 let evaluator: WorkerEvaluator | null = null;
 const store = new HistoryStore();
 const viewer = new MatchViewer($('view-canvas'), trainer.sim, trainer.map, trainer.evo.hidden);
@@ -435,6 +440,14 @@ $('export').onclick = () => {
     const data = JSON.parse(await file.text()) as { version: number; trainer: TrainerSnapshot; history: StoreJSON };
     if (data.trainer.evo.mapSeed !== trainer.evo.mapSeed) {
       alert(`This run uses map ${data.trainer.evo.mapSeed}; reload with ?map=${data.trainer.evo.mapSeed} first.`);
+      return;
+    }
+    // the arena geometry depends on siteCount, and the scene is built once: importing a two-site run into a
+    // one-site page drew the wrong map and coloured the wrong objective
+    const rs = data.trainer.sim;
+    if ((rs.siteCount ?? 1) !== trainer.sim.siteCount || rs.roundMode !== trainer.sim.roundMode) {
+      const q = `?map=${data.trainer.evo.mapSeed}&sites=${rs.siteCount ?? 1}${rs.roundMode === 'capture' ? '&mode=capture' : ''}`;
+      alert(`This run is ${rs.roundMode} with ${rs.siteCount ?? 1} site(s); reload with ${q} first.`);
       return;
     }
     const t = Trainer.restore(data.trainer);
