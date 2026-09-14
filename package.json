@@ -30,7 +30,8 @@
     "commstep": "node scripts/commstep.ts",
     "uptake": "node scripts/uptake.ts",
     "radiouse": "node scripts/radiouse.ts",
-    "roledemand": "node scripts/roledemand.ts"
+    "roledemand": "node scripts/roledemand.ts",
+    "exploit": "node scripts/exploit.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
