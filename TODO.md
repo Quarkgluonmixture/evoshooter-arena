@@ -5,9 +5,6 @@
 > 本文件只放不改变主路线的补充活；做完立即删。
 
 ## 当前 roadmap 外的补充验证
-- [ ] **run 内的历史 cross-play**：现在 `npm run crossplay` 只吃 hof 里挑出来的几代。把「末代冠军 vs 它自己全部
-      历史冠军」做成一条命令（`--gens all` 或抽样），才是 ladder 在 run 内的真正替代品 —— ladder 只比两个点，
-      而那两个点有 14% 的概率互相看不见（坑 #20）。
 - [ ] ⚠ **cross-play 的漏网之鱼：动作语义变了但 SimConfig 没变。** drift guard 只比 `SimConfig`，
       V4 那种「target-slot 不再驱动转身」可能一个数字都不动 ⇒ 工具照跑，把「依赖自动瞄准的冠军打没有自动瞄准的」
       报成强弱差。⇒ **动 V4 之前先定死它的 A/B 怎么做**。已写进 `scripts/crossplay.ts` 头部的 KNOWN LIMIT。

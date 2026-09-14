@@ -1,7 +1,7 @@
 /**
  * Cross-play win-rate matrix — the side-neutral replacement for the champion-vs-gen-0 scalar.
  *
- *   node scripts/crossplay.ts runs/a.json runs/b.json [--gens last] [--sides both] [--n 6]
+ *   node scripts/crossplay.ts runs/a.json runs/b.json [--gens last|first|mid|all|every:N|39,…] [--sides both] [--n 6]
  *                             [--maps 7,11] [--margin 0.15] [--seed 9001] [--out runs/xp.json]
  *
  * Every pair plays BOTH sides over the same seeds (SUBSTRATE 10.3), so no result can be a colour artefact,
@@ -96,7 +96,15 @@ function pickGens(hof: RunHofEntry[]): number[] {
     if (g === 'last') idx.add(hof.length - 1);
     else if (g === 'first') idx.add(0);
     else if (g === 'mid') idx.add(Math.floor((hof.length - 1) / 2));
-    else {
+    // `all` / `every:N` build a run's own history into the matrix: the ladder compares two points and 14% of its
+    // cells are pairs that never met (GOTCHAS #20), so a full in-run matrix is the honest version of "did it improve"
+    else if (g === 'all') for (let i = 0; i < hof.length; i++) idx.add(i);
+    else if (g.startsWith('every:')) {
+      const step = Math.max(1, Number(g.slice(6)));
+      if (!Number.isFinite(step)) throw new Error(`--gens ${g}: every:N needs a number`);
+      for (let i = 0; i < hof.length; i += step) idx.add(i);
+      idx.add(hof.length - 1); // the last generation is always in: it is the one people ask about
+    } else {
       const want = Number(g);
       const at = hof.findIndex((e) => e.gen === want);
       if (at < 0) throw new Error(`--gens ${g}: no hall-of-fame entry for generation ${g} (run has 0..${hof[hof.length - 1].gen})`);
@@ -124,6 +132,17 @@ if (entrants.length < 2) throw new Error(`need at least 2 entrants, got ${entran
 
 const K = entrants.length;
 const MAPS = (flags.get('maps') ?? String(ref.data.evo.mapSeed)).split(',').map((s) => Number(s.trim()));
+// `--gens all` on a 300-generation run is 300 entrants = ~10^7 matches. Say the number and stop, instead of
+// running until someone kills it: `every:N` is what a history matrix actually needs.
+{
+  const planned = K * (K - 1) * N * MAPS.length;
+  const cap = num('max-matches', 200_000);
+  if (planned > cap) {
+    throw new Error(`${K} entrants x ${N} seeds x ${MAPS.length} map(s) = ${planned.toLocaleString()} matches, over --max-matches ${cap.toLocaleString()}`
+      + `\n  ⇒ thin it out (--gens every:${Math.max(2, Math.ceil(K / 12))}), drop seeds (--n), or raise --max-matches if you mean it.`);
+  }
+  if (K > 12) console.log(`note: ${K} entrants ⇒ ${planned.toLocaleString()} matches; the matrix print will be wide\n`);
+}
 
 /* ------------------------------------------------------------------- matrices */
 
