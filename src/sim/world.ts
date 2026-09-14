@@ -203,6 +203,8 @@ export class World {
   private readonly losPair: Uint8Array;
   readonly stats: [TeamStats, TeamStats];
   readonly heat: [Float32Array, Float32Array] | null;
+  /** same grid, but only counting ticks an agent FIRED from that cell: where fights happen, not where feet go */
+  readonly heatFire: [Float32Array, Float32Array] | null;
   readonly events: WorldEvent[] = [];
   score: [number, number] = [0, 0];
   /** Which side attacks in `capture` mode. Assigned per match and swapped in pairs, so it is a ROLE, not
@@ -289,6 +291,9 @@ export class World {
       }
       while (w < cfg.lidarRays) this.lidarOffsets[w++] = (cfg.geomFovDeg * Math.PI) / 360;
     }
+    this.heatFire = opts.heat
+      ? [new Float32Array(cfg.heatCells * cfg.heatCells), new Float32Array(cfg.heatCells * cfg.heatCells)]
+      : null;
     this.heat = opts.heat
       ? [new Float32Array(cfg.heatCells * cfg.heatCells), new Float32Array(cfg.heatCells * cfg.heatCells)]
       : null;
@@ -633,6 +638,7 @@ export class World {
           const cx = Math.min(cells - 1, Math.max(0, Math.floor(((a.x + cfg.arenaHalf) / (2 * cfg.arenaHalf)) * cells)));
           const cz = Math.min(cells - 1, Math.max(0, Math.floor(((a.z + cfg.arenaHalf) / (2 * cfg.arenaHalf)) * cells)));
           this.heat[team][cz * cells + cx] += 1;
+          if (a.firing && this.heatFire) this.heatFire[team][cz * cells + cx] += 1;
         }
         for (let j = i + 1; j < T; j++) {
           const b = ag[base + j];

@@ -1,7 +1,11 @@
 import type { ArenaMap } from '../sim/map.ts';
 import type { SimConfig } from '../core/config.ts';
 
-/** Top-down occupancy heat-map (one team, one hue, light→dark) with cover outlines and the zone ring. */
+/**
+ * Top-down occupancy heat-map (one team, one hue, light→dark) with cover outlines and the objective rings,
+ * plus a second layer for the cells they FIRED from. Both layers share one denominator (see `Trainer`), so a
+ * bright fire cell means "a lot of the team's time here was spent shooting", not "this is the busiest cell".
+ */
 export class Heatmap {
   private readonly ctx: CanvasRenderingContext2D;
   readonly canvas: HTMLCanvasElement;
@@ -18,7 +22,7 @@ export class Heatmap {
     this.ctx = ctx;
   }
 
-  draw(grid: Float32Array | null, title: string): void {
+  draw(grid: Float32Array | null, title: string, fire: Float32Array | null = null): void {
     const c = this.canvas;
     const dpr = window.devicePixelRatio || 1;
     const S = c.clientWidth;
@@ -43,6 +47,18 @@ export class Heatmap {
           if (v <= 0) continue;
           ctx.fillStyle = `rgba(${r},${g},${b},${0.08 + 0.92 * Math.sqrt(v)})`;
           ctx.fillRect(x * cs, z * cs, cs + 0.5, cs + 0.5);
+        }
+      }
+    }
+    // where the shooting happened, on top of where the feet went
+    if (fire) {
+      for (let z = 0; z < cells; z++) {
+        for (let x = 0; x < cells; x++) {
+          const v = fire[z * cells + x];
+          if (v <= 0) continue;
+          ctx.fillStyle = `rgba(255,226,150,${Math.min(0.85, 0.25 + 0.75 * Math.sqrt(v))})`;
+          const s2 = cs * 0.52;
+          ctx.fillRect(x * cs + (cs - s2) / 2, z * cs + (cs - s2) / 2, s2, s2);
         }
       }
     }
@@ -74,6 +90,12 @@ export class Heatmap {
     ctx.fillText(title, 6, 5);
     ctx.fillStyle = '#9a9c9f';
     ctx.font = '10px system-ui, sans-serif';
+    if (fire) {
+      ctx.fillStyle = 'rgba(255,226,150,0.9)';
+      ctx.fillRect(6, 20, 7, 7);
+      ctx.fillStyle = '#9a9c9f';
+      ctx.fillText('fired from here', 18, 19);
+    }
     ctx.fillText('red spawn ↓', 6, S - 14);
     ctx.textAlign = 'right';
     ctx.fillText('↑ blue spawn', S - 6, 5);

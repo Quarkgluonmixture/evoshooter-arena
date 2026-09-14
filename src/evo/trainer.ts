@@ -100,6 +100,8 @@ export interface GenReport {
   /** share of pairing matches won by red (0.5 = balanced arms race) */
   redWinShare: number;
   heat: [Float32Array, Float32Array];
+  /** where they were when they fired — same cells, normalised the same way, so the two layers are comparable */
+  heatFire: [Float32Array, Float32Array];
 }
 
 /**
@@ -203,6 +205,10 @@ export class Trainer {
       new Float32Array(this.sim.heatCells ** 2),
       new Float32Array(this.sim.heatCells ** 2),
     ];
+    const heatFire: [Float32Array, Float32Array] = [
+      new Float32Array(this.sim.heatCells ** 2),
+      new Float32Array(this.sim.heatCells ** 2),
+    ];
     let redWins = 0;
     let pairCount = 0;
     for (let k = 0; k < jobs.length; k++) {
@@ -224,6 +230,12 @@ export class Trainer {
         if (r.winner === 0) redWins++;
         else if (r.winner === -1) redWins += 0.5;
       }
+      if (r.heatFire) {
+        for (let c = 0; c < heatFire[0].length; c++) {
+          heatFire[0][c] += r.heatFire[0][c];
+          heatFire[1][c] += r.heatFire[1][c];
+        }
+      }
       if (r.heat) {
         for (let c = 0; c < heat[0].length; c++) {
           heat[0][c] += r.heat[0][c];
@@ -235,6 +247,9 @@ export class Trainer {
       let mx = 0;
       for (let c = 0; c < heat[t].length; c++) mx = Math.max(mx, heat[t][c]);
       if (mx > 0) for (let c = 0; c < heat[t].length; c++) heat[t][c] /= mx;
+      // ⚠ the fire layer is normalised by the SAME denominator as the movement layer, so "bright" means the same
+      // thing in both: a cell where they stood a lot but never shot stays dark in the fire layer
+      if (mx > 0) for (let c = 0; c < heatFire[t].length; c++) heatFire[t][c] /= mx;
     }
 
     const fitness: [number[], number[]] = [
@@ -314,6 +329,7 @@ export class Trainer {
       ladder0Sight,
       redWinShare: pairCount ? redWins / pairCount : 0.5,
       heat,
+      heatFire,
     };
     this.history.push(report);
     this.gen++;

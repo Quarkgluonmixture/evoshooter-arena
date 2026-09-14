@@ -443,8 +443,8 @@ function drawHeat(): void {
   const idx = Number(heatGen.value);
   const r = store.reports[idx];
   $('heat-gen-v').textContent = r ? `gen ${r.gen}` : '–';
-  heatRed.draw(r ? r.heat[0] : null, r ? `red · gen ${r.gen}` : 'red');
-  heatBlue.draw(r ? r.heat[1] : null, r ? `blue · gen ${r.gen}` : 'blue');
+  heatRed.draw(r ? r.heat[0] : null, r ? `red · gen ${r.gen}` : 'red', r ? r.heatFire[0] : null);
+  heatBlue.draw(r ? r.heat[1] : null, r ? `blue · gen ${r.gen}` : 'blue', r ? r.heatFire[1] : null);
 }
 
 function redraw(): void {

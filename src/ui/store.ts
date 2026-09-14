@@ -28,7 +28,12 @@ export class HistoryStore {
         const champ = hof[t].find((e) => e.gen === r.gen)?.genome ?? new Float32Array(0);
         return { ...src, champion: champ };
       }) as GenReport['teams'];
-      this.reports.push({ ...r, teams, heat: [new Float32Array(heatCells * heatCells), new Float32Array(heatCells * heatCells)] });
+      this.reports.push({
+        ...r,
+        teams,
+        heat: [new Float32Array(heatCells * heatCells), new Float32Array(heatCells * heatCells)],
+        heatFire: [new Float32Array(heatCells * heatCells), new Float32Array(heatCells * heatCells)],
+      });
     }
     for (const l of this.listeners) l();
   }

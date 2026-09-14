@@ -45,6 +45,8 @@ export interface MatchResult {
   metrics: [TeamMetrics, TeamMetrics];
   ticks: number;
   heat: [Float32Array, Float32Array] | null;
+  /** occupancy restricted to ticks where the agent was firing (same cells, same normalisation path) */
+  heatFire: [Float32Array, Float32Array] | null;
 }
 
 export function deriveMetrics(st: TeamStats, world: World, team: 0 | 1): TeamMetrics {
@@ -131,6 +133,7 @@ export function summarize(world: World): MatchResult {
     metrics: [deriveMetrics(world.stats[0], world, 0), deriveMetrics(world.stats[1], world, 1)],
     ticks: world.tick,
     heat: world.heat,
+    heatFire: world.heatFire,
   };
 }
 
