@@ -117,7 +117,7 @@ const specTiles: HTMLDivElement[] = [];
     const team = id < T ? 0 : 1;
     const tile = document.createElement('div');
     tile.className = `spec-tile ${team === 0 ? 'red' : 'blue'}`;
-    tile.innerHTML = `<div class="n"><span>${team === 0 ? 'R' : 'B'}${(id % T) + 1}</span><small></small></div><div class="hp"><i></i></div>`;
+    tile.innerHTML = `<div class="n"><span>${team === 0 ? 'R' : 'B'}${(id % T) + 1}</span><i class="cdot" title="radio symbol"></i><small></small></div><div class="hp"><i></i></div>`;
     tile.onclick = () => { viewer.rig.select(id, viewer.world); syncCamUi(); };
     (team === 0 ? $('spec-red') : $('spec-blue')).appendChild(tile);
     specTiles.push(tile);
@@ -134,6 +134,9 @@ function updateSpectator(): void {
     t.classList.toggle('sel', viewer.rig.mode !== 'free' && viewer.rig.subject === id);
     (t.querySelector('.hp i') as HTMLElement).style.width = `${Math.max(0, (a.hp / trainer.sim.hp) * 100)}%`;
     (t.querySelector('small') as HTMLElement).textContent = a.kills ? `${a.kills}k` : '';
+    // same mapping as the in-world light and the POV chip: the symbol that LEFT the radio, dark when silent
+    const [hue, light] = commLight(trainer.sim, a.commSaid);
+    (t.querySelector('.cdot') as HTMLElement).style.background = a.alive ? `hsl(${hue * 360} 90% ${light * 100}%)` : 'transparent';
   }
   const dmgEl = $('dmg');
   if (viewer.rig.mode !== 'free' && viewer.rig.subject >= 0) {

@@ -105,6 +105,8 @@ label.file { cursor: pointer; border: 1px solid var(--line); border-radius: 7px;
 .spec-tile { width: 64px; background: rgba(14,16,20,0.78); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px 4px; cursor: pointer; backdrop-filter: blur(6px); user-select: none; }
 .spec-tile .n { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; display: flex; justify-content: space-between; }
 .spec-tile .n small { font-weight: 400; color: var(--text-2); }
+/* radio symbol dot — `commLight` in scene.ts owns the mapping; ⛔ do not invent a second one here */
+.spec-tile .n .cdot { width: 7px; height: 7px; border-radius: 50%; align-self: center; box-shadow: 0 0 4px rgba(0,0,0,0.5) inset; }
 .spec-tile .hp { height: 5px; margin-top: 4px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
 .spec-tile .hp i { display: block; height: 100%; width: 100%; border-radius: 3px; }
 .spec-tile.red .hp i { background: var(--red); }
