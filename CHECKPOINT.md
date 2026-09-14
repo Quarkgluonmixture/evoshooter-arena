@@ -11,7 +11,8 @@
 
 ## Current cursor（2026-09-13）
 
-⭐⭐ **进行中 = Phase D2s（radio search efficiency）：尺子已修完，Probe 1 待冻结**（计划与进度在 `docs/ROADMAP.md` Phase D2s，cursor 以 §4 为准）。
+⭐⭐ **停在人工闸门 = Phase D2s（radio search efficiency）：种群 3× 与评估场次 3×（都等算力）都买不到电台内容**，下一步要用户定
+（进度在 `docs/ROADMAP.md` Phase D2s，决定用的四个数在 LOG 2026-09-14；cursor 以 §4 为准）。
 ⭐ 内容读数 = `radiouse` 的 `replay`（另一场同一 tick 的整队电台）；`speaker` 会把节奏 / 同步 / 时钟读成内容（坑 #31），D2b 的「更正」已撤回。
 由来：D2 选项 1（只加预算，300 代 × 2 seed）读完 —— 依赖真实电台的冠军出现过三次、一次也没在血统里留住，发送端无内容 ⇒ 按用户认可的顺序开搜索效率 phase。
 ⚠ 本机会以内存不足杀长任务：`train.ts` / `uptake train` 带 `--snap-every` 时，同一条命令重跑即续上。
