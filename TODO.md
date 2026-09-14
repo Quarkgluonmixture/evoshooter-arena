@@ -10,7 +10,6 @@
       报成强弱差。⇒ **动 V4 之前先定死它的 A/B 怎么做**。已写进 `scripts/crossplay.ts` 头部的 KNOWN LIMIT。
 
 ## 观战 / 导播
-- [ ] 导播切镜头淡入淡出。（击杀慢动作回放已做：`MatchViewer.replayLastKill` 从 seed 重建，⛔ 不存快照。）
 - [ ] 第三人称加鼠标环绕（现在完全跟随朝向，看不了侧面）。
 
 ## 可视化

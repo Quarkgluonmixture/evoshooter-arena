@@ -204,6 +204,15 @@ function playSelection(): boolean {
   return true;
 }
 viewer.onFinished = () => { playSelection(); };
+// director cuts: flash to black for a beat, so a jump between players reads as a cut
+const cutFade = $('cut-fade');
+let lastCutSeq = 0;
+function syncCutFade(): void {
+  if (viewer.rig.cutSeq === lastCutSeq) return;
+  lastCutSeq = viewer.rig.cutSeq;
+  cutFade.classList.add('on');
+  requestAnimationFrame(() => requestAnimationFrame(() => cutFade.classList.remove('on')));
+}
 const killReplayBtn = $('kill-replay') as HTMLButtonElement;
 killReplayBtn.onclick = () => {
   // deterministic sim ⇒ the same seed replays the same match; nothing is recorded per tick
@@ -238,6 +247,7 @@ function raf(now: number): void {
   viewer.frame(dt);
   updateHud();
   updateSpectator();
+  syncCutFade();
   requestAnimationFrame(raf);
 }
 requestAnimationFrame(raf);

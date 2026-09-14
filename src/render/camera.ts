@@ -30,6 +30,8 @@ export class CameraRig {
   director = false;
   /** last director cut, for the UI */
   lastCutReason = '';
+  /** bumped on every director cut, so the page can flash a transition without polling the reason string */
+  cutSeq = 0;
   private readonly scene: ArenaScene;
   private smoothYaw = 0;
   private readonly pos = new THREE.Vector3();
@@ -166,6 +168,7 @@ export class CameraRig {
     this.deadT = 0;
     this.initialised = false;
     this.lastCutReason = `→ ${this.name(world, id)} (${reason})`;
+    this.cutSeq++;
     this.publishSubject();
   }
 

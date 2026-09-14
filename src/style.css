@@ -136,3 +136,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius
 .xp-foot { font-size: 11px; color: var(--text-2); margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
 .xp-foot .xp-note { opacity: 0.7; }
 .xp .xp-i { display: inline-block; min-width: 12px; color: var(--text-2); opacity: 0.75; }
+
+/* Director cut: a short dip to black so a jump between players reads as a cut, not as teleporting. */
+#cut-fade { position: absolute; inset: 0; background: #05060a; opacity: 0; pointer-events: none; transition: opacity 0.22s ease-out; }
+#cut-fade.on { opacity: 0.85; transition-duration: 0.06s; }
