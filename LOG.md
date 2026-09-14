@@ -996,3 +996,13 @@ TODO 那条「ladder 只比两个点，而那两个点有 14% 概率互相看不
 **第一份读数（描述，不是判决）**：d2-long-s1 **红方**、每 25 代取一个（13 个参赛者、每格 8 场）：
 g0 均值 **14%**（进步是真的），但**末代 g299 是 65%，而 g225 = 69%、g275 = 67%** ⇒ **末代不是自己血统里最强的**。
 表里还自带分母：几格标了 `~`（接触不足，胜负是时钟判的），这正是 ladder 给不出的东西。存档 `runs/xp-d2long-s1R-history.json`。
+
+## [2026-09-14 16:11] 观战：导入 run 直接**采用它的世界**（场景可重建），不再弹窗让人改 URL  #ship
+
+`ArenaScene.dispose()`（摘 resize 监听 · controls / renderer / 所有几何与材质 dispose · 移除 canvas）+ `MatchViewer.rebuild(cfg, map, hidden)`。
+导入时比对 **mapSeed + roundMode + siteCount + 电台三参数**，不一致就重建视图与两张热力图并照常开播，状态栏写明采用了什么世界。
+
+**验证**（两页对照）：先在 `?pop=12&sites=2&mode=capture&tokens=2&interval=5&delay=3` 下训一代并导出（3.2 MB）；
+再用**默认单点位 koth** 的页面导入它 —— 点位 1 → **2**、模式 koth → **capture**、`commTokens` 0 → **2**，
+`#view-canvas` 里仍然**只有一个 canvas**（旧的被移除，没泄漏），状态栏：「adopted its world: map 7, capture, 2 site(s), radio 5 symbols/5t/+3t」，比赛自动开播；无 console error。
+坑 #33 的闸同步更新：行为从「拒绝」改成「采用」，不变量不变 —— ⛔ 绝不在与 run 不同的规则下播它的冠军。

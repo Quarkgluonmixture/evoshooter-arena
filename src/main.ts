@@ -431,8 +431,8 @@ const metricCharts: { key: keyof TeamMetrics; chart: LineChart }[] = [];
 }
 void METRIC_KEYS;
 
-const heatRed = new Heatmap($('heat-red') as HTMLCanvasElement, trainer.sim, trainer.map, [230, 103, 103]);
-const heatBlue = new Heatmap($('heat-blue') as HTMLCanvasElement, trainer.sim, trainer.map, [57, 135, 229]);
+let heatRed = new Heatmap($('heat-red') as HTMLCanvasElement, trainer.sim, trainer.map, [230, 103, 103]);
+let heatBlue = new Heatmap($('heat-blue') as HTMLCanvasElement, trainer.sim, trainer.map, [57, 135, 229]);
 const heatGen = $('heat-gen') as HTMLInputElement;
 let heatFollow = true;
 heatGen.oninput = () => { heatFollow = false; drawHeat(); };
@@ -494,27 +494,26 @@ $('export').onclick = () => {
   if (!file) return;
   try {
     const data = JSON.parse(await file.text()) as { version: number; trainer: TrainerSnapshot; history: StoreJSON };
-    if (data.trainer.evo.mapSeed !== trainer.evo.mapSeed) {
-      alert(`This run uses map ${data.trainer.evo.mapSeed}; reload with ?map=${data.trainer.evo.mapSeed} first.`);
-      return;
-    }
-    // the arena geometry depends on siteCount, and the scene is built once: importing a two-site run into a
-    // one-site page drew the wrong map and coloured the wrong objective
+    // The arena geometry and the radio both come from the run's rules, and the scene is built for one world:
+    // rather than refuse (GOTCHAS #33), adopt the run's world and rebuild the view around it.
     const rs = data.trainer.sim;
     const mine = trainer.sim;
-    const differs = (rs.siteCount ?? 1) !== mine.siteCount || rs.roundMode !== mine.roundMode
+    const differs = data.trainer.evo.mapSeed !== trainer.evo.mapSeed
+      || (rs.siteCount ?? 1) !== mine.siteCount || rs.roundMode !== mine.roundMode
       || (rs.commTokens ?? 0) !== mine.commTokens || (rs.commIntervalTicks ?? 1) !== mine.commIntervalTicks
       || (rs.commDelayTicks ?? 0) !== mine.commDelayTicks;
-    if (differs) {
-      const q = `?map=${data.trainer.evo.mapSeed}&sites=${rs.siteCount ?? 1}${rs.roundMode === 'capture' ? '&mode=capture' : ''}`
-        + `&tokens=${rs.commTokens ?? 0}&interval=${rs.commIntervalTicks ?? 1}&delay=${rs.commDelayTicks ?? 0}`;
-      alert(`This run is ${rs.roundMode}, ${rs.siteCount ?? 1} site(s), radio ${rs.commTokens ? `${2 * (rs.commTokens ?? 0) + 1} symbols every ${rs.commIntervalTicks}t (+${rs.commDelayTicks}t)` : 'continuous'};\nreload with ${q} first.`);
-      return;
-    }
     const t = Trainer.restore(data.trainer);
+    if (differs) {
+      viewer.rebuild(t.sim, t.map, t.evo.hidden);
+      heatRed = new Heatmap($('heat-red') as HTMLCanvasElement, t.sim, t.map, [230, 103, 103]);
+      heatBlue = new Heatmap($('heat-blue') as HTMLCanvasElement, t.sim, t.map, [57, 135, 229]);
+      syncCamUi();
+    }
     resetTrainer(t);
     store.loadJSON(data.history, t.hof, t.sim.heatCells);
-    status(fmtStatus(store.latest()) + `\nimported ${file.name}`);
+    status(fmtStatus(store.latest()) + `\nimported ${file.name}`
+      + (differs ? ` · adopted its world: map ${t.evo.mapSeed}, ${t.sim.roundMode}, ${t.sim.siteCount} site(s), `
+        + `radio ${t.sim.commTokens ? `${2 * t.sim.commTokens + 1} symbols/${t.sim.commIntervalTicks}t/+${t.sim.commDelayTicks}t` : 'continuous'}` : ''));
     playSelection();
   } catch (err) {
     alert(`import failed: ${(err as Error).message}`);

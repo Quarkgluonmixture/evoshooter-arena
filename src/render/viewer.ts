@@ -10,8 +10,8 @@ export interface MatchLabels { red: string; blue: string }
 
 /** Drives one visible match in real time (× speed) and feeds the scene. */
 export class MatchViewer {
-  readonly scene: ArenaScene;
-  readonly rig: CameraRig;
+  scene: ArenaScene;
+  rig: CameraRig;
   world: World | null = null;
   labels: MatchLabels = { red: 'red', blue: 'blue' };
   speed = 1.5;
@@ -33,15 +33,36 @@ export class MatchViewer {
   private hold = 0;
   private readonly frameEvents: WorldEvent[] = [];
   private finishedNotified = false;
-  private readonly cfg: SimConfig;
-  private readonly map: ArenaMap;
-  private readonly hidden: number[];
+  private cfg: SimConfig;
+  private map: ArenaMap;
+  private hidden: number[];
+  private readonly container: HTMLElement;
 
   constructor(container: HTMLElement, cfg: SimConfig, map: ArenaMap, hidden: number[]) {
+    this.container = container;
     this.cfg = cfg;
     this.map = map;
     this.hidden = hidden;
     this.scene = new ArenaScene(container, cfg, map);
+    this.rig = new CameraRig(this.scene);
+  }
+
+  /**
+   * Swap in another world (other rules ⇒ other map geometry) without reloading the page: the old scene is
+   * disposed and a new one is built in the same container, so an imported run can just be played (GOTCHAS #33
+   * is about refusing to play a run under the WRONG rules — this is how the page stops having to).
+   */
+  rebuild(cfg: SimConfig, map: ArenaMap, hidden: number[]): void {
+    this.world = null;
+    this.red = null;
+    this.blue = null;
+    this.lastLoad = null;
+    this.killTicks.length = 0;
+    this.scene.dispose();
+    this.cfg = cfg;
+    this.map = map;
+    this.hidden = hidden;
+    this.scene = new ArenaScene(this.container, cfg, map);
     this.rig = new CameraRig(this.scene);
   }
 

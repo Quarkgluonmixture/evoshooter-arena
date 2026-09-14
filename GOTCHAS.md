@@ -153,9 +153,10 @@ A3.2b 的 accuracy 下降就是这样被证明**不是**机制后果的。
 `commTokens` 不同 ⇒ 5 符号电台训出来的听者在**连续电台**里跑。
 ⚠ 关键点：这些都**不改 obsDim / genome 长度**（commDim 没变、点位数只改地图不改观测宽度）⇒ 任何按长度做的校验都放行，画面看起来完全正常。
 实测：`?sites=2&mode=capture` 下页面仍是 `commTokens 0`，我差点把「灯不亮」读成渲染 bug。
+⭐ 2026-09-14 后半：页面不再只是拒绝，而是**采用 run 的世界**重建视图；不变量没变 —— ⛔ 绝不在与 run 不同的规则下播它的冠军。
 ⭐ 规矩：播放 / 观战 / 任何「拿别处的 genome 跑一场」的入口，都要比**整套规则**（回合模式 · 点位数 · 电台三参数），不一致就拒绝并给出该用的 URL；
 ⛔ 别用 genome 长度或 mapSeed 当代理。
-闸: src/main.ts — 导入时比对 roundMode / siteCount / commTokens / commIntervalTicks / commDelayTicks，不一致直接拒绝；⛔ 不覆盖动作语义变化（那条是 scripts/crossplay.ts 头部的 KNOWN LIMIT，仍在 TODO）
+闸: src/main.ts — 导入时比对 mapSeed / roundMode / siteCount / commTokens / commIntervalTicks / commDelayTicks，不一致就**采用 run 的世界**（`MatchViewer.rebuild` 重建场景与热力图）而不是在错误规则下播；⛔ 不覆盖动作语义变化（那条是 scripts/crossplay.ts 头部的 KNOWN LIMIT，仍在 TODO）
 
 32. **「跑一次空对照，比它大就算真」不是显著性检验 —— 一次空抽不是标准误**（2026-09-13）
 radiouse 给每种替换配了一个「换抽样种子重跑」的空对照，我就拿「|Δ| > 2 × 这次空对照」当单冠军判据。

@@ -110,6 +110,7 @@ export class ArenaScene {
   /** one disc per objective site — `map.sites`, not `map.zoneX/zoneZ`, which is only site 0 */
   private zoneMats: THREE.MeshBasicMaterial[] = [];
   private zoneT = 0;
+  private readonly onResize: () => void;
   private readonly agentRoot = new THREE.Group();
   private readonly fxRoot = new THREE.Group();
 
@@ -143,7 +144,26 @@ export class ArenaScene {
     this.buildPools();
     this.buildViewModel();
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    this.onResize = () => this.resize();
+    window.addEventListener('resize', this.onResize);
+  }
+
+  /**
+   * Tear the scene down so another one can be built for a DIFFERENT world (a run with other rules brings its own
+   * map geometry). ⚠ Without this the old canvas, its GPU buffers and its resize listener all stay alive.
+   */
+  dispose(): void {
+    window.removeEventListener('resize', this.onResize);
+    this.controls.dispose();
+    this.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(mat)) for (const x of mat) x.dispose();
+      else mat?.dispose();
+    });
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
   }
 
   private buildLights(): void {
