@@ -110,6 +110,8 @@ export class ArenaScene {
   /** one disc per objective site — `map.sites`, not `map.zoneX/zoneZ`, which is only site 0 */
   private zoneMats: THREE.MeshBasicMaterial[] = [];
   private zoneT = 0;
+  /** 0..1 reload progress of the agent whose eyes we are in — drives the view model's dip (0 = not reloading) */
+  private fpReload = 0;
   private readonly onResize: () => void;
   private readonly agentRoot = new THREE.Group();
   private readonly fxRoot = new THREE.Group();
@@ -602,6 +604,11 @@ export class ArenaScene {
       }
     }
     void T;
+    // reload progress of the body we are seeing through, for the view model's dip
+    const fp = this.firstPersonId >= 0 ? world.agents[this.firstPersonId] : null;
+    this.fpReload = fp && fp.alive && fp.reloadT > 0
+      ? Math.max(0, Math.min(1, 1 - fp.reloadT / this.cfg.reloadSeconds))
+      : 0;
     for (let i = 0; i < this.zoneMats.length; i++) {
       const mat = this.zoneMats[i];
       const owner: 0 | 1 | -1 = rz[i] > bz[i] ? 0 : bz[i] > rz[i] ? 1 : -1;
@@ -757,12 +764,14 @@ export class ArenaScene {
         if (v.muzzleT <= 0) v.muzzle.visible = false;
       }
     }
-    // first-person view model: recoil kick + its own muzzle flash
+    // first-person view model: recoil kick, its own muzzle flash, and a dip while reloading
     this.viewModel.visible = this.firstPersonId >= 0;
     this.recoil = Math.max(0, this.recoil - dt * 9);
     const kick = this.recoil * this.recoil;
-    this.viewModel.position.set(0.3, -0.25 - 0.012 * kick, -0.62 + 0.07 * kick);
-    this.viewModel.rotation.x = 0.2 * kick;
+    // the HUD already said "reloading"; this is the part the eye reads without looking away from the fight
+    const dip = Math.sin(Math.PI * this.fpReload);
+    this.viewModel.position.set(0.3 + 0.05 * dip, -0.25 - 0.012 * kick - 0.2 * dip, -0.62 + 0.07 * kick + 0.05 * dip);
+    this.viewModel.rotation.set(0.2 * kick - 0.55 * dip, 0.16 + 0.25 * dip, 0.06 + 0.18 * dip);
     if (this.viewMuzzleT > 0) {
       this.viewMuzzleT -= dt;
       this.viewMuzzle.visible = this.viewMuzzleT > 0;
