@@ -1237,8 +1237,14 @@ detector 结果禁止进入 live sim。
   能 travel 的全是**负向**（「3 号哪张图上都不是最孤立的」）或**总量**（「总有某一对高于 1.5×」）。
   ⇒ 唯一诚实的卡片就是**大多数行写 VARIES** 的那种。
 
-### G3 清单里仍未做的
-- club/team clusters（需要更多 run）。
+- ⛔ **club/team clusters：做不了，已用预注册的最近邻检验证明**（2026-09-15，`npm run clusters`，16 个冠军全打同一个手写 bot）：
+  **最近邻是同 run 搭档的比例 = 0/16（图 7）与 2/16（图 11），偶然 6.7%**；**最近邻关系跨图只对上 1/16 = 偶然**。
+  ⇒ 风格空间**认不出一个我们确知存在的分组**（共同进化 300 代的那一对）⇒ ⛔ 这 22 个 metric 上画聚类 = 把噪声画得很自信。
+  ⭐ 便宜地学到这件事的原因：⛔ 没做 k-means（它永远给得出聚类），做的是**偶然水平可事先说出口**的最近邻检验。
+
+### G3 清单
+**全部条目已交付或已被明确回答**（style embedding · club clusters ⛔做不了 · player identity cards ·
+pair chemistry · cross-play matrix · vocabulary evolution · tactic frequency · mutation lineage）。
 - ⏭ chunk 3 = 观战侧展示面。
 
 展示：
