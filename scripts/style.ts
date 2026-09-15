@@ -29,7 +29,9 @@ import { generateMap } from '../src/sim/map.ts';
 import { genomeLength } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor } from '../src/brain/policy.ts';
 import { METRIC_KEYS, meanMetrics, runMatch, type TeamMetrics } from '../src/evo/match.ts';
+import { writeFileSync } from 'node:fs';
 import { meanSE } from '../src/probe/detect.ts';
+import type { StyleFile, StylePoint } from '../src/core/analysisFile.ts';
 
 const argv = process.argv.slice(2);
 const files: string[] = [];
@@ -96,6 +98,8 @@ const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s
 
 const colours: (0 | 1)[] = (flags.get('colour') ?? 'both') === 'both' ? [0, 1]
   : [(flags.get('colour') ?? 'R').toUpperCase() === 'B' ? 1 : 0];
+// one export = one (colour, map). ⛔ Refuse rather than guess which colour the file is about.
+if (flags.has('out') && colours.length !== 1) throw new Error('--out needs --colour R or --colour B (one file = one colour on one map)');
 
 for (const colour of colours) {
   const label = colour === 0 ? 'R' : 'B';
@@ -174,6 +178,7 @@ for (const colour of colours) {
     console.log('   are ⛔ NOT comparable, and "movement?" below is only meaningful within one gap size.');
   }
   console.log(`\n${padr('gen', 6)}${pad('gap', 5)}${pad('PC1', 8)}${pad('PC2', 8)}${pad('own noise', 11)}${pad('step from prev', 16)}${pad('vs local floor', 16)}  movement?`);
+  const exported: StylePoint[] = [];
   GENS.forEach((g, i) => {
     const step = i === 0 ? NaN : steps[i - 1];
     // local floor = the larger of the two endpoints' own re-measurement distances
@@ -181,10 +186,45 @@ for (const colour of colours) {
     const ratio = i === 0 ? NaN : step / local;
     // a near-zero own-noise means the champion never rolls a die — its ratio is inflated, ⛔ not significant
     const det = own[i] < 0.3 || (i > 0 && own[i - 1] < 0.3);
+    exported.push({ gen: g, pc1: proj(mid[i], pc1), pc2: proj(mid[i], pc2), own: own[i], step, ratio, det });
     console.log(`${padr(String(g), 6)}${pad(i === 0 ? '—' : String(GENS[i] - GENS[i - 1]), 5)}${pad(proj(mid[i], pc1).toFixed(2), 8)}${pad(proj(mid[i], pc2).toFixed(2), 8)}`
       + `${pad(own[i].toFixed(2), 11)}${pad(Number.isNaN(step) ? '—' : step.toFixed(2), 16)}${pad(Number.isNaN(ratio) ? '—' : `${ratio.toFixed(1)}x`, 16)}`
       + `  ${det ? '⚠ det ON THIS MAP — ratio inflated, do not read' : (!Number.isNaN(ratio) && ratio >= 2 ? 'YES' : '')}`);
   });
+
+  if (flags.has('out')) {
+    const top = (v: number[]) => keys.map((k, i) => ({ key: k as string, w: v[i] }))
+      .sort((a, b) => Math.abs(b.w) - Math.abs(a.w)).slice(0, 4);
+    const out: StyleFile = {
+      kind: 'style',
+      createdAt: new Date().toISOString(),
+      source: tag,
+      colour: label as 'R' | 'B',
+      opponent: `${label === 'R' ? 'B' : 'R'}@${lastGen}`,
+      mapSeed: MAP_SEED,
+      trainingMap: MAP_SEED === data.evo.mapSeed,
+      n: N,
+      keys: keys.map((k) => k as string),
+      droppedKeys: dropped.map((k) => k as string),
+      pcaVar: [lam1 / total, lam2 / total],
+      loadings: [{ pc: 1, top: top(pc1) }, { pc: 2, top: top(pc2) }],
+      points: exported,
+      evenSweep,
+      // ⭐ the warnings travel with the data — a caveat in stdout never reaches whoever looks at the picture
+      caveats: [
+        'Coordinates are z-scored across THIS sweep: adding generations moves them. They are not a shared space.',
+        'One fixed opponent — this is style as seen by that opponent, not style in general.',
+        'The noise floor is the HIT-ROLL floor: the world seed drives only the shot dice, the map and spawns are '
+          + 'fixed. A champion that never engages reads own-noise 0 (det) and inflates its neighbours\' ratios.',
+        'WHICH generations move is MAP-SPECIFIC (measured 2026-09-15: agreement 42%/83%/43% against chance '
+          + '50%/62%/50%). Every statement from this panel carries "on this map".',
+        ...(evenSweep ? [] : ['UNEVEN SWEEP — steps across different generation gaps are NOT comparable.']),
+        ...(MAP_SEED === data.evo.mapSeed ? [] : ['NOT the training map: every champion here is out of distribution.']),
+      ],
+    };
+    writeFileSync(flags.get('out')!, JSON.stringify(out));
+    console.log(`saved ${flags.get('out')}`);
+  }
 }
 console.log('\n⚠ coordinates are relative to THIS sweep (z-scored across it): adding generations moves them.');
 console.log('⚠ the noise floor is the HIT-ROLL floor: the world seed drives only the shot dice, so a champion that');

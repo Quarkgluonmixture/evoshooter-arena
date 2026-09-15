@@ -114,6 +114,14 @@
         <div id="xp-view" class="hint">no matrix loaded</div>
       </section>
       <section>
+        <h2>What changed, and who changed it</h2>
+        <p class="hint">Load a style or lineage export from <code>npm run style -- &lt;run&gt; --colour R --out runs/style.json</code>
+          or <code>npm run lineage -- &lt;run&gt; --out runs/lineage.json</code>. Every number is the CLI's; the page only draws it —
+          and the file's own warnings are printed above them.</p>
+        <div class="row small"><label class="file"><input id="an-import" type="file" accept="application/json" /> load analysis…</label></div>
+        <div id="an-view" class="hint">no analysis loaded</div>
+      </section>
+      <section>
         <h2>Save / load</h2>
         <div class="row small">
           <button id="export">export run (.json)</button>

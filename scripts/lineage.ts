@@ -18,7 +18,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import type { EvoConfig, SimConfig } from '../src/core/config.ts';
+import type { LineageFile, LineageTrack } from '../src/core/analysisFile.ts';
 
 const argv = process.argv.slice(2);
 const files: string[] = [];
@@ -46,6 +48,9 @@ const median = (xs: number[]) => (xs.length ? xs.slice().sort((a, b) => a - b)[(
 
 const colours: (0 | 1)[] = (flags.get('colour') ?? 'both') === 'both' ? [0, 1]
   : [(flags.get('colour') ?? 'R').toUpperCase() === 'B' ? 1 : 0];
+const tracks: LineageTrack[] = [];
+/** one mutation event: a fraction mutRate of weights each drawn N(0, mutSigma) — the scale a step is read against */
+const ONE_MUT = Math.sqrt(data.evo.mutRate) * data.evo.mutSigma;
 
 for (const t of colours) {
   const hof = data.hof[t];
@@ -110,6 +115,21 @@ for (const t of colours) {
   console.log(`  ⭐ distance vs LAG (⚠ diagnostic, added after the frozen predictions failed):`);
   console.log(`     ${lagCurve.map((x) => `${x.lag}:${x.d.toExponential(2)}`).join('  ')}`);
   const ratio = lagCurve[lagCurve.length - 1].d / lagCurve[0].d;
+  const verdict = ratio > 1.5
+    ? `constrained random walk — distance keeps growing (lag-128/lag-1 = ${ratio.toFixed(2)}x), but far below the `
+      + `${Math.sqrt(128).toFixed(1)}x a free random walk would give, so the line moves inside a bounded region`
+    : `FLAT (${ratio.toFixed(2)}x) — champions look like draws from one converged cloud, no lineage visible in the genomes`;
+  tracks.push({
+    colour: label as 'R' | 'B',
+    champions: hof.length,
+    retained,
+    steps: steps.map((x) => ({ gen: x.gen, d: x.d, moved: x.moved })),
+    medianNonZero: med,
+    takeoverCut: TAKEOVER * med,
+    takeovers: takeovers.map((x) => x.gen),
+    lag: lagCurve,
+    verdict,
+  });
   console.log(`     lag-128 / lag-1 = ${ratio.toFixed(2)}x ⇒ ${ratio > 1.5 ? 'the line DRIFTS (distance keeps growing)' : 'FLAT — champions look like draws from one converged cloud, ⛔ no lineage visible in the genomes'}`);
 
   // the two cross-references named in the pre-registration, descriptive only
@@ -124,3 +144,26 @@ for (const t of colours) {
 }
 console.log('\n⚠ "takeover" means the champion genome changed a lot between two generations — it does NOT identify');
 console.log('   an individual, a parent or a cause. ⛔ No era language: G3 dropped that narrative on 2026-09-15.');
+
+if (flags.has('out')) {
+  // ⭐ the caveats travel WITH the data: a warning that lives only in this stdout never reaches whoever looks
+  // at the picture later (src/core/analysisFile.ts)
+  const out: LineageFile = {
+    kind: 'lineage',
+    createdAt: new Date().toISOString(),
+    source: tag,
+    mutRate: data.evo.mutRate,
+    mutSigma: data.evo.mutSigma,
+    oneMutationRms: ONE_MUT,
+    tracks,
+    caveats: [
+      'INFERRED from genomes — the trainer records no parentage, so these are not real parent-child edges.',
+      `One mutation event is an RMS of ${ONE_MUT.toExponential(2)}; a median step here is far larger, so `
+        + 'consecutive hall-of-fame champions are NOT parent and child.',
+      '"Takeover" means the genome changed a lot between two generations — it identifies no individual and no cause.',
+      'No era language: G3 dropped that narrative on 2026-09-15 after four tracks failed the per-colour gate.',
+    ],
+  };
+  writeFileSync(flags.get('out')!, JSON.stringify(out));
+  console.log(`saved ${flags.get('out')}`);
+}

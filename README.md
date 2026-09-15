@@ -19,6 +19,9 @@ npm run train -- --gens 40 --pop 16 --seed 1   # headless training in the termin
 npm run leaks      # print what each observation field is allowed to know, and where it cheats today
 npm run crossplay -- runs/a.json runs/b.json   # win-rate matrix between saved champions (see below)
 npm run inherit -- runs/a.json runs/b.json     # does a child still behave like its parent? (see below)
+npm run style -- runs/a.json --colour R        # where this lineage's behaviour sat, generation by generation
+npm run lineage -- runs/a.json                 # how much the champion genome moved between generations
+npm run eras -- runs/xp.json                   # read progress and cross-map rank stability out of a matrix
 npm run yardstick -- runs/a.json               # champions vs the hand-written bots (see below)
 ```
 
@@ -76,6 +79,13 @@ Right-hand panel:
 - **Who beats whom** — load the JSON that `npm run crossplay -- <runs> --out runs/xp.json` writes and the matrix is
   drawn here: win shares, decisive edges, non-transitive cycles, `··` for pairs that never met. Every number is the
   CLI's; the page computes none of them.
+- **What changed, and who changed it** — load the JSON that `npm run style -- <run> --colour R --out runs/style.json`
+  or `npm run lineage -- <run> --out runs/lineage.json` writes. The style panel shows where a lineage's behaviour
+  sat generation by generation, with each generation's own re-measurement noise beside every step; the lineage
+  panel shows how much the champion genome moved between generations and what the distance-vs-lag curve says about
+  it. Every number is the CLI's, and so are the **warnings** — each file carries its own caveats and the page
+  prints them above the numbers, because the ones that matter here are easy to forget: the style trajectory is
+  specific to the map it was measured on, and "lineage" is *inferred* (the trainer records no parentage).
 - **Time travel** — pit any generation's champion against any other. "gen 0 vs latest" is the fastest way to *feel*
   the change.
 - **Save / load** — export the whole run (populations, hall of fame, history) and import it later. An imported run

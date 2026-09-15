@@ -122,6 +122,25 @@ kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius
 
 /* Cross-play matrix — drawn from scripts/crossplay.ts --out; ⛔ the page computes none of these numbers. */
 #xp-view { overflow-x: auto; }
+#an-view { overflow-x: auto; }
+.an-caveats { margin: 6px 0; padding-left: 14px; color: var(--text-2); font-size: 11px; line-height: 1.5; }
+.an-warn { color: #d88; }
+table.an { border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+table.an th, table.an td { padding: 1px 6px; text-align: right; white-space: nowrap; }
+table.an th { color: var(--text-2); font-weight: 400; }
+tr.an-row-det td { color: var(--text-2); }
+span.an-det { color: #d88; font-style: italic; }
+.an-bar { display: inline-block; height: 6px; margin-left: 4px; vertical-align: middle; border-radius: 1px; }
+.an-b-step { background: rgba(120,170,220,0.65); }
+.an-b-lag { background: rgba(150,190,140,0.65); }
+.an-strip { display: flex; align-items: flex-end; gap: 0; height: 30px; margin: 6px 0; }
+/* ⚠ 299 ticks with a 1px gap each is ~300px of gaps alone: the strip overflowed its panel (597px into 401px)
+   until the gap went and the ticks were allowed to shrink below 1px of basis. Measured, not guessed. */
+.an-strip i { flex: 1 1 0; min-width: 0; background: rgba(200,200,200,0.45); box-shadow: 0 0 0 0.5px rgba(0,0,0,0.25) inset; }
+.an-strip i.an-tick-0 { background: rgba(120,170,220,0.9); }
+.an-strip i.an-tick-over { background: #d88; }
+.an-verdict { color: var(--text-2); font-style: italic; }
+table.an-lag { margin-bottom: 10px; }
 .xp { border-collapse: collapse; font-size: 11px; margin-top: 6px; }
 /* the sidebar is narrower than 8 entrants: truncate the label, keep the full name in the tooltip, scroll if needed */
 .xp th { font-weight: 600; color: var(--text-2); padding: 2px 4px; text-align: right; white-space: nowrap; max-width: 104px; overflow: hidden; text-overflow: ellipsis; }

@@ -9,6 +9,8 @@ import { MatchViewer } from './render/viewer.ts';
 import { commLight } from './render/scene.ts';
 import { renderCrossplay } from './ui/crossplayView.ts';
 import type { CrossplayFile } from './core/crossplayFile.ts';
+import { renderAnalysis } from './ui/analysisView.ts';
+import type { AnalysisFile } from './core/analysisFile.ts';
 import { TEAM_CSS } from './render/scene.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
@@ -501,6 +503,21 @@ $('export').onclick = () => {
     renderCrossplay(view, data);
   } catch (err) {
     alert(`cross-play load failed: ${(err as Error).message}`);
+  }
+};
+($('an-import') as HTMLInputElement).onchange = async (e) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text()) as AnalysisFile;
+    if (data.kind !== 'style' && data.kind !== 'lineage') {
+      throw new Error('not a G3 analysis export — run style.ts or lineage.ts with --out');
+    }
+    const view = $('an-view');
+    view.classList.remove('hint');
+    renderAnalysis(view, data);
+  } catch (err) {
+    alert(`analysis load failed: ${(err as Error).message}`);
   }
 };
 ($('import') as HTMLInputElement).onchange = async (e) => {
