@@ -34,7 +34,8 @@
     "exploit": "node scripts/exploit.ts",
     "detect": "node scripts/detect.ts",
     "lurkswap": "node scripts/lurkswap.ts",
-    "style": "node scripts/style.ts"
+    "style": "node scripts/style.ts",
+    "eras": "node scripts/eras.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
