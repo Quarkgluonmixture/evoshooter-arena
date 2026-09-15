@@ -92,22 +92,46 @@ for (const path of files) {
   const shape = shapeFor(sim, data.evo.hidden);
   const map = generateMap(data.evo.mapSeed, sim);
   const tag = basename(path).replace(/\.json$/, '');
-  const pick = (t: 0 | 1) => {
-    const h = data.hof[t];
-    const e = flags.has('gen') ? h.find((x) => x.gen === num('gen', 0)) : h[h.length - 1];
-    if (!e) throw new Error(`${tag}: no hall-of-fame entry for gen ${flags.get('gen')}`);
+  const take = (t: 0 | 1, e: RunHofEntry | undefined, what: string) => {
+    if (!e) throw new Error(`${tag}: no hall-of-fame entry for ${what}`);
     if (e.genome.length !== genomeLength(shape)) throw new Error(`${tag}: genome ${e.genome.length} != ${genomeLength(shape)}`);
+    void t;
     return { gen: e.gen, genome: Float32Array.from(e.genome) };
   };
-  const r = pick(0);
-  const b = pick(1);
-  for (const observe of [0, 1] as const) {
-    rows.push({
-      label: `${tag}@${r.gen} ${observe === 0 ? 'R' : 'B'}`,
-      sim, map, observe,
-      red: () => new NeuralPolicy(shape, r.genome),
-      blue: () => new NeuralPolicy(shape, b.genome),
-    });
+  const pick = (t: 0 | 1) => {
+    const h = data.hof[t];
+    return take(t, flags.has('gen') ? h.find((x) => x.gen === num('gen', 0)) : h[h.length - 1], `gen ${flags.get('gen')}`);
+  };
+  /** nearest hall-of-fame entry at or before `g` — the hall is not guaranteed to hold every generation */
+  const pickGen = (t: 0 | 1, g: number) => {
+    const h = data.hof[t];
+    let best: RunHofEntry | undefined;
+    for (const e of h) if (e.gen <= g && (!best || e.gen > best.gen)) best = e;
+    return take(t, best ?? h[0], `gen <= ${g}`);
+  };
+  /**
+   * `--gens a,b,c` sweeps the OBSERVED side's generation, and `--opponent-gen G` pins its opponent to one
+   * generation (VISION §12.1 layer ①: "when did it first appear"). With the opponent pinned, whatever moves is the
+   * observed lineage's; with it left matched, the row is the pair as it actually co-evolved. ⚠ The two answer
+   * different questions and must not be averaged — see runs/g2-lurk-birth-predictions.txt.
+   */
+  const sweep = flags.has('gens') ? String(flags.get('gens')).split(',').map(Number) : [null];
+  for (const g of sweep) {
+    const r = g === null ? pick(0) : pickGen(0, g);
+    const b = g === null ? pick(1) : pickGen(1, g);
+    const foe = flags.has('opponent-gen')
+      ? { red: pickGen(0, num('opponent-gen', 0)), blue: pickGen(1, num('opponent-gen', 0)) }
+      : { red: r, blue: b };
+    for (const observe of [0, 1] as const) {
+      const mine = observe === 0 ? r : b;
+      const theirs = observe === 0 ? foe.blue : foe.red;
+      rows.push({
+        label: `${tag}@${mine.gen}${flags.has('opponent-gen') ? `v${theirs.gen}` : ''} ${observe === 0 ? 'R' : 'B'}`,
+        sim, map, observe,
+        red: () => new NeuralPolicy(shape, observe === 0 ? mine.genome : theirs.genome),
+        blue: () => new NeuralPolicy(shape, observe === 0 ? theirs.genome : mine.genome),
+      });
+    }
   }
 }
 
