@@ -97,6 +97,8 @@ console.log(`sources: ${xp.sources.join(', ')}`);
 console.log(`⚠ crossplay's own resolution: ${2 * xp.n} matches per cell ⇒ a true 50/50 pair lands within about`);
 console.log(`   ±${(164.5 * 0.5 / Math.sqrt(2 * xp.n)).toFixed(0)}pp nine times in ten. ⛔ Edges smaller than that are not interpreted.\n`);
 
+/** Spearman per map for each colour, kept so the frozen gate can print its own verdict rather than my reading. */
+const rho: Record<string, number[]> = { R: [], B: [] };
 for (const m of xp.maps) {
   const trainingMap = m.mapSeed === xp.maps[0].mapSeed;
   console.log(`map ${m.mapSeed}${trainingMap ? ' (first listed — the training map if it was given first)' : ''}`);
@@ -105,7 +107,8 @@ for (const m of xp.maps) {
     if (idx.length < 3) continue;
     const gens = idx.map((x) => x.e.gen);
     const means = idx.map((x) => m.rowMean[x.i] ?? NaN);
-    const rho = spearman(gens.filter((_, k) => Number.isFinite(means[k])), means.filter(Number.isFinite));
+    const rhoM = spearman(gens.filter((_, k) => Number.isFinite(means[k])), means.filter(Number.isFinite));
+    rho[side].push(rhoM);
     // head-to-head: later vs earlier, contact-bearing cells only
     let later = 0;
     let total = 0;
@@ -121,7 +124,7 @@ for (const m of xp.maps) {
         if (m.balanced[i][j] > 0.5) later++;
       }
     }
-    console.log(`  ${side}: Spearman(gen, rowMean) = ${Number.isFinite(rho) ? rho.toFixed(2) : 'n/a'}`
+    console.log(`  ${side}: Spearman(gen, rowMean) = ${Number.isFinite(rhoM) ? rhoM.toFixed(2) : 'n/a'}`
       + ` · later-beats-earlier ${total ? pct(later / total) : 'n/a'} of ${total} pairs`
       + `${dropped ? ` (⚠ ${dropped} dropped, no contact)` : ''}${thin ? ` (⚠ ${thin} thin, <50 sight ticks)` : ''}`);
     console.log(`     ${idx.map((x) => `${x.e.gen}:${pct(m.rowMean[x.i] ?? NaN)}`).join('  ')}`);
@@ -157,6 +160,26 @@ if (xp.maps.length > 1) {
     }
     console.log(`   ⚠ post-hoc, per colour — ${side}: ${pairs.join('  ')}`);
   }
-  console.log('\n⛔ The frozen branch: tau >= 0.6 licenses an era statement that may leave the training map.');
-  console.log('   Below that, strength ordering is map-specific and ⛔ no era claim is licensed at all.');
+  /**
+   * ⭐ The frozen gate of runs/g3-eras2-predictions.txt, printed by the script rather than judged by me after the
+   * fact: a (lineage, colour) is MAP-INVARIANT iff Kendall tau >= 0.6 on ALL THREE map pairings AND
+   * Spearman(gen, rowMean) >= 0.5 on ALL THREE maps. ⛔ Two of three is not a pass.
+   */
+  for (const side of ['R', 'B'] as const) {
+    const pick = xp.entrants.map((e, i) => (e.side === side ? i : -1)).filter((i) => i >= 0);
+    if (pick.length < 3) continue;
+    const row = xp.maps.map((b) => pick.map((i) => (b.rowMean[i] === null ? NaN : (b.rowMean[i] as number))));
+    const taus: number[] = [];
+    for (let a = 0; a < xp.maps.length; a++) {
+      for (let b = a + 1; b < xp.maps.length; b++) taus.push(kendall(row[a], row[b]));
+    }
+    const minTau = Math.min(...taus);
+    const minRho = Math.min(...rho[side]);
+    const pass = minTau >= 0.6 && minRho >= 0.5;
+    console.log(`\n${pass ? 'PASS' : 'FAIL'}  frozen per-colour gate — ${side}, ${pick.length} entrants:`
+      + ` min tau ${minTau.toFixed(2)} (needs >= 0.60), min Spearman ${minRho.toFixed(2)} (needs >= 0.50)`);
+    console.log(`      taus: ${taus.map((t) => t.toFixed(2)).join(', ')} · Spearmans: ${rho[side].map((r) => r.toFixed(2)).join(', ')}`);
+  }
+  console.log('\n⛔ A colour that passes may carry era statements off its training map. A colour that fails may not,');
+  console.log('   ⛔ and a colour that passes on one lineage says nothing about the same colour on another.');
 }
