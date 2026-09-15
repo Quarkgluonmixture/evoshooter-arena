@@ -56,7 +56,14 @@ const data = JSON.parse(readFileSync(path, 'utf8')) as RunFile;
 if (data.scaffold) throw new Error(`${path} is a scaffold run`);
 const { sim } = normalizeSim(data.sim);
 const shape = shapeFor(sim, data.evo.hidden);
-const baseMap = generateMap(data.evo.mapSeed, sim);
+/**
+ * `--map <seed>` re-runs the arms on another generated map. ⚠ generateMap places spawns and sites identically on
+ * every seed and varies only the cover, so this changes the ROUTES, ⛔ not where anybody starts — which is
+ * exactly why the lurk role failed to travel (GOTCHAS #40) and why an attribution measured on one map has to be
+ * re-checked rather than assumed.
+ */
+const MAP_SEED = num('map', data.evo.mapSeed);
+const baseMap = generateMap(MAP_SEED, sim);
 const tag = basename(path).replace(/\.json$/, '');
 const observe: 0 | 1 = (flags.get('colour') ?? 'R').toUpperCase() === 'B' ? 1 : 0;
 const T = sim.teamSize;
@@ -250,6 +257,7 @@ const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s
 const pct = (x: number) => (Number.isNaN(x) ? 'n/a' : `${(x * 100).toFixed(0)}%`);
 
 console.log(`lurk swap — ${tag}@${champ[observe].gen} ${observe === 0 ? 'R' : 'B'}, ${N} seeds x 2 role assignments per arm`);
+console.log(`map ${MAP_SEED}${MAP_SEED === data.evo.mapSeed ? ' (the training map)' : ' ⚠ NOT the training map — out of distribution for every champion here'}`);
 console.log(`the shape at gen 299 sits on slot 0. B moves the ONE-HOT off that body, C moves the BODY off that spawn.`);
 console.log('"slot0 by spawn" = the body that STARTS where slot 0 starts; "slot0 by carrier" = the body READING one-hot 0.');
 console.log('⚠ both arms are out-of-distribution in the JOINT (spawn, one-hot); a dissolved shape means unattributable.\n');
