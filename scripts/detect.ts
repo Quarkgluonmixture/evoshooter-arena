@@ -18,9 +18,13 @@ import { genomeLength } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
 import { stepMatch } from '../src/evo/match.ts';
 import { World } from '../src/sim/world.ts';
-import { PacifistRusherPolicy, PostHolderPolicy, SiteAttackerPolicy, SiteDefenderPolicy } from '../src/brain/scripted.ts';
 import {
-  crossfireTick, median, newCrossfireStats, tradeStats, type CrossfireStats, type KillRecord, type TradeOptions,
+  EagerRotateDefenderPolicy, FakeAttackerPolicy, PacifistRusherPolicy, PostHolderPolicy, ReactiveDefenderPolicy,
+  SiteAttackerPolicy, SiteDefenderPolicy,
+} from '../src/brain/scripted.ts';
+import {
+  crossfireTick, median, newCrossfireStats, rotateStats, tradeStats,
+  type CrossfireStats, type KillRecord, type RotateStats, type RotateTrace, type TradeOptions,
 } from '../src/probe/detect.ts';
 
 const argv = process.argv.slice(2);
@@ -196,6 +200,99 @@ for (const row of crossRows) {
   console.log(`${padr(row.label, 24)}${pad(String(st.seenTicks), 11)}${pad(String(st.crossTicks), 10)}`
     + `${pad(Number.isNaN(share) ? 'n/a' : pct(share), 7)}${pad(st.separations.length ? `${median(st.separations).toFixed(0)}°` : '—', 11)}`
     + `${pad(Number.isNaN(dmg) ? 'n/a' : pct(dmg), 10)}${pad(anchor === null ? '—' : `seed ${anchor.seed} atk${anchor.attackers} t${anchor.tick}`, 26)}`);
+}
+
+/* ------------------------------------------------------------------ rotate (pressure → switch) */
+
+/** TS cannot see an assignment made inside a callback, so read the anchor through this instead of narrowing it. */
+const anchorOf = (a: { seed: number; attackers: 0 | 1; tick: number } | null): string =>
+  (a === null ? '—' : `seed ${a.seed} atk${a.attackers} t${a.tick}`);
+
+const PRESSURE_R = num('pressure-radius', 12);
+const STEP = 15;          // 1 s
+const HORIZON = 45;       // 3 s
+// ⚠ the attacker ALTERNATES per match: with one fixed attacker every match has the same pressure timeline, and
+// "another match's pressure" is the same pressure — the null then reads 1.00 for everyone, including a rotator that
+// ignores pressure entirely (first precision run, see the prediction file's addendum).
+const ROTATE_ATTACKS: (() => Policy)[] = [
+  () => new SiteAttackerPolicy(0), () => new SiteAttackerPolicy(1), () => new FakeAttackerPolicy(0, 1, 10),
+];
+const holdPosts = [{ x: site0.x - 3, z: site0.z }, { x: site0.x + 3, z: site0.z }, { x: site0.x, z: site0.z - 3 },
+  { x: site0.x, z: site0.z + 3 }, { x: site0.x - 3, z: site0.z - 3 }];
+const rotateRows: Row[] = [
+  { label: 'scripted: eager rot (+)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new EagerRotateDefenderPolicy(1, 0, 12), observe: 1 },
+  { label: 'scripted: reactive (+)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new ReactiveDefenderPolicy(1), observe: 1 },
+  // a real negative: fixed posts, so it CANNOT answer pressure (the site bots converge on the armed site, which is
+  // itself a rotation — that is why they read 38% and are not a negative control)
+  { label: 'scripted: posts (−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(holdPosts), observe: 1 },
+  ...(flags.has('precision') ? [] : rows.filter((r) => !r.label.startsWith('scripted'))),
+];
+
+/** Record where the defenders stood and which site the attackers massed on, tick by tick. */
+function playRotate(row: Row, seed: number, attackers: 0 | 1, matchIndex: number): RotateTrace | null {
+  const defender: 0 | 1 = attackers === 0 ? 1 : 0;
+  if (defender !== row.observe) return null;             // only the matches where this colour defends
+  const w = new World(row.sim, row.map, seed, { attackers });
+  const scriptedRow = row.label.startsWith('scripted');
+  const attackPolicy = scriptedRow ? ROTATE_ATTACKS[matchIndex % ROTATE_ATTACKS.length]() : null;
+  const red = attackPolicy && attackers === 0 ? attackPolicy : row.red();
+  const blue = attackPolicy && attackers === 1 ? attackPolicy : row.blue();
+  const T = row.sim.teamSize;
+  const base = defender === 0 ? 0 : T;
+  const trace: RotateTrace = { defenders: [], hot: [], sites: row.map.sites.map((s) => ({ x: s.x, z: s.z })) };
+  while (!w.done) {
+    stepMatch(w, red, blue);
+    trace.defenders.push(Array.from({ length: T }, (_, k) => ({ x: w.agents[base + k].x, z: w.agents[base + k].z })));
+    const near = row.map.sites.map(() => 0);
+    for (const a of w.agents) {
+      if (!a.alive || a.team !== attackers) continue;
+      row.map.sites.forEach((s, i) => { if (Math.hypot(a.x - s.x, a.z - s.z) <= PRESSURE_R) near[i]++; });
+    }
+    const top = Math.max(...near);
+    const winners = near.filter((v) => v === top).length;
+    trace.hot.push(top > 0 && winners === 1 ? near.indexOf(top) : -1);
+  }
+  return trace;
+}
+
+console.log(`\nrotate detector — pressure = attackers within ${PRESSURE_R}m; a defender that starts nearer the COLD site and is nearer`);
+console.log(`the HOT one within ${(HORIZON * scriptedSim.dt).toFixed(0)}s has rotated. null = the same movement scored against ANOTHER match's pressure timeline`);
+console.log(`${padr('observed team', 24)}${pad('chances', 9)}${pad('rotations', 10)}${pad('rate', 7)}${pad('null', 7)}${pad('x null', 7)}${pad('median lag', 11)}${pad('first (replay anchor)', 26)}`);
+
+for (const row of rotateRows) {
+  const traces: { seed: number; attackers: 0 | 1; trace: RotateTrace }[] = [];
+  for (let m = 0; m < N; m++) {
+    for (const attackers of [0, 1] as const) {
+      const seed = hashSeed(31337, m);
+      const trace = playRotate(row, seed, attackers, m);
+      if (trace) traces.push({ seed, attackers, trace });
+    }
+  }
+  const acc = { opportunities: 0, rotations: 0, lags: [] as number[] };
+  const nullAcc = { opportunities: 0, rotations: 0 };
+  type Anchor = { seed: number; attackers: 0 | 1; tick: number };
+  let anchor: Anchor | null = null;
+  traces.forEach((t, i) => {
+    const real: RotateStats = rotateStats(t.trace, t.trace, STEP, HORIZON, row.sim.dt);
+    acc.opportunities += real.opportunities;
+    acc.rotations += real.rotations;
+    acc.lags.push(...real.lags);
+    if (anchor === null && real.firstAt !== null) anchor = { seed: t.seed, attackers: t.attackers, tick: real.firstAt };
+    // the null: this match's real movement, the NEXT match's pressure
+    const other = traces[(i + 1) % traces.length];
+    if (other !== t) {
+      const fake = rotateStats(t.trace, other.trace, STEP, HORIZON, row.sim.dt);
+      nullAcc.opportunities += fake.opportunities;
+      nullAcc.rotations += fake.rotations;
+    }
+  });
+  acc.lags.sort((a, b) => a - b);
+  const rate = acc.opportunities ? acc.rotations / acc.opportunities : NaN;
+  const nul = nullAcc.opportunities ? nullAcc.rotations / nullAcc.opportunities : NaN;
+  console.log(`${padr(row.label, 24)}${pad(String(acc.opportunities), 9)}${pad(String(acc.rotations), 10)}`
+    + `${pad(Number.isNaN(rate) ? 'n/a' : pct(rate), 7)}${pad(Number.isNaN(nul) ? 'n/a' : pct(nul), 7)}`
+    + `${pad(nul > 0 ? (rate / nul).toFixed(2) : '—', 7)}${pad(acc.lags.length ? `${median(acc.lags).toFixed(2)}s` : '—', 11)}`
+    + `${pad(anchorOf(anchor), 26)}`);
 }
 
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');

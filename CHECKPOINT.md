@@ -9,11 +9,13 @@
 迁成**信息诚实、玩家私有 belief、身体原语、有限通信、个体 × team DNA、side-neutral club league + opponent ecology**
 的职业战术射击底座，让 trade / lurk / fake / crossfire / mid-round / emergent language 只能自然涌现、事后识别。
 
-## Current cursor（2026-09-14）
+## Current cursor（2026-09-15）
 
-⭐⭐ **进行中 = 观战线（把能看的做对）**，用户 2026-09-14 在闸门上说「看 vision」，依据 VISION §0 第二条北极星（观赏性来自可解释性）+
-§12.1（detection 要能回放到具体 match）选的：⛔ 不改世界、不加算力、不开生态。做完三件（双点位渲染 · kill feed · 电台符号灯 + 规则守卫），
-下一件在 `TODO.md`「观战 / 导播」。
+⭐⭐ **进行中 = G2 只读战术 detector（`npm run detect`）**：用已经跑出来的 run 回答「哪些形状真的发生了」，零算力承诺。
+已关掉两个：**trade**（条件化零假设下 lift 0.78–0.82 ≈ 随机）· **crossfire**（第二版定义 precision 过了，冠军**一次都没形成**，中位夹角 3–22°）。
+⭐ 每个 detector 的铁律：先过**手写正/负对照**的 precision，没过就⛔ 不读冠军；零假设必须**保住真实的时间结构**（否则打架成簇会伪造倍数）。
+**观战线已完成**（用户 2026-09-14 在闸门上说「看 vision」后按 VISION §0/§12.1 选的）：双点位渲染 · kill feed · 电台符号灯 · 规则守卫 ·
+导入即采用 run 的世界 · 慢动作回放 · 导播淡出 · 第三人称环绕 · 热力图开火层 · cross-play 面板；README 已对齐。
 ⚠ **训练侧四个 phase 都停在「不要动工」**，动它们之前先读各自的进度段：D2s（种群 3× / 评估场次 3× 等算力都买不到电台内容）·
 E1（形态级角色比每人一个常数还低 13pp）· E2（共识 −4pp，但**混合**值 +14.5pp，只对会适应的对手兑现）· E6 前置（40 代 best response 只打穿 1/4 冠军）。
 ⭐ 内容读数 = `radiouse` 的 `replay`（另一场同一 tick 的整队电台）；`speaker` 会把节奏 / 同步 / 时钟读成内容（坑 #31），D2b 的「更正」已撤回。

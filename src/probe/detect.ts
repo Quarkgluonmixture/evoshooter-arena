@@ -199,3 +199,58 @@ export function crossfireTick(
     if (st.firstAt === null) st.firstAt = tick;
   }
 }
+
+/* ------------------------------------------------------------------ rotate / pressure → switch (G2) */
+
+/** Per tick: where each defender stood, and which site the attackers were massing on (−1 = tie / nobody). */
+export interface RotateTrace {
+  /** defenders[t][k] = {x,z} of the k-th defender at tick t (dead players keep their last position) */
+  defenders: { x: number; z: number }[][];
+  /** hot[t] = index of the site with more attackers within the radius, or −1 */
+  hot: number[];
+  sites: { x: number; z: number }[];
+}
+
+export interface RotateStats {
+  /** defender-steps where the defender started nearer the COLD site — the only steps a rotation could happen in */
+  opportunities: number;
+  rotations: number;
+  /** seconds from the step's start to the tick the defender became nearer the hot site */
+  lags: number[];
+  firstAt: number | null;
+}
+
+const nearer = (p: { x: number; z: number }, a: { x: number; z: number }, b: { x: number; z: number }): boolean =>
+  Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(p.x - b.x, p.z - b.z);
+
+/**
+ * Score `trace.defenders` against `pressure.hot`. Passing a DIFFERENT match's `hot` timeline is the null: the same
+ * real movement, someone else's pressure. If the two rates match, the movement is not a response to pressure.
+ * ⚠ Both traces must come from the same map and the same match length; the caller passes matched pairs.
+ */
+export function rotateStats(trace: RotateTrace, pressure: Pick<RotateTrace, 'hot'>, stepTicks: number, horizonTicks: number, dt: number): RotateStats {
+  const out: RotateStats = { opportunities: 0, rotations: 0, lags: [], firstAt: null };
+  const T = Math.min(trace.defenders.length, pressure.hot.length);
+  for (let t = 0; t + horizonTicks < T; t += stepTicks) {
+    const hot = pressure.hot[t];
+    if (hot < 0) continue;
+    const cold = hot === 0 ? 1 : 0;
+    const hotSite = trace.sites[hot];
+    const coldSite = trace.sites[cold];
+    const row = trace.defenders[t];
+    for (let k = 0; k < row.length; k++) {
+      if (!nearer(row[k], coldSite, hotSite)) continue;   // already on the hot side: nothing to rotate
+      out.opportunities++;
+      for (let u = t + 1; u <= t + horizonTicks; u++) {
+        if (nearer(trace.defenders[u][k], hotSite, coldSite)) {
+          out.rotations++;
+          out.lags.push((u - t) * dt);
+          if (out.firstAt === null) out.firstAt = t;
+          break;
+        }
+      }
+    }
+  }
+  out.lags.sort((a, b) => a - b);
+  return out;
+}
