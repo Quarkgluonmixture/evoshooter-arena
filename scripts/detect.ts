@@ -140,6 +140,7 @@ for (const row of rows) {
 /* ------------------------------------------------------------------ crossfire */
 
 const SEP = num('separation', 60);
+const MIN_RANGE = num('min-range', 6);
 /** scripted controls: the same bots, split across both sites or stacked on one — the geometry does the talking */
 const site0 = scriptedMap.sites[0];
 /** two posts on OPPOSITE sides of site 0: an enemy on the site is between them, which is the angle we are after */
@@ -166,7 +167,7 @@ function playCrossfire(row: Row, seed: number, attackers: 0 | 1, st: CrossfireSt
     const dealt = w.stats[row.observe].damageDealt;
     crossfireTick(
       st,
-      { team: row.observe, teamSize: row.sim.teamSize, n: w.n, tick: w.tick, minSeparationDeg: SEP },
+      { team: row.observe, teamSize: row.sim.teamSize, n: w.n, tick: w.tick, minSeparationDeg: SEP, minRange: MIN_RANGE },
       (id) => w.agents[id].alive,
       (id) => w.agents[id],
       (viewer, target) => w.visible[viewer * w.n + target] === 1,
@@ -176,7 +177,7 @@ function playCrossfire(row: Row, seed: number, attackers: 0 | 1, st: CrossfireSt
   }
 }
 
-console.log(`\ncrossfire detector — an enemy seen by >= 2 teammates at least ${SEP}° apart (angle AT the enemy)`);
+console.log(`\ncrossfire detector — an enemy seen by >= 2 teammates at least ${SEP}° apart (angle AT the enemy), both >= ${MIN_RANGE}m away`);
 console.log(`${padr('observed team', 24)}${pad('seen ticks', 11)}${pad('crossfire', 10)}${pad('share', 7)}${pad('median sep', 11)}${pad('dmg share', 10)}${pad('first (replay anchor)', 26)}`);
 for (const row of crossRows) {
   const st = newCrossfireStats();

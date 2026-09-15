@@ -148,13 +148,13 @@ export function newCrossfireStats(): CrossfireStats {
  */
 export function crossfireTick(
   st: CrossfireStats,
-  opts: { team: 0 | 1; teamSize: number; n: number; tick: number; minSeparationDeg: number },
+  opts: { team: 0 | 1; teamSize: number; n: number; tick: number; minSeparationDeg: number; minRange: number },
   alive: (id: number) => boolean,
   pos: (id: number) => { x: number; z: number },
   visible: (viewer: number, target: number) => boolean,
   damageThisTick: number,
 ): void {
-  const { team, teamSize, n, tick, minSeparationDeg } = opts;
+  const { team, teamSize, n, tick, minSeparationDeg, minRange } = opts;
   const base = team === 0 ? 0 : teamSize;
   const enemyBase = team === 0 ? teamSize : 0;
   let anySeen = false;
@@ -169,8 +169,13 @@ export function crossfireTick(
     if (seers.length < 2) continue;
     const ep = pos(e);
     let sep = 0;
+    // ⚠ the angle alone conflates flanking with proximity: two bodies standing together subtend a wide angle at an
+    // enemy one metre away. Both seers must be at least `minRange` from the enemy for the pair to count.
+    const far = (id: number) => Math.hypot(pos(id).x - ep.x, pos(id).z - ep.z) >= minRange;
     for (let a = 0; a < seers.length; a++) {
+      if (!far(seers[a])) continue;
       for (let b = a + 1; b < seers.length; b++) {
+        if (!far(seers[b])) continue;
         const pa = pos(seers[a]);
         const pb = pos(seers[b]);
         const angA = Math.atan2(pa.z - ep.z, pa.x - ep.x);
