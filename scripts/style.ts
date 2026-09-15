@@ -51,7 +51,14 @@ const data = JSON.parse(readFileSync(path, 'utf8')) as RunFile;
 if (data.scaffold) throw new Error(`${path} is a scaffold run`);
 const { sim } = normalizeSim(data.sim);
 const shape = shapeFor(sim, data.evo.hidden);
-const map = generateMap(data.evo.mapSeed, sim);
+/**
+ * `--map <seed>` re-runs the identical sweep on a different generated map. ⚠ Not a noise floor — with fixed
+ * spawns and deterministic policies there is little sampling noise to find. It is an EXTERNAL VALIDITY check:
+ * is the style movement a property of the lineage, or of the one map these champions trained on? Every other
+ * map is out-of-distribution for all of them equally.
+ */
+const MAP_SEED = num('map', data.evo.mapSeed);
+const map = generateMap(MAP_SEED, sim);
 const tag = basename(path).replace(/\.json$/, '');
 
 const genomeAt = (t: 0 | 1, g: number): { gen: number; genome: Float32Array } => {
@@ -148,6 +155,7 @@ for (const colour of colours) {
   const proj = (p: number[], v: number[]) => p.map((x, i) => (x - centre[i]) * v[i]).reduce((t, x) => t + x, 0);
 
   console.log(`\n${tag} ${label} — style space over ${GENS.length} generations, fixed opponent = ${label === 'R' ? 'B' : 'R'}@${lastGen}`);
+  console.log(`map ${MAP_SEED}${MAP_SEED === data.evo.mapSeed ? ' (the training map)' : ' ⚠ NOT the training map — out-of-distribution for every champion here'}`);
   console.log(`${N} matches x 2 role assignments per estimate, every generation measured on TWO disjoint seed blocks`);
   console.log(`features: ${keys.length} of ${METRIC_KEYS.length}${dropped.length ? ` (dropped, non-finite somewhere: ${dropped.join(', ')})` : ''}`);
   console.log(`⭐ noise floor (a generation vs ITSELF on the other block): ${floor.mean.toFixed(2)} ± ${floor.se.toFixed(2)} SE in z-units`);
@@ -175,10 +183,14 @@ for (const colour of colours) {
     const det = own[i] < 0.3 || (i > 0 && own[i - 1] < 0.3);
     console.log(`${padr(String(g), 6)}${pad(i === 0 ? '—' : String(GENS[i] - GENS[i - 1]), 5)}${pad(proj(mid[i], pc1).toFixed(2), 8)}${pad(proj(mid[i], pc2).toFixed(2), 8)}`
       + `${pad(own[i].toFixed(2), 11)}${pad(Number.isNaN(step) ? '—' : step.toFixed(2), 16)}${pad(Number.isNaN(ratio) ? '—' : `${ratio.toFixed(1)}x`, 16)}`
-      + `  ${det ? '⚠ det — ratio inflated, do not read' : (!Number.isNaN(ratio) && ratio >= 2 ? 'YES' : '')}`);
+      + `  ${det ? '⚠ det ON THIS MAP — ratio inflated, do not read' : (!Number.isNaN(ratio) && ratio >= 2 ? 'YES' : '')}`);
   });
 }
 console.log('\n⚠ coordinates are relative to THIS sweep (z-scored across it): adding generations moves them.');
 console.log('⚠ the noise floor is the HIT-ROLL floor: the world seed drives only the shot dice, so a champion that');
-console.log('   never engages reads 0.00 own-noise (flagged `det`). A stronger floor would have to vary the map.');
+console.log('   never engages reads 0.00 own-noise (flagged `det`) — ⚠ and `det` is a property of the CHAMPION ON');
+console.log('   THIS MAP, not of the champion: s1 R gen 160 reads 0.08 here and 1.27 / 1.45 on maps 11 / 23.');
+console.log('⛔⛔ WHICH generations move is MAP-SPECIFIC (measured 2026-09-15): agreement between the training map');
+console.log('   and two others was 83% and 42%, against chance levels of 62% and 50% — i.e. at or below chance on');
+console.log('   one of them. Only the EARLIEST step moves on every map. ⇒ say "on this map" or do not say it.');
 console.log('⚠ one fixed opponent = style as seen by that opponent. ⛔ A loading says what moved, not why.');
