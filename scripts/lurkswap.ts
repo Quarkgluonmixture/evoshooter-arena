@@ -91,7 +91,7 @@ function swappedSpawnMap(k: number, from = 0): ArenaMap {
   return { ...baseMap, spawns };
 }
 
-type Arm = { label: string; k: number; j?: number; mode: 'none' | 'onehot' | 'spawn' };
+type Arm = { label: string; k: number; j?: number; mode: 'none' | 'onehot' | 'spawn' | 'both' };
 const arms: Arm[] = [{ label: 'A control', k: 0, mode: 'none' }];
 for (const k of outside) arms.push({ label: `B one-hot ${FOCUS}<->${k}`, k, mode: 'onehot' });
 for (const k of outside) arms.push({ label: `C spawn ${FOCUS}<->${k}`, k, mode: 'spawn' });
@@ -101,6 +101,12 @@ for (const k of outside) arms.push({ label: `C spawn ${FOCUS}<->${k}`, k, mode: 
  * dissolve the shape, or does ANY out-of-distribution one-hot edit dissolve it? A placebo can only weaken the
  * conclusion, never strengthen it, which is why adding it late is honest.
  */
+/**
+ * ARM D — swap the BUNDLE: spawn and one-hot together. The two bodies then differ from the control only by what
+ * stays keyed to the array index (the perception-noise key), so this is the control on the correction's claim
+ * that arms B and C persist because each leaves half the trained pairing standing.
+ */
+for (const k of outside) arms.push({ label: `D bundle ${FOCUS}<->${k}`, k, mode: 'both' });
 for (let a = 0; a < outside.length; a++) {
   for (let b2 = a + 1; b2 < outside.length; b2++) {
     arms.push({ label: `P placebo ${outside[a]}<->${outside[b2]}`, k: outside[a], j: outside[b2], mode: 'onehot' });
@@ -115,7 +121,7 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
   bySpawn: number[]; byCarrier: number[]; aliveBySpawn: number[]; stats: ReturnType<typeof lurkMatchStats>;
   pairBySpawn: PairCounts; pairByCarrier: PairCounts;
 } {
-  const map = arm.mode === 'spawn' ? swappedSpawnMap(arm.k) : baseMap;
+  const map = arm.mode === 'spawn' || arm.mode === 'both' ? swappedSpawnMap(arm.k, arm.j === undefined ? FOCUS : arm.k) : baseMap;
   const w = new World(sim, map, seed, { attackers });
   const red: Policy = new NeuralPolicy(shape, champ[0].genome);
   const blue: Policy = new NeuralPolicy(shape, champ[1].genome);
@@ -131,9 +137,9 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
   const spawnOf = Array.from({ length: T }, (_, i) => i);
   const lo = arm.j === undefined ? FOCUS : arm.k;
   const hi = arm.j === undefined ? arm.k : arm.j;
-  if (arm.mode === 'onehot') { carrier[lo] = hi; carrier[hi] = lo; }
-  if (arm.mode === 'spawn') { spawnOf[lo] = hi; spawnOf[hi] = lo; }
-  const edit = arm.mode === 'onehot' ? (wd: World) => {
+  if (arm.mode === 'onehot' || arm.mode === 'both') { carrier[lo] = hi; carrier[hi] = lo; }
+  if (arm.mode === 'spawn' || arm.mode === 'both') { spawnOf[lo] = hi; spawnOf[hi] = lo; }
+  const edit = arm.mode === 'onehot' || arm.mode === 'both' ? (wd: World) => {
     for (let k = 0; k < T; k++) {
       const off = (base + k) * wd.obsDim + slot0Index;
       for (let s = 0; s < T; s++) wd.obs[off + s] = s === carrier[k] ? 1 : 0;
@@ -152,15 +158,21 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
     if (!checked) {
       checked = true;
       // prove the intervention reached what the brain read / where the body stands (GOTCHAS #26)
-      if (arm.mode === 'onehot') {
+      if (arm.mode === 'onehot' || arm.mode === 'both') {
         const off = (base + lo) * w.obsDim + slot0Index;
         const row = Array.from(w.obs.subarray(off, off + T));
         if (row.indexOf(1) !== hi) throw new Error(`${arm.label}: one-hot rewrite did not land (read ${row})`);
       }
-      if (arm.mode === 'spawn') {
-        const want = swappedSpawnMap(arm.k).spawns[observe][lo];
+      if (arm.mode === 'spawn' || arm.mode === 'both') {
+        // ⚠ assert the body started at the OTHER slot's ORIGINAL spawn — that is what "the swap landed" means.
+        // The first version compared against `swappedSpawnMap(arm.k)` (which assumes the swap is with slot 0, so
+        // it was the wrong map whenever --focus is not 0) at an 8 m tolerance on a 4 m spawn spacing: it could
+        // pass while nothing had moved. One tick of travel is ~0.4 m, so 2 m is generous and still tight.
+        const want = baseMap.spawns[observe][hi];
         const a = w.agents[base + lo];
-        if (Math.hypot(a.x - want.x, a.z - want.z) > 8) throw new Error(`${arm.label}: spawn swap did not land`);
+        if (Math.hypot(a.x - want.x, a.z - want.z) > 2) {
+          throw new Error(`${arm.label}: spawn swap did not land (body ${lo} at ${a.x.toFixed(1)},${a.z.toFixed(1)}, wanted ${want.x},${want.z})`);
+        }
       }
     }
     const iso: boolean[] = [];
