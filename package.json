@@ -32,7 +32,8 @@
     "radiouse": "node scripts/radiouse.ts",
     "roledemand": "node scripts/roledemand.ts",
     "exploit": "node scripts/exploit.ts",
-    "detect": "node scripts/detect.ts"
+    "detect": "node scripts/detect.ts",
+    "lurkswap": "node scripts/lurkswap.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
