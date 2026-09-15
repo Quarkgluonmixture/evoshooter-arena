@@ -29,7 +29,9 @@ import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
 import { obsSchema } from '../src/sim/obsSchema.ts';
 import { stepMatch } from '../src/evo/match.ts';
 import { World } from '../src/sim/world.ts';
-import { lurkMatchStats, meanSE, type LurkMatch } from '../src/probe/detect.ts';
+import {
+  lurkMatchStats, meanSE, newPairCounts, pairTick, poolPairs, topMutual, type LurkMatch, type PairCounts,
+} from '../src/probe/detect.ts';
 
 const argv = process.argv.slice(2);
 const files: string[] = [];
@@ -58,6 +60,14 @@ const baseMap = generateMap(data.evo.mapSeed, sim);
 const tag = basename(path).replace(/\.json$/, '');
 const observe: 0 | 1 = (flags.get('colour') ?? 'R').toUpperCase() === 'B' ? 1 : 0;
 const T = sim.teamSize;
+/**
+ * Which slot the arms move, and (for the pair question) its partner. `--focus i --partner j` re-aims the same
+ * three arms at a mutual pair: the swaps take i to bodies OUTSIDE the pair, and the placebo stays outside it
+ * entirely. Default `--focus 0` with no partner is the lurk configuration.
+ */
+const FOCUS = num('focus', 0);
+const PARTNER = flags.has('partner') ? num('partner', -1) : -1;
+const outside = Array.from({ length: T }, (_, i) => i).filter((i) => i !== FOCUS && i !== PARTNER);
 
 const pick = (t: 0 | 1) => {
   const h = data.hof[t];
@@ -83,15 +93,19 @@ function swappedSpawnMap(k: number, from = 0): ArenaMap {
 
 type Arm = { label: string; k: number; j?: number; mode: 'none' | 'onehot' | 'spawn' };
 const arms: Arm[] = [{ label: 'A control', k: 0, mode: 'none' }];
-for (const k of [1, 2, 3, 4]) arms.push({ label: `B one-hot 0<->${k}`, k, mode: 'onehot' });
-for (const k of [1, 2, 3, 4]) arms.push({ label: `C spawn 0<->${k}`, k, mode: 'spawn' });
+for (const k of outside) arms.push({ label: `B one-hot ${FOCUS}<->${k}`, k, mode: 'onehot' });
+for (const k of outside) arms.push({ label: `C spawn ${FOCUS}<->${k}`, k, mode: 'spawn' });
 /**
  * PLACEBO, added after arms B and C were read (⚠ post-hoc, and said so in the write-up): transpose the one-hot of
  * two bodies that do NOT carry the shape. It answers the question B alone cannot — does moving slot 0's identity
  * dissolve the shape, or does ANY out-of-distribution one-hot edit dissolve it? A placebo can only weaken the
  * conclusion, never strengthen it, which is why adding it late is honest.
  */
-for (const [a, b2] of [[1, 2], [2, 3], [3, 4]] as const) arms.push({ label: `P placebo ${a}<->${b2}`, k: a, j: b2, mode: 'onehot' });
+for (let a = 0; a < outside.length; a++) {
+  for (let b2 = a + 1; b2 < outside.length; b2++) {
+    arms.push({ label: `P placebo ${outside[a]}<->${outside[b2]}`, k: outside[a], j: outside[b2], mode: 'onehot' });
+  }
+}
 
 /**
  * Play one match under an arm and score it. Returns the isolated ticks indexed BOTH ways: by the body's spawn
@@ -99,6 +113,7 @@ for (const [a, b2] of [[1, 2], [2, 3], [3, 4]] as const) arms.push({ label: `P p
  */
 function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
   bySpawn: number[]; byCarrier: number[]; aliveBySpawn: number[]; stats: ReturnType<typeof lurkMatchStats>;
+  pairBySpawn: PairCounts; pairByCarrier: PairCounts;
 } {
   const map = arm.mode === 'spawn' ? swappedSpawnMap(arm.k) : baseMap;
   const w = new World(sim, map, seed, { attackers });
@@ -114,7 +129,7 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
    */
   const carrier = Array.from({ length: T }, (_, i) => i);
   const spawnOf = Array.from({ length: T }, (_, i) => i);
-  const lo = arm.j === undefined ? 0 : arm.k;
+  const lo = arm.j === undefined ? FOCUS : arm.k;
   const hi = arm.j === undefined ? arm.k : arm.j;
   if (arm.mode === 'onehot') { carrier[lo] = hi; carrier[hi] = lo; }
   if (arm.mode === 'spawn') { spawnOf[lo] = hi; spawnOf[hi] = lo; }
@@ -127,6 +142,10 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
 
   const out: LurkMatch = { isolated: [], counted: [], speed: [], dealt: [], taken: [], kills: [] };
   const prev = Array.from({ length: T }, () => ({ dealt: 0, taken: 0, kills: 0 }));
+  // the pair statistic under both labels: the same nearest-teammate relation, indexed two different ways
+  const pairBySpawn = newPairCounts(T);
+  const pairByCarrier = newPairCounts(T);
+  const nearest = new Array(T).fill(-1);
   let checked = false;
   while (!w.done) {
     stepMatch(w, red, blue, edit);
@@ -175,6 +194,22 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
     out.dealt.push(dd);
     out.taken.push(tk);
     out.kills.push(kk);
+    for (let k = 0; k < T; k++) {
+      const a = w.agents[base + k];
+      nearest[k] = -1;
+      if (!a.alive) continue;
+      let bd = Infinity;
+      for (let j = 0; j < T; j++) {
+        if (j === k) continue;
+        const b = w.agents[base + j];
+        if (!b.alive) continue;
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (d < bd) { bd = d; nearest[k] = j; }
+      }
+    }
+    // the COLUMN (who my nearest is) gets relabelled here; the ROW (who I am) is relabelled once at the end
+    pairTick(pairBySpawn, nearest.map((v) => (v < 0 ? -1 : spawnOf[v])));
+    pairTick(pairByCarrier, nearest.map((v) => (v < 0 ? -1 : carrier[v])));
   }
   const stats = lurkMatchStats(out, LURK_TICKS);
   const byCarrier = new Array(T).fill(0);
@@ -182,7 +217,20 @@ function playArm(arm: Arm, seed: number, attackers: 0 | 1): {
   const aliveBySpawn = new Array(T).fill(0);
   stats.perSlot.forEach((v, k) => { byCarrier[carrier[k]] += v; bySpawn[spawnOf[k]] += v; });
   stats.perSlotAlive.forEach((v, k) => { aliveBySpawn[spawnOf[k]] += v; });
-  return { bySpawn, byCarrier, aliveBySpawn, stats };
+  // ⚠ pairTick above indexes the ROW by the agent, so relabel the rows too — otherwise "by carrier" would be a
+  // half-relabelled matrix (rows by body, columns by carrier), which is nobody's question
+  const relabel = (pc: PairCounts, map: number[]): PairCounts => {
+    const o = newPairCounts(T);
+    for (let i = 0; i < T; i++) {
+      o.eligible[map[i]] += pc.eligible[i];
+      for (let j = 0; j < T; j++) o.counts[map[i]][j] += pc.counts[i][j];
+    }
+    return o;
+  };
+  return {
+    bySpawn, byCarrier, aliveBySpawn, stats,
+    pairBySpawn: relabel(pairBySpawn, spawnOf), pairByCarrier: relabel(pairByCarrier, carrier),
+  };
 }
 
 const pad = (s: string, n: number) => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
@@ -196,7 +244,7 @@ console.log('⚠ both arms are out-of-distribution in the JOINT (spawn, one-hot)
 console.log(`${padr('arm', 20)}${pad('alive ticks', 12)}${pad('isolated', 10)}${pad('share', 7)}${pad('episodes', 10)}`
   + `${pad('slot0 by spawn', 15)}${pad('slot0 by carrier', 18)}${pad('per-slot by spawn %', 21)}${pad('ep speed', 10)}${pad('dealt/K', 10)}`);
 
-const rows: { arm: Arm; share: number; spawn0: number; carrier0: number }[] = [];
+const rows: { arm: Arm; share: number; spawn0: number; carrier0: number; pairSpawn: PairCounts; pairCarrier: PairCounts }[] = [];
 for (const arm of arms) {
   const aliveSlots = new Array(T).fill(0);
   const bySpawn = new Array(T).fill(0);
@@ -205,6 +253,8 @@ for (const arm of arms) {
   let isolated = 0;
   let episodes = 0;
   const ep = { ticks: 0, speed: 0, dealt: 0, kills: 0 };
+  const perSpawn: PairCounts[] = [];
+  const perCarrier: PairCounts[] = [];
   for (let m = 0; m < N; m++) {
     for (const attackers of [0, 1] as const) {
       const r = playArm(arm, hashSeed(31337, m), attackers);
@@ -218,13 +268,15 @@ for (const arm of arms) {
       r.aliveBySpawn.forEach((v, k) => { aliveSlots[k] += v; });
       r.bySpawn.forEach((v, k) => { bySpawn[k] += v; });
       r.byCarrier.forEach((v, k) => { byCarrier[k] += v; });
+      perSpawn.push(r.pairBySpawn);
+      perCarrier.push(r.pairByCarrier);
     }
   }
   const share = alive ? isolated / alive : NaN;
   // shares of the TOTAL isolation, so the two labels are directly comparable
   const spawn0 = isolated ? bySpawn[0] / isolated : NaN;
   const carrier0 = isolated ? byCarrier[0] / isolated : NaN;
-  rows.push({ arm, share, spawn0, carrier0 });
+  rows.push({ arm, share, spawn0, carrier0, pairSpawn: poolPairs(perSpawn, T), pairCarrier: poolPairs(perCarrier, T) });
   const perSlot = bySpawn.map((v, k) => (aliveSlots[k] ? Math.round((100 * v) / aliveSlots[k]) : 0)).join('/');
   console.log(`${padr(arm.label, 20)}${pad(String(alive), 12)}${pad(String(isolated), 10)}${pad(pct(share), 7)}${pad(String(episodes), 10)}`
     + `${pad(pct(spawn0), 15)}${pad(pct(carrier0), 18)}${pad(perSlot, 21)}`
@@ -243,5 +295,32 @@ console.log(`arm C (body moved):    by spawn ${pct(mean(c.map((r) => r.spawn0)).
   + ` · by carrier ${pct(mean(c.map((r) => r.carrier0)).mean)} ± ${(mean(c.map((r) => r.carrier0)).se * 100).toFixed(1)}pp   (mean over k=1..4)`);
 console.log(`placebo (two NON-lurker one-hots swapped): slot0 keeps ${pct(mean(plac.map((r) => r.spawn0)).mean)} ± ${(mean(plac.map((r) => r.spawn0)).se * 100).toFixed(1)}pp of the isolation`
   + `, share ${pct(mean(plac.map((r) => r.share)).mean)} vs control ${pct(ctl.share)}   ⚠ post-hoc control, added after B and C were read`);
+/* ---------------- the PAIR question (runs/g2-pair-swap-predictions.txt), printed only when a partner is named */
+if (PARTNER >= 0) {
+  const strength = (pc: PairCounts, i: number, j: number) => {
+    const p = (a: number, b: number) => (pc.eligible[a] ? pc.counts[a][b] / pc.eligible[a] : 0);
+    return Math.min(p(i, j), p(j, i));
+  };
+  const name = (pc: PairCounts) => {
+    const t = topMutual(pc)[0];
+    return t ? `${t.i}-${t.j} ${pct(t.strength)}` : '—';
+  };
+  console.log(`\npair ${FOCUS}-${PARTNER} under the same three arms — does the PAIR follow the identities or the positions?`);
+  console.log(`${padr('arm', 22)}${pad(`pair ${FOCUS}-${PARTNER} by spawn`, 22)}${pad('by carrier', 14)}${pad('top pair by spawn', 20)}${pad('top pair by carrier', 22)}`);
+  for (const r of rows) {
+    console.log(`${padr(r.arm.label, 22)}${pad(pct(strength(r.pairSpawn, FOCUS, PARTNER)), 22)}${pad(pct(strength(r.pairCarrier, FOCUS, PARTNER)), 14)}`
+      + `${pad(name(r.pairSpawn), 20)}${pad(name(r.pairCarrier), 22)}`);
+  }
+  const g = (f: (r: typeof rows[0]) => number, mode: 'onehot' | 'spawn', placebo: boolean) =>
+    mean(rows.filter((r) => r.arm.mode === mode && (r.arm.j !== undefined) === placebo).map(f));
+  const sp = (r: typeof rows[0]) => strength(r.pairSpawn, FOCUS, PARTNER);
+  const ca = (r: typeof rows[0]) => strength(r.pairCarrier, FOCUS, PARTNER);
+  console.log(`\narm B (identities moved): by spawn ${pct(g(sp, 'onehot', false).mean)} ± ${(g(sp, 'onehot', false).se * 100).toFixed(1)}pp`
+    + ` · by carrier ${pct(g(ca, 'onehot', false).mean)} ± ${(g(ca, 'onehot', false).se * 100).toFixed(1)}pp`);
+  console.log(`arm C (bodies moved):    by spawn ${pct(g(sp, 'spawn', false).mean)} ± ${(g(sp, 'spawn', false).se * 100).toFixed(1)}pp`
+    + ` · by carrier ${pct(g(ca, 'spawn', false).mean)} ± ${(g(ca, 'spawn', false).se * 100).toFixed(1)}pp`);
+  console.log(`placebo (outside the pair): by spawn ${pct(g(sp, 'onehot', true).mean)} ± ${(g(sp, 'onehot', true).se * 100).toFixed(1)}pp   (control ${pct(sp(rows[0]))})`);
+}
+
 console.log('\n⚠ read against runs/g2-lurk-swap-predictions.txt: the two arms must agree on the SAME label, or the');
 console.log('   answer is "this instrument cannot attribute the role". ⛔ Intent is not on this ladder at all.');
