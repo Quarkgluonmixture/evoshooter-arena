@@ -1223,8 +1223,16 @@ detector 结果禁止进入 live sim。
   ⛔ 但**量级不跨图**（图 7 在 160 代冲到 35%、图 11 同代跌到 8%；八点 Spearman 0.29，按坑 #39 **太少，两边都不算证据**）。
   ⭐ 计划外的跨仪器互检通过：图 7 的 160 代既是 lurk 占比最高的一代，也正是 style 标 `det`（几乎不接敌）的那一代。
 
+- ✅ **communication vocabulary evolution**（2026-09-15，`radio --gen --map`，两张图）：**第 0 代近乎哑巴**
+  （静默 61–63%、熵 1.2/2.32），**第 40 代信道饱和**（静默 17–18%、熵 ~2.26），**之后 259 代平线**。
+  ⭐ 两图在每一代上熵差 ≤ 0.04 bit、静默率差 ≤ 2pp —— **全天最紧的跨图一致**（因为「发出什么」是策略输出，
+  不依赖掩体让身体去哪）。⇒ ⭐⭐ **内容始终为零**：十六格的最大 MI|phase 都在 0.8–3.7%
+  ⇒ **这条谱系从没演化出带内容的词汇**，比 D2 的端点结论更强（**没有内容可丢**）。
+  ⚠ 唯一候选：**第 80 代在两图上同为最高且同一指称**（enemy visible 3.4/3.7%），⛔ 只报不推（坑 #39），
+  ⭐ 而第 80 代也正是 lurk 形状出现处 —— 三台仪器指向同一邻域，是**去看一眼的理由不是发现**。
+
 ### G3 清单里仍未做的
-- club/team clusters（需要更多 run）· player identity cards · communication vocabulary evolution（`npm run radio` 逐代跑）。
+- club/team clusters（需要更多 run）· player identity cards。
 - ⏭ chunk 3 = 观战侧展示面。
 
 展示：

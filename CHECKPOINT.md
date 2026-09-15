@@ -43,8 +43,11 @@ G2 的三层证据链（形状 → birth → 干预）· G3 chunk 1 `style` / 2a
 ✅ **tactic frequency over generations 已交付**（`detect --gens --map`，两张图）：**pair 是平线**（每代每图都有一对
 高于零假设 1.48–2.53×，结构从第 0 代就在，⛔ 别画成故事）· **lurk 是台阶**（两图都是 0/40 代没有、80 代起有；
 ⛔ 但量级不跨图）。⭐ 跨仪器互检通过：图 7 的 160 代既是 lurk 占比最高的一代、也正是 style 标 `det` 的那一代。
-**下一步（G3 清单剩余）**：communication vocabulary evolution（`npm run radio` 逐代）· player identity cards ·
-club/team clusters（需更多 run）。
+✅ **communication vocabulary evolution 也交付了**（`radio --gen --map`）：**0 代近乎哑巴 → 40 代信道饱和 → 之后 259 代平线**，
+⭐ 两图每一代熵差 ≤ 0.04 bit（**全天最紧的跨图一致**，因为「发出什么」是策略输出、不依赖掩体）；
+⭐⭐ **内容始终为零**（十六格最大 MI|phase 全在 0.8–3.7%）⇒ **这条谱系从没演化出带内容的词汇**，比 D2 的端点结论更强。
+⚠ 候选一格：80 代两图同为最高且同一指称，⛔ 只报不推；⭐ 80 代也是 lurk 出现处（三台仪器同一邻域 = 去看一眼的理由）。
+**下一步（G3 清单剩余）**：player identity cards · club/team clusters（需更多 run）。
 G2 小尾巴：s2 蓝那个「只游荡不开火」的孤立形状没做 birth/干预。
 
 ## 仪器（强弱 / 信息 / 继承 / 拓扑 / 需求 / 身份，各管一段）

@@ -72,7 +72,9 @@ const ALIEN = files[1] ? load(files[1]) : null;
 if (ALIEN && ALIEN.shape.inputs !== A.shape.inputs) {
   throw new Error(`alien run has obsDim ${ALIEN.shape.inputs}, this one has ${A.shape.inputs} — a transplanted vocabulary has to come from the same observation layout`);
 }
-const map = generateMap(A.evo.mapSeed, A.sim);
+/** `--map <seed>` — spawns and sites are identical on every seed, only cover differs, and what a speaker SEES
+ *  is decided by cover. A vocabulary measured on one map is a vocabulary on that map (GOTCHAS #40). */
+const map = generateMap(num('map', A.evo.mapSeed), A.sim);
 const commDim = A.sim.commDim;
 /** observation indices of the mate comm slots — what a LISTENER reads */
 const COMM_IDX = obsSchema(A.sim).filter((f) => /^mate\d+\.comm\d+$/.test(f.name)).map((f) => f.index);
