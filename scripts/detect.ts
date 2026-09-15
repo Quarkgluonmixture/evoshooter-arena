@@ -23,8 +23,9 @@ import {
   PostHolderPolicy, ReactiveDefenderPolicy, SiteAttackerPolicy, SiteDefenderPolicy,
 } from '../src/brain/scripted.ts';
 import {
-  crossfireTick, meanSE, median, newCrossfireStats, rotateStats, tempoPairs, tradeStats,
-  type CrossfireStats, type KillRecord, type RotateStats, type RotateTrace, type TempoTrace, type TradeOptions,
+  crossfireTick, lurkMatchStats, meanSE, median, newCrossfireStats, rotateStats, slotConcentration, tempoPairs,
+  tradeStats, type CrossfireStats, type KillRecord, type LurkMatch, type RotateStats, type RotateTrace,
+  type TempoTrace, type TradeOptions,
 } from '../src/probe/detect.ts';
 
 const argv = process.argv.slice(2);
@@ -69,7 +70,11 @@ const pad = (s: string, n: number) => (s.length >= n ? s : ' '.repeat(n - s.leng
 const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length));
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 
-interface Row { label: string; sim: SimConfig; map: ArenaMap; red: () => Policy; blue: () => Policy; observe: 0 | 1 }
+interface Row {
+  label: string; sim: SimConfig; map: ArenaMap; red: () => Policy; blue: () => Policy; observe: 0 | 1;
+  /** the observed side, rebuilt per match — for controls whose slot assignment must ROTATE (see the spread row) */
+  atMatch?: (m: number) => Policy;
+}
 
 const scriptedSim: SimConfig = { ...DEFAULT_SIM, roundMode: 'capture', siteCount: 2, memorySeconds: 0 };
 const scriptedMap = generateMap(7, scriptedSim);
@@ -474,6 +479,144 @@ const checks: [string, boolean][] = [
 console.log('\nP1 precision gate (thresholds frozen in runs/g2-tempo-predictions.txt):');
 for (const [text, ok] of checks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${text}`);
 console.log(`  => ${checks.every((c) => c[1]) ? 'PASS — the champion rows may be read (description only)' : 'FAIL — ⛔ the champion rows must NOT be read; fix the definition or close the detector'}`);
+
+/* ------------------------------------------------------------------ isolated / lurk-like path (G2) */
+
+/** 12 m is not a new constant: it is the radius the trade detector froze for "part of the same fight" above. */
+const SUPPORT_R = num('support-radius', RADIUS);
+/** 2.0 s — measured, ⛔ not picked: first damage taken to death runs p50 1.40 s / p75 1.93 s with reference bots */
+const LURK_TICKS = num('lurk-ticks', 30);
+const LURK_REDRAWS = 200;
+
+/** four bodies together, one parked 24 m away by the site nobody is attacking: a lurker by construction */
+const wideCluster = [{ x: 12, z: 7 }, { x: 13, z: 8 }, { x: 11, z: 8 }, { x: 12, z: 9 }];
+const oneWidePosts = [...wideCluster, { x: -12, z: 8 }];
+const togetherPosts = [...wideCluster, { x: 13, z: 7 }];
+/** five posts, every pair >= 15 m apart: everyone is out of support, and NO slot owns the shape */
+const spreadPosts = [{ x: 12, z: 8 }, { x: -12, z: 8 }, { x: 12, z: -8 }, { x: -12, z: -8 }, { x: 0, z: 18 }];
+
+const lurkRows: Row[] = [
+  { label: 'scripted: one wide (+)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(oneWidePosts), observe: 1 },
+  { label: 'scripted: bunched (−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(togetherPosts), observe: 1 },
+  // ⚠ the posts must ROTATE per match. With a fixed slot->post map this control is NOT role-free: the two posts in
+  // the attackers' path die early every match, so slots 1/3/4 own the isolation by construction and the row reads a
+  // role that nobody built (first precision run: 30/9075/126/9075/9651, top slot 1.42x its null).
+  {
+    label: 'scripted: spread (role−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0),
+    blue: () => new PostHolderPolicy(spreadPosts), observe: 1,
+    atMatch: (m) => new PostHolderPolicy(spreadPosts.map((_, i) => spreadPosts[(i + m) % spreadPosts.length])),
+  },
+  ...(flags.has('precision') ? [] : rows.filter((r) => !r.label.startsWith('scripted'))),
+];
+
+/** Who was out of support, tick by tick. Positions only — ⛔ no percepts, no intent, no engine truth about plans. */
+function playLurk(row: Row, seed: number, attackers: 0 | 1, matchIndex: number): LurkMatch {
+  const w = new World(row.sim, row.map, seed, { attackers });
+  const observed = row.atMatch ? row.atMatch(matchIndex) : null;
+  const red = observed && row.observe === 0 ? observed : row.red();
+  const blue = observed && row.observe === 1 ? observed : row.blue();
+  const T = row.sim.teamSize;
+  const base = row.observe === 0 ? 0 : T;
+  const out: LurkMatch = { isolated: [], counted: [], speed: [], dealt: [], taken: [], kills: [] };
+  const prev = Array.from({ length: T }, () => ({ dealt: 0, taken: 0, kills: 0 }));
+  while (!w.done) {
+    stepMatch(w, red, blue);
+    const iso: boolean[] = [];
+    const cnt: boolean[] = [];
+    const spd: number[] = [];
+    const dd: number[] = [];
+    const dt2: number[] = [];
+    const kk: number[] = [];
+    for (let k = 0; k < T; k++) {
+      const a = w.agents[base + k];
+      let mates = 0;
+      let near = 0;
+      for (let j = 0; j < T; j++) {
+        if (j === k) continue;
+        const b = w.agents[base + j];
+        if (!b.alive) continue;
+        mates++;
+        if (Math.hypot(a.x - b.x, a.z - b.z) <= SUPPORT_R) near++;
+      }
+      cnt.push(a.alive && mates >= 2);
+      iso.push(a.alive && mates >= 2 && near === 0);
+      spd.push(a.alive ? Math.hypot(a.vx, a.vz) : 0);
+      dd.push(a.damageDealt - prev[k].dealt);
+      dt2.push(a.damageTaken - prev[k].taken);
+      kk.push(a.kills - prev[k].kills);
+      prev[k] = { dealt: a.damageDealt, taken: a.damageTaken, kills: a.kills };
+    }
+    out.isolated.push(iso);
+    out.counted.push(cnt);
+    out.speed.push(spd);
+    out.dealt.push(dd);
+    out.taken.push(dt2);
+    out.kills.push(kk);
+  }
+  return out;
+}
+
+console.log(`\nlurk detector — a player alive with >= 2 living teammates and NONE within ${SUPPORT_R}m (the trade detector's own`);
+console.log(`"same fight" radius); an EPISODE is >= ${LURK_TICKS} ticks (${(LURK_TICKS / 15).toFixed(1)}s) of it in a row — measured fight length is p75 1.93s.`);
+console.log(`Q2's null permutes each match's SLOT LABELS (${LURK_REDRAWS} redraws) and re-pools: same isolation, same clock, identity across matches destroyed`);
+console.log(`${padr('observed team', 24)}${pad('alive ticks', 12)}${pad('isolated', 10)}${pad('share', 7)}${pad('episodes', 10)}${pad('med ep', 8)}${pad('per-slot isolated %', 20)}${pad('top slot', 10)}${pad('null ± SE', 16)}${pad('x null', 7)}${pad('ep speed', 9)}${pad('dealt/taken/K', 14)}${pad('first episode (anchor)', 26)}`);
+
+const lurkOut = new Map<string, { share: number; top: number; nullMean: number; alive: number }>();
+for (const row of lurkRows) {
+  const perMatch: number[][] = [];
+  const aliveSlots = new Array(row.sim.teamSize).fill(0);
+  let alive = 0;
+  let isolated = 0;
+  let episodes = 0;
+  const ep = { ticks: 0, speed: 0, dealt: 0, taken: 0, kills: 0 };
+  const lengths: number[] = [];
+  type Anchor = { seed: number; attackers: 0 | 1; tick: number };
+  let anchor: Anchor | null = null;
+  for (let m = 0; m < N; m++) {
+    for (const attackers of [0, 1] as const) {
+      const seed = hashSeed(31337, m);
+      const st = lurkMatchStats(playLurk(row, seed, attackers, m), LURK_TICKS);
+      alive += st.aliveTicks;
+      isolated += st.isolatedTicks;
+      episodes += st.episodes;
+      ep.ticks += st.epTicks;
+      ep.speed += st.epSpeedSum;
+      ep.dealt += st.epDealt;
+      ep.taken += st.epTaken;
+      ep.kills += st.epKills;
+      lengths.push(...st.lengths);
+      perMatch.push(st.perSlot);
+      st.perSlotAlive.forEach((v, k) => { aliveSlots[k] += v; });
+      if (anchor === null && st.firstAt !== null) anchor = { seed, attackers, tick: st.firstAt };
+    }
+  }
+  lengths.sort((a, b) => a - b);
+  const conc = slotConcentration(perMatch, LURK_REDRAWS, hashSeed(4242, row.label.length));
+  const share = alive ? isolated / alive : NaN;
+  lurkOut.set(row.label, { share, top: conc.top, nullMean: conc.nullMean, alive });
+  const pooled = perMatch.reduce((acc, r) => acc.map((v, k) => v + r[k]), new Array(row.sim.teamSize).fill(0));
+  const perSlotShare = pooled.map((v, k) => (aliveSlots[k] ? Math.round((100 * v) / aliveSlots[k]) : 0)).join('/');
+  console.log(`${padr(row.label, 24)}${pad(String(alive), 12)}${pad(String(isolated), 10)}${pad(Number.isNaN(share) ? 'n/a' : pct(share), 7)}`
+    + `${pad(String(episodes), 10)}${pad(lengths.length ? `${(median(lengths) * row.sim.dt).toFixed(1)}s` : '—', 8)}`
+    + `${pad(perSlotShare, 20)}${pad(Number.isNaN(conc.top) ? 'n/a' : `${pct(conc.top)} #${conc.topSlot}`, 10)}`
+    + `${pad(Number.isNaN(conc.nullMean) ? 'n/a' : `${pct(conc.nullMean)} ± ${(conc.nullSE * 100).toFixed(1)}pp`, 16)}`
+    + `${pad(conc.nullMean > 0 ? (conc.top / conc.nullMean).toFixed(2) : '—', 7)}`
+    + `${pad(ep.ticks ? `${(ep.speed / ep.ticks).toFixed(2)}m/s` : '—', 9)}${pad(ep.ticks ? `${ep.dealt.toFixed(0)}/${ep.taken.toFixed(0)}/${ep.kills}` : '—', 14)}${pad(anchorOf(anchor), 26)}`);
+}
+
+// same shape as the tempo gate: the verdict is computed against thresholds frozen before the run, not judged after
+const wide = lurkOut.get('scripted: one wide (+)')!;
+const bunch = lurkOut.get('scripted: bunched (−)')!;
+const spread = lurkOut.get('scripted: spread (role−)')!;
+const lurkChecks: [string, boolean][] = [
+  [`a. one-wide share ${pct(wide.share)} >= 4x bunched ${pct(bunch.share)} and bunched < 5%`, wide.share >= 4 * bunch.share && bunch.share < 0.05],
+  [`b. one-wide top slot ${pct(wide.top)} >= 2x its null ${pct(wide.nullMean)}`, wide.top >= 2 * wide.nullMean],
+  [`c. spread top slot ${pct(spread.top)} <= 1.2x its null ${pct(spread.nullMean)}`, spread.top <= 1.2 * spread.nullMean],
+  [`d. every scripted row >= 1000 alive player-ticks`, [wide, bunch, spread].every((r) => r.alive >= 1000)],
+];
+console.log('\nP1 precision gate (thresholds frozen in runs/g2-lurk-predictions.txt):');
+for (const [text, ok] of lurkChecks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${text}`);
+console.log(`  => ${lurkChecks.every((c) => c[1]) ? 'PASS — the champion rows may be read (description only)' : 'FAIL — ⛔ the champion rows must NOT be read; fix the definition or close the detector'}`);
 
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');
 console.log('   birth / stability / intervention before any "they learned to trade"). ⛔ detector output never enters training.');

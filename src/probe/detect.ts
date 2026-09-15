@@ -312,3 +312,129 @@ export function meanSE(xs: number[]): { mean: number; se: number; n: number } {
   const sd = Math.sqrt(xs.reduce((t, x) => t + (x - mu) * (x - mu), 0) / Math.max(1, n - 1));
   return { mean: mu, se: sd / Math.sqrt(n), n };
 }
+
+/* ------------------------------------------------------------------ isolated / lurk-like path (G2) */
+
+/** One match, one observed team: who was out of support, and who was even eligible to be. */
+export interface LurkMatch {
+  /** isolated[t][k] — player k had no living teammate inside the support radius on tick t */
+  isolated: boolean[][];
+  /** counted[t][k] — player k was alive on tick t AND had at least 2 living teammates (a dead team is not a lurk) */
+  counted: boolean[][];
+  /** speed[t][k] in m/s, and the damage/kills that player produced on that tick — ⛔ NOT part of any gate.
+   *  They exist because the frozen LIMITS say a player who is lost or dead-ended behind geometry reads exactly
+   *  like a lurker: a body that never moves and never fights is a stuck body, whatever the shape says. */
+  speed: number[][];
+  dealt: number[][];
+  taken: number[][];
+  kills: number[][];
+}
+
+export interface LurkStats {
+  /** eligible player-ticks — the denominator, printed so a ratio is never read off an empty one (族 B) */
+  aliveTicks: number;
+  isolatedTicks: number;
+  /** isolated ticks per slot, and the eligible ticks each slot had — ⭐ a slot that is simply ALIVE longer would
+   *  collect more isolated ticks, so the per-slot SHARE is the honest read, not the raw count (族 B) */
+  perSlot: number[];
+  perSlotAlive: number[];
+  /** runs of >= minTicks consecutive isolated ticks */
+  episodes: number;
+  /** their lengths in ticks, sorted */
+  lengths: number[];
+  /** tick the first qualifying episode started, for a replay anchor */
+  firstAt: number | null;
+  /** inside qualifying episodes only: how the isolated player actually behaved (descriptive, ⛔ never a gate) */
+  epTicks: number;
+  epSpeedSum: number;
+  epDealt: number;
+  epTaken: number;
+  epKills: number;
+}
+
+/**
+ * Score one match. An episode has to be CONSECUTIVE: a player who flickers in and out of support is inside a fight,
+ * not playing away from it, and the 2 s floor is the measured length of a whole fight (first damage to death p75).
+ */
+export function lurkMatchStats(m: LurkMatch, minTicks: number): LurkStats {
+  const T = m.isolated.length;
+  const players = T ? m.isolated[0].length : 0;
+  const out: LurkStats = {
+    aliveTicks: 0, isolatedTicks: 0, perSlot: new Array(players).fill(0), perSlotAlive: new Array(players).fill(0),
+    episodes: 0, lengths: [], firstAt: null,
+    epTicks: 0, epSpeedSum: 0, epDealt: 0, epTaken: 0, epKills: 0,
+  };
+  const run = new Array(players).fill(0);
+  const start = new Array(players).fill(0);
+  // buffered per-run behaviour, banked only if the run turns out to BE an episode
+  const buf = Array.from({ length: players }, () => ({ speed: 0, dealt: 0, taken: 0, kills: 0 }));
+  const close = (k: number) => {
+    if (run[k] >= minTicks) {
+      out.episodes++;
+      out.lengths.push(run[k]);
+      if (out.firstAt === null || start[k] < out.firstAt) out.firstAt = start[k];
+      out.epTicks += run[k];
+      out.epSpeedSum += buf[k].speed;
+      out.epDealt += buf[k].dealt;
+      out.epTaken += buf[k].taken;
+      out.epKills += buf[k].kills;
+    }
+    run[k] = 0;
+    buf[k] = { speed: 0, dealt: 0, taken: 0, kills: 0 };
+  };
+  for (let t = 0; t < T; t++) {
+    for (let k = 0; k < players; k++) {
+      if (!m.counted[t][k]) { close(k); continue; }
+      out.aliveTicks++;
+      out.perSlotAlive[k]++;
+      if (!m.isolated[t][k]) { close(k); continue; }
+      out.isolatedTicks++;
+      out.perSlot[k]++;
+      if (run[k] === 0) start[k] = t;
+      run[k]++;
+      buf[k].speed += m.speed[t][k];
+      buf[k].dealt += m.dealt[t][k];
+      buf[k].taken += m.taken[t][k];
+      buf[k].kills += m.kills[t][k];
+    }
+  }
+  for (let k = 0; k < players; k++) close(k);
+  out.lengths.sort((a, b) => a - b);
+  return out;
+}
+
+/**
+ * Is the SAME slot carrying the isolation across matches? `perMatch[m][k]` = isolated ticks of slot k in match m.
+ *
+ * The null permutes each match's slot labels INDEPENDENTLY and re-pools. Everything real survives it — how much
+ * isolation there was, when, and in which match — and only the alignment of identity across matches is destroyed.
+ * ⭐ That is why this question is askable here and tempo's was not (GOTCHAS #35): nothing in it touches the clock.
+ */
+export function slotConcentration(perMatch: number[][], redraws: number, seed: number): {
+  top: number; topSlot: number; total: number; nullMean: number; nullSE: number;
+} {
+  const players = perMatch.length ? perMatch[0].length : 0;
+  const pooled = new Array(players).fill(0);
+  for (const row of perMatch) for (let k = 0; k < players; k++) pooled[k] += row[k];
+  const total = pooled.reduce((a, b) => a + b, 0);
+  if (!total) return { top: NaN, topSlot: -1, total: 0, nullMean: NaN, nullSE: NaN };
+  const topSlot = pooled.indexOf(Math.max(...pooled));
+  const rng = new Rng(seed);
+  const draws: number[] = [];
+  for (let r = 0; r < redraws; r++) {
+    const acc = new Array(players).fill(0);
+    for (const row of perMatch) {
+      const perm = Array.from({ length: players }, (_, i) => i);
+      for (let i = players - 1; i > 0; i--) {
+        const j = rng.int(i + 1);
+        const tmp = perm[i];
+        perm[i] = perm[j];
+        perm[j] = tmp;
+      }
+      for (let k = 0; k < players; k++) acc[k] += row[perm[k]];
+    }
+    draws.push(Math.max(...acc) / total);
+  }
+  const ms = meanSE(draws);
+  return { top: pooled[topSlot] / total, topSlot, total, nullMean: ms.mean, nullSE: ms.se };
+}
