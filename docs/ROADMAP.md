@@ -1217,9 +1217,14 @@ detector 结果禁止进入 live sim。
   ⭐ 而且抓到两处真缺陷：血统条 298 个 1px 间隙把面板撑爆（597px→401px）；风格表的 flag 列被裁掉，
   裁掉的正是**最不能丢的那个** `det — ratio inflated` ⇒ 已折进比值格，并断言它的盒子在面板盒子内。
 
+- ✅ **tactic frequency over generations**（2026-09-15，⛔ 没定义新东西，就是 `detect --gens --map`，**两张图**）：
+  **pair 是一条平线** —— 每个采样代、两张图上都有一对高于零假设（1.48–2.53×），结构从第 0 代就在，⛔ 别画成故事；
+  **lurk 是一个台阶** —— 两张图上 0/40 代都没有、80 代起都出现（定性一致），
+  ⛔ 但**量级不跨图**（图 7 在 160 代冲到 35%、图 11 同代跌到 8%；八点 Spearman 0.29，按坑 #39 **太少，两边都不算证据**）。
+  ⭐ 计划外的跨仪器互检通过：图 7 的 160 代既是 lurk 占比最高的一代，也正是 style 标 `det`（几乎不接敌）的那一代。
+
 ### G3 清单里仍未做的
-- club/team clusters（需要更多 run）· player identity cards · communication vocabulary evolution（`npm run radio` 逐代跑）·
-  tactic frequency over generations（⭐ 最便宜：G2 的 detector + `--gens` 已经都在）。
+- club/team clusters（需要更多 run）· player identity cards · communication vocabulary evolution（`npm run radio` 逐代跑）。
 - ⏭ chunk 3 = 观战侧展示面。
 
 展示：

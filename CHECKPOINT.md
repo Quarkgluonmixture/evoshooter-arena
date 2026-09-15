@@ -40,8 +40,11 @@ G2 的三层证据链（形状 → birth → 干预）· G3 chunk 1 `style` / 2a
 **#38** 落地断言的期望值只能取自真正被用的对象、容差要小于它要分辨的间距 · **#37** ⭐ 只有「搬家到标签持有者」算归因 ·
 **#36** 证明「没有角色/搭档」的对照必须逐场随机重排 slot 绑定 · **#35** 跨场置换要先证明被置换的量不是时钟的函数。
 
-**下一步（G3 清单剩余）**：tactic frequency over generations（⭐ 最便宜，detector + `--gens` + `--map` 都已就位）·
-communication vocabulary evolution（`npm run radio` 逐代）· player identity cards · club/team clusters（需更多 run）。
+✅ **tactic frequency over generations 已交付**（`detect --gens --map`，两张图）：**pair 是平线**（每代每图都有一对
+高于零假设 1.48–2.53×，结构从第 0 代就在，⛔ 别画成故事）· **lurk 是台阶**（两图都是 0/40 代没有、80 代起有；
+⛔ 但量级不跨图）。⭐ 跨仪器互检通过：图 7 的 160 代既是 lurk 占比最高的一代、也正是 style 标 `det` 的那一代。
+**下一步（G3 清单剩余）**：communication vocabulary evolution（`npm run radio` 逐代）· player identity cards ·
+club/team clusters（需更多 run）。
 G2 小尾巴：s2 蓝那个「只游荡不开火」的孤立形状没做 birth/干预。
 
 ## 仪器（强弱 / 信息 / 继承 / 拓扑 / 需求 / 身份，各管一段）
