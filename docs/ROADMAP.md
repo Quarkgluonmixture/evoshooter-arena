@@ -1202,7 +1202,16 @@ detector 结果禁止进入 live sim。
   ⭐⭐ **最该留的一条**：**lurk 角色在 72 代锁定、守了 227 代，而冠军基因组在那里（以及任何地方）都没有不连续**
   ⇒ **稳定的行为角色跨越了可观的基因改变而持续存在**（⛔ 描述不是机制，⛔ 也不等于「对基因改变鲁棒」）。
   ⇒ 「谁改变了这支队」的答案是**没有某一个谁**；这就是 chunk 3 可画的描述性骨架。
-- ⏭ chunk 3 = 观战侧展示面。
+- ✅ **chunk 3 = 观战侧展示面**（页面 *What changed, and who changed it*）：按 `crossplayFile.ts` 的先例做 ——
+  **CLI 算一次 → `src/core/analysisFile.ts` 承载 → `src/ui/analysisView.ts` 只画**，⛔ 页面不重算任何数。
+  ⭐ 新增一条本轮挣来的约定：**caveats 随文件走**（风格轨迹是地图特有的 · 「血统」是推断的 · `det` 行的比值被撑大），
+  并且**印在数字上方** —— 只活在 CLI stdout 里的警告到不了看图的人。真实页面在 1280/1024/820 三个宽度验证，
+  ⭐ 而且抓到两处真缺陷：血统条 298 个 1px 间隙把面板撑爆（597px→401px）；风格表的 flag 列被裁掉，
+  裁掉的正是**最不能丢的那个** `det — ratio inflated` ⇒ 已折进比值格，并断言它的盒子在面板盒子内。
+
+### G3 清单里仍未做的
+- club/team clusters（需要更多 run）· player identity cards · communication vocabulary evolution（`npm run radio` 逐代跑）·
+  tactic frequency over generations（⭐ 最便宜：G2 的 detector + `--gens` 已经都在）。
 - ⏭ chunk 3 = 观战侧展示面。
 
 展示：

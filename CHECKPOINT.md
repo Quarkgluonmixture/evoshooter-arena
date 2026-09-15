@@ -43,8 +43,13 @@ rotate ❌ · tempo ❌ · ⭐ **lurk ✅** · ⭐ **pair ✅**。**逐条数字
    相邻代冠军**不是亲子**（单次突变 RMS 0.0071 vs 中位步长 0.063）。
    ⇒ **lurk 角色 72 代锁定、守 227 代，而基因组在任何地方都没有不连续** —— **稳定行为角色跨越了可观的基因改变**（⛔ 描述不是机制）。
 
-**下一步 = chunk 3（观战侧展示面）**：骨架已就位；⭐ 按 `crossplayFile.ts` 的先例 —— **CLI 算一次、文件承载、页面只画**，
-⛔ 页面不得另写一套算法。改页面后必须按下面「Ops 速查」的真实页面验证流程走。
+✅ **chunk 3（观战侧展示面）已 ship**：页面 *What changed, and who changed it* 载入 `style --out` / `lineage --out` 的 JSON。
+⭐ 架构照 `crossplayFile.ts`：**CLI 算一次 → `src/core/analysisFile.ts` 承载 → `src/ui/analysisView.ts` 只画**；
+⭐⭐ 本轮新约定：**caveats 随文件走并印在数字上方**（只活在 stdout 里的警告到不了看图的人）。
+三宽度真实页面验证过，抓到两处真缺陷（血统条 298 个 1px 间隙撑爆面板 · 风格表把 `det — ratio inflated` 裁掉了）。
+
+**下一步（G3 清单剩余）**：⭐ **tactic frequency over generations 最便宜**（G2 detector + `--gens` 都已就位）·
+communication vocabulary evolution（`npm run radio` 逐代）· player identity cards · club/team clusters（需更多 run）。
 
 G2 小尾巴（s2 蓝「只游荡不开火」）仍未做。
 
