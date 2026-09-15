@@ -438,3 +438,86 @@ export function slotConcentration(perMatch: number[][], redraws: number, seed: n
   const ms = meanSE(draws);
   return { top: pooled[topSlot] / total, topSlot, total, nullMean: ms.mean, nullSE: ms.se };
 }
+
+/* ------------------------------------------------------------------ pair coordination (G2) */
+
+/**
+ * WHO IS WHOSE NEAREST, per tick. A distance threshold cannot ask this question in a world whose teams move as a
+ * clump (champion pairwise distance runs p25 3.3 m to p75 13.0 m, 32% of pair-ticks inside 4 m): "are they
+ * together" is saturated. The nearest-teammate RELATION is not — it is a ranking inside the clump.
+ */
+export interface PairCounts {
+  /** counts[i][j] = ticks where j was i's nearest living teammate */
+  counts: number[][];
+  /** eligible[i] = ticks where i was alive with at least one living teammate — i's own denominator */
+  eligible: number[];
+}
+
+export function newPairCounts(players: number): PairCounts {
+  return {
+    counts: Array.from({ length: players }, () => new Array(players).fill(0)),
+    eligible: new Array(players).fill(0),
+  };
+}
+
+/** Accumulate one tick from an already-resolved `nearest` row (−1 = dead, or nobody left to be near). */
+export function pairTick(pc: PairCounts, nearest: number[]): void {
+  for (let i = 0; i < nearest.length; i++) {
+    if (nearest[i] < 0) continue;
+    pc.eligible[i]++;
+    pc.counts[i][nearest[i]]++;
+  }
+}
+
+/**
+ * Mutual pairs, strongest first. `strength(i,j) = min(P(i->j), P(j->i))`: BOTH have to point at each other, which
+ * is what separates a pair from one player trailing someone who is busy with somebody else.
+ */
+export function topMutual(pc: PairCounts): { i: number; j: number; strength: number }[] {
+  const n = pc.eligible.length;
+  const p = (i: number, j: number) => (pc.eligible[i] ? pc.counts[i][j] / pc.eligible[i] : 0);
+  const out: { i: number; j: number; strength: number }[] = [];
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) out.push({ i, j, strength: Math.min(p(i, j), p(j, i)) });
+  return out.sort((a, b) => b.strength - a.strength);
+}
+
+/** Pool per-match counts into one matrix. */
+export function poolPairs(per: PairCounts[], players: number): PairCounts {
+  const out = newPairCounts(players);
+  for (const m of per) {
+    for (let i = 0; i < players; i++) {
+      out.eligible[i] += m.eligible[i];
+      for (let j = 0; j < players; j++) out.counts[i][j] += m.counts[i][j];
+    }
+  }
+  return out;
+}
+
+/**
+ * The null for "is it the SAME pair across matches": relabel each match's slots independently and re-pool, then
+ * take the strongest mutual pair again. Every trajectory, every fight, the clock and the existence of pair
+ * structure WITHIN a match survive; only the recurrence of one pair across matches is destroyed.
+ * ⛔ Deliberately not a between-match permutation — that family is what GOTCHAS #35 is about.
+ */
+export function pairNull(per: PairCounts[], players: number, redraws: number, seed: number): { mean: number; se: number } {
+  const rng = new Rng(seed);
+  const draws: number[] = [];
+  for (let r = 0; r < redraws; r++) {
+    const acc = newPairCounts(players);
+    for (const m of per) {
+      const perm = Array.from({ length: players }, (_, i) => i);
+      for (let i = players - 1; i > 0; i--) {
+        const j = rng.int(i + 1);
+        const tmp = perm[i];
+        perm[i] = perm[j];
+        perm[j] = tmp;
+      }
+      for (let i = 0; i < players; i++) {
+        acc.eligible[perm[i]] += m.eligible[i];
+        for (let j = 0; j < players; j++) acc.counts[perm[i]][perm[j]] += m.counts[i][j];
+      }
+    }
+    draws.push(topMutual(acc)[0]?.strength ?? 0);
+  }
+  return meanSE(draws);
+}

@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { DEFAULT_SIM, normalizeSim, type EvoConfig, type SimConfig } from '../src/core/config.ts';
-import { hashSeed } from '../src/core/rng.ts';
+import { Rng, hashSeed } from '../src/core/rng.ts';
 import { generateMap, type ArenaMap } from '../src/sim/map.ts';
 import { genomeLength } from '../src/brain/mlp.ts';
 import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
@@ -23,9 +23,9 @@ import {
   PostHolderPolicy, ReactiveDefenderPolicy, SiteAttackerPolicy, SiteDefenderPolicy,
 } from '../src/brain/scripted.ts';
 import {
-  crossfireTick, lurkMatchStats, meanSE, median, newCrossfireStats, rotateStats, slotConcentration, tempoPairs,
-  tradeStats, type CrossfireStats, type KillRecord, type LurkMatch, type RotateStats, type RotateTrace,
-  type TempoTrace, type TradeOptions,
+  crossfireTick, lurkMatchStats, meanSE, median, newCrossfireStats, newPairCounts, pairNull, pairTick, poolPairs,
+  rotateStats, slotConcentration, tempoPairs, topMutual, tradeStats, type CrossfireStats, type KillRecord,
+  type LurkMatch, type PairCounts, type RotateStats, type RotateTrace, type TempoTrace, type TradeOptions,
 } from '../src/probe/detect.ts';
 
 const argv = process.argv.slice(2);
@@ -72,8 +72,12 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 
 interface Row {
   label: string; sim: SimConfig; map: ArenaMap; red: () => Policy; blue: () => Policy; observe: 0 | 1;
-  /** the observed side, rebuilt per match — for controls whose slot assignment must ROTATE (see the spread row) */
-  atMatch?: (m: number) => Policy;
+  /**
+   * The observed side, rebuilt per match — for controls whose slot assignment must vary (see the spread rows).
+   * ⚠ It takes the ROLE assignment too: the two matches that share a seed would otherwise share an assignment,
+   * which is cross-match alignment that a null permuting all matches independently does not have.
+   */
+  atMatch?: (m: number, attackers: 0 | 1) => Policy;
 }
 
 const scriptedSim: SimConfig = { ...DEFAULT_SIM, roundMode: 'capture', siteCount: 2, memorySeconds: 0 };
@@ -525,6 +529,8 @@ const lurkRows: Row[] = [
   // ⚠ the posts must ROTATE per match. With a fixed slot->post map this control is NOT role-free: the two posts in
   // the attackers' path die early every match, so slots 1/3/4 own the isolation by construction and the row reads a
   // role that nobody built (first precision run: 30/9075/126/9075/9651, top slot 1.42x its null).
+  // ⭐ A cyclic rotation is enough HERE because the lurk statistic is per SLOT: the cyclic invariant is the
+  // DIFFERENCE between two slots, which only a PAIR statistic can see — the pair row below needs a real shuffle.
   {
     label: 'scripted: spread (role−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0),
     blue: () => new PostHolderPolicy(spreadPosts), observe: 1,
@@ -536,7 +542,7 @@ const lurkRows: Row[] = [
 /** Who was out of support, tick by tick. Positions only — ⛔ no percepts, no intent, no engine truth about plans. */
 function playLurk(row: Row, seed: number, attackers: 0 | 1, matchIndex: number): LurkMatch {
   const w = new World(row.sim, row.map, seed, { attackers });
-  const observed = row.atMatch ? row.atMatch(matchIndex) : null;
+  const observed = row.atMatch ? row.atMatch(matchIndex, attackers) : null;
   const red = observed && row.observe === 0 ? observed : row.red();
   const blue = observed && row.observe === 1 ? observed : row.blue();
   const T = row.sim.teamSize;
@@ -641,6 +647,110 @@ const lurkChecks: [string, boolean][] = [
 console.log('\nP1 precision gate (thresholds frozen in runs/g2-lurk-predictions.txt):');
 for (const [text, ok] of lurkChecks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${text}`);
 console.log(`  => ${lurkChecks.every((c) => c[1]) ? 'PASS — the champion rows may be read (description only)' : 'FAIL — ⛔ the champion rows must NOT be read; fix the definition or close the detector'}`);
+
+/* ------------------------------------------------------------------ pair coordination (G2) */
+
+const PAIR_REDRAWS = 200;
+/**
+ * A CYCLIC rotation is not enough to un-pair a control: under `(i + m) % 5` the DIFFERENCE between two slots is
+ * invariant, so the geometric pair keeps recurring with a different label, and — because survival at a post is
+ * itself position-dependent — each slot's per-slot denominator fills up in exactly the matches where it sits
+ * beside the same partner. The first precision run read 60% vs a 35% null on a row built to have no pair.
+ * A seeded random permutation per match has no invariant to hide in. (Sibling of GOTCHAS #36.)
+ */
+const shuffledPosts = (posts: { x: number; z: number }[], m: number, attackers: 0 | 1) => {
+  const rng = new Rng(hashSeed(9091, m, attackers));
+  const idx = posts.map((_, i) => i);
+  for (let i = idx.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    const t = idx[i];
+    idx[i] = idx[j];
+    idx[j] = t;
+  }
+  return idx.map((i) => posts[i]);
+};
+/** two bodies on one post, two on another 24 m away, one alone: two mutual pairs, the same ones every match */
+const pairPosts = [{ x: 12, z: 8 }, { x: 13, z: 8 }, { x: -12, z: 8 }, { x: -11, z: 8 }, { x: 0, z: -15 }];
+
+const pairRows: Row[] = [
+  { label: 'scripted: 2+2+1 (+)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(pairPosts), observe: 1 },
+  // ⚠ the negative MUST rotate its slot->post map, or the geometry manufactures the very pairing it has to lack
+  {
+    label: 'scripted: rot spread (−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0),
+    blue: () => new PostHolderPolicy(spreadPosts), observe: 1,
+    atMatch: (m, attackers) => new PostHolderPolicy(shuffledPosts(spreadPosts, m, attackers)),
+  },
+  ...(flags.has('precision') ? [] : rows.filter((r) => !r.label.startsWith('scripted'))),
+];
+
+/** One match of nearest-teammate relations. ⛔ Positions only — no percepts, no intent. */
+function playPairs(row: Row, seed: number, attackers: 0 | 1, matchIndex: number): PairCounts {
+  const w = new World(row.sim, row.map, seed, { attackers });
+  const observed = row.atMatch ? row.atMatch(matchIndex, attackers) : null;
+  const red = observed && row.observe === 0 ? observed : row.red();
+  const blue = observed && row.observe === 1 ? observed : row.blue();
+  const T = row.sim.teamSize;
+  const base = row.observe === 0 ? 0 : T;
+  const pc = newPairCounts(T);
+  const nearest = new Array(T).fill(-1);
+  while (!w.done) {
+    stepMatch(w, red, blue);
+    for (let k = 0; k < T; k++) {
+      const a = w.agents[base + k];
+      nearest[k] = -1;
+      if (!a.alive) continue;
+      let bd = Infinity;
+      for (let j = 0; j < T; j++) {
+        if (j === k) continue;
+        const b = w.agents[base + j];
+        if (!b.alive) continue;
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (d < bd) { bd = d; nearest[k] = j; }
+      }
+    }
+    pairTick(pc, nearest);
+  }
+  return pc;
+}
+
+console.log('\npair detector — WHO IS WHOSE NEAREST, not how close: a distance cut is saturated here (champion pairwise');
+console.log('distance p25 3.3m / p75 13.0m, 32% of pair-ticks inside 4m). A MUTUAL pair needs both to point at each');
+console.log(`other: strength = min(P(i->j), P(j->i)). Null = per-match slot-label permutation (${PAIR_REDRAWS} redraws), same as lurk`);
+console.log(`${padr('observed team', 24)}${pad('pair ticks', 11)}${pad('top mutual pairs (strength)', 40)}${pad('top', 7)}${pad('null ± SE', 15)}${pad('x null', 7)}${pad('spawn gap', 11)}`);
+
+const pairOut = new Map<string, { top: number; nullMean: number; ticks: number }>();
+for (const row of pairRows) {
+  const per: PairCounts[] = [];
+  for (let m = 0; m < N; m++) {
+    for (const attackers of [0, 1] as const) per.push(playPairs(row, hashSeed(31337, m), attackers, m));
+  }
+  const pooled = poolPairs(per, row.sim.teamSize);
+  const ticks = pooled.eligible.reduce((a, b) => a + b, 0);
+  const tops = topMutual(pooled);
+  const nul = pairNull(per, row.sim.teamSize, PAIR_REDRAWS, hashSeed(7171, row.label.length));
+  pairOut.set(row.label, { top: tops[0]?.strength ?? 0, nullMean: nul.mean, ticks });
+  const list = tops.slice(0, 3).map((t) => `${t.i}-${t.j} ${pct(t.strength)}`).join('  ');
+  // ⭐ the lurk intervention said position beats identity, so the geometric prediction is that pairs are made of
+  // spawn NEIGHBOURS. Measured, ⛔ not assumed: spawns sit on one line 4 m apart in slot-index order, verified for
+  // both teams on this map — so the spawn separation of a pair is exactly 4 m x |i-j|.
+  const sp = tops[0] ? row.map.spawns[row.observe] : null;
+  const adj = tops[0] && sp
+    ? `${Math.hypot(sp[tops[0].i].x - sp[tops[0].j].x, sp[tops[0].i].z - sp[tops[0].j].z).toFixed(0)}m${Math.abs(tops[0].i - tops[0].j) === 1 ? '' : ' SKIP'}`
+    : '—';
+  console.log(`${padr(row.label, 24)}${pad(String(ticks), 11)}${pad(list, 40)}${pad(pct(tops[0]?.strength ?? 0), 7)}`
+    + `${pad(`${pct(nul.mean)} ± ${(nul.se * 100).toFixed(1)}pp`, 15)}${pad(nul.mean > 0 ? ((tops[0]?.strength ?? 0) / nul.mean).toFixed(2) : '—', 7)}${pad(adj, 11)}`);
+}
+
+const pplus = pairOut.get('scripted: 2+2+1 (+)')!;
+const pminus = pairOut.get('scripted: rot spread (−)')!;
+const pairChecks: [string, boolean][] = [
+  [`a. 2+2+1 top pair ${pct(pplus.top)} >= 2x its null ${pct(pplus.nullMean)}`, pplus.top >= 2 * pplus.nullMean],
+  [`b. rotating spread ${pct(pminus.top)} <= 1.2x its null ${pct(pminus.nullMean)}`, pminus.top <= 1.2 * pminus.nullMean],
+  [`c. both scripted rows >= 1000 pair-ticks`, pplus.ticks >= 1000 && pminus.ticks >= 1000],
+];
+console.log('\nP1 precision gate (thresholds frozen in runs/g2-pair-predictions.txt):');
+for (const [text, ok] of pairChecks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${text}`);
+console.log(`  => ${pairChecks.every((c) => c[1]) ? 'PASS — the champion rows may be read (description only)' : 'FAIL — ⛔ the champion rows must NOT be read'}`);
 
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');
 console.log('   birth / stability / intervention before any "they learned to trade"). ⛔ detector output never enters training.');
