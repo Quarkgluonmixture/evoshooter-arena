@@ -176,6 +176,13 @@ if (xp.maps.length > 1) {
     const minTau = Math.min(...taus);
     const minRho = Math.min(...rho[side]);
     const pass = minTau >= 0.6 && minRho >= 0.5;
+    // ⚠ GOTCHAS #39: both of 2026-09-15's era readings that later reversed were rank statistics over SIX
+    // champions. The count is printed next to the verdict, and under 8 it is called what it is.
+    if (pick.length < 8) {
+      console.log(`\n⚠⚠ ${side} has only ${pick.length} entrants — a rank statistic over this few champions is`);
+      console.log('   fragile: on 2026-09-15 a tau of 0.73/1.00/0.73 over six points read 0.60/0.59/0.48 over eleven,');
+      console.log('   and a Spearman of 0.83 over six read 0.12 over eleven. ⛔ Do not build a claim on this row.');
+    }
     console.log(`\n${pass ? 'PASS' : 'FAIL'}  frozen per-colour gate — ${side}, ${pick.length} entrants:`
       + ` min tau ${minTau.toFixed(2)} (needs >= 0.60), min Spearman ${minRho.toFixed(2)} (needs >= 0.50)`);
     console.log(`      taus: ${taus.map((t) => t.toFixed(2)).join(', ')} · Spearmans: ${rho[side].map((r) => r.toFixed(2)).join(', ')}`);
