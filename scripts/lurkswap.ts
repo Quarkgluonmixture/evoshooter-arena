@@ -318,10 +318,19 @@ if (PARTNER >= 0) {
     return t ? `${t.i}-${t.j} ${pct(t.strength)}` : '—';
   };
   console.log(`\npair ${FOCUS}-${PARTNER} under the same three arms — does the PAIR follow the identities or the positions?`);
-  console.log(`${padr('arm', 22)}${pad(`pair ${FOCUS}-${PARTNER} by spawn`, 22)}${pad('by carrier', 14)}${pad('top pair by spawn', 20)}${pad('top pair by carrier', 22)}`);
+  /**
+   * ⭐ The baseline a relocation claim needs: "the pair moved to body k" only means something against what the
+   * pair (k, partner) did ANYWAY. Taken from the control row, where the two labels coincide.
+   * ⛔ Without it, a body that was already glued to the partner reads as a successful transfer.
+   */
+  const control = rows[0];
+  const baseline = (k: number) => (k === FOCUS ? NaN : strength(control.pairSpawn, k, PARTNER));
+  console.log(`${padr('arm', 22)}${pad(`pair ${FOCUS}-${PARTNER} by spawn`, 22)}${pad('by carrier', 14)}${pad('credited pair', 15)}${pad('its control base', 18)}${pad('top pair by carrier', 22)}`);
   for (const r of rows) {
+    const k = r.arm.mode === 'none' ? -1 : (r.arm.j === undefined ? r.arm.k : -1);
+    const credited = k < 0 ? '—' : `${k}-${PARTNER}`;
     console.log(`${padr(r.arm.label, 22)}${pad(pct(strength(r.pairSpawn, FOCUS, PARTNER)), 22)}${pad(pct(strength(r.pairCarrier, FOCUS, PARTNER)), 14)}`
-      + `${pad(name(r.pairSpawn), 20)}${pad(name(r.pairCarrier), 22)}`);
+      + `${pad(credited, 15)}${pad(k < 0 ? '—' : pct(baseline(k)), 18)}${pad(name(r.pairCarrier), 22)}`);
   }
   const g = (f: (r: typeof rows[0]) => number, mode: 'onehot' | 'spawn', placebo: boolean) =>
     mean(rows.filter((r) => r.arm.mode === mode && (r.arm.j !== undefined) === placebo).map(f));
