@@ -254,3 +254,61 @@ export function rotateStats(trace: RotateTrace, pressure: Pick<RotateTrace, 'hot
   out.lags.sort((a, b) => a - b);
   return out;
 }
+
+/* ------------------------------------------------------------------ man-disadvantage tempo (G2) */
+
+/** Per tick: how fast each observed player moved, and the head count its team was playing under. */
+export interface TempoTrace {
+  /** speed[t][k] = m/s of the k-th observed player at tick t, NaN while dead (dead men have no tempo) */
+  speed: number[][];
+  /** delta[t] = alive(observed) − alive(enemy) at tick t */
+  delta: number[];
+}
+
+/** One player's mean speed in each head-count state. NaN where the player spent less than `minTicks` there. */
+export interface TempoPair {
+  down: number;
+  even: number;
+  up: number;
+  downTicks: number;
+  evenTicks: number;
+  upTicks: number;
+}
+
+/**
+ * Split each player's speeds by the head count in `delta`. Passing a DIFFERENT match's `delta` is the null: the same
+ * real movement under someone else's head count. The comparison is WITHIN a player on purpose — the players who live
+ * long enough to be down a man are the passive ones, so a team-level mean would read that selection as a slowdown.
+ *
+ * ⚠ `delta` may come from another match; only the ticks both traces have are scored.
+ */
+export function tempoPairs(trace: TempoTrace, delta: number[], minTicks: number): TempoPair[] {
+  const T = Math.min(trace.speed.length, delta.length);
+  const players = trace.speed.length ? trace.speed[0].length : 0;
+  const sum = [0, 1, 2].map(() => new Float64Array(players));
+  const cnt = [0, 1, 2].map(() => new Float64Array(players));
+  for (let t = 0; t < T; t++) {
+    const state = delta[t] < 0 ? 0 : delta[t] === 0 ? 1 : 2;
+    const row = trace.speed[t];
+    for (let k = 0; k < players; k++) {
+      const v = row[k];
+      if (Number.isNaN(v)) continue;                     // dead
+      sum[state][k] += v;
+      cnt[state][k]++;
+    }
+  }
+  const at = (s: number, k: number) => (cnt[s][k] >= minTicks ? sum[s][k] / cnt[s][k] : NaN);
+  return Array.from({ length: players }, (_, k) => ({
+    down: at(0, k), even: at(1, k), up: at(2, k),
+    downTicks: cnt[0][k], evenTicks: cnt[1][k], upTicks: cnt[2][k],
+  }));
+}
+
+/** Mean and its standard error — a single null draw is not a standard error (GOTCHAS #32). */
+export function meanSE(xs: number[]): { mean: number; se: number; n: number } {
+  const n = xs.length;
+  if (n === 0) return { mean: NaN, se: NaN, n };
+  const mu = xs.reduce((t, x) => t + x, 0) / n;
+  const sd = Math.sqrt(xs.reduce((t, x) => t + (x - mu) * (x - mu), 0) / Math.max(1, n - 1));
+  return { mean: mu, se: sd / Math.sqrt(n), n };
+}

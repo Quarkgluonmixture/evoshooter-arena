@@ -19,12 +19,12 @@ import { NeuralPolicy, shapeFor, type Policy } from '../src/brain/policy.ts';
 import { stepMatch } from '../src/evo/match.ts';
 import { World } from '../src/sim/world.ts';
 import {
-  EagerRotateDefenderPolicy, FakeAttackerPolicy, PacifistRusherPolicy, PostHolderPolicy, ReactiveDefenderPolicy,
-  SiteAttackerPolicy, SiteDefenderPolicy,
+  ClutchSlowPolicy, EagerRotateDefenderPolicy, FakeAttackerPolicy, MetronomePolicy, PacifistRusherPolicy,
+  PostHolderPolicy, ReactiveDefenderPolicy, SiteAttackerPolicy, SiteDefenderPolicy,
 } from '../src/brain/scripted.ts';
 import {
-  crossfireTick, median, newCrossfireStats, rotateStats, tradeStats,
-  type CrossfireStats, type KillRecord, type RotateStats, type RotateTrace, type TradeOptions,
+  crossfireTick, meanSE, median, newCrossfireStats, rotateStats, tempoPairs, tradeStats,
+  type CrossfireStats, type KillRecord, type RotateStats, type RotateTrace, type TempoTrace, type TradeOptions,
 } from '../src/probe/detect.ts';
 
 const argv = process.argv.slice(2);
@@ -36,6 +36,13 @@ for (let i = 0; i < argv.length; i++) {
   else files.push(a);
 }
 const num = (k: string, d: number) => (flags.has(k) ? Number(flags.get(k)) : d);
+/**
+ * A CLOSED detector does not print champion rows. The rule when precision fails is "⛔ champions stay unread", and
+ * printing them anyway has a measured cost: after crossfire v1 failed with the champion rows in the same table, the
+ * redo's expectations were no longer a clean prior and the prediction file had to say so. `--reopen trade,rotate,…`
+ * is the deliberate override, and it is only legitimate together with a NEW pre-registration.
+ */
+const reopened = (name: string) => (flags.get('reopen') ?? '').split(',').includes(name);
 const N = num('n', 12);
 const WINDOW = num('window', 3);
 const RADIUS = num('radius', 12);
@@ -225,7 +232,9 @@ const rotateRows: Row[] = [
   // a real negative: fixed posts, so it CANNOT answer pressure (the site bots converge on the armed site, which is
   // itself a rotation — that is why they read 38% and are not a negative control)
   { label: 'scripted: posts (−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new PostHolderPolicy(holdPosts), observe: 1 },
-  ...(flags.has('precision') ? [] : rows.filter((r) => !r.label.startsWith('scripted'))),
+  // ⛔ CLOSED 2026-09-15: precision failed twice (a pressure-blind timed rotator reads 39%, the genuinely reactive
+  // defender 5%) — this definition measures "how often do you cross the midline", not a response to pressure.
+  ...(flags.has('precision') || !reopened('rotate') ? [] : rows.filter((r) => !r.label.startsWith('scripted'))),
 ];
 
 /** Record where the defenders stood and which site the attackers massed on, tick by tick. */
@@ -255,7 +264,8 @@ function playRotate(row: Row, seed: number, attackers: 0 | 1, matchIndex: number
   return trace;
 }
 
-console.log(`\nrotate detector — pressure = attackers within ${PRESSURE_R}m; a defender that starts nearer the COLD site and is nearer`);
+console.log('\n⛔ rotate detector CLOSED 2026-09-15 (precision FAIL, runs/g2-rotate-predictions.txt): champion rows are not printed.');
+console.log(`rotate detector — pressure = attackers within ${PRESSURE_R}m; a defender that starts nearer the COLD site and is nearer`);
 console.log(`the HOT one within ${(HORIZON * scriptedSim.dt).toFixed(0)}s has rotated. null = the same movement scored against ANOTHER match's pressure timeline`);
 console.log(`${padr('observed team', 24)}${pad('chances', 9)}${pad('rotations', 10)}${pad('rate', 7)}${pad('null', 7)}${pad('x null', 7)}${pad('median lag', 11)}${pad('first (replay anchor)', 26)}`);
 
@@ -294,6 +304,176 @@ for (const row of rotateRows) {
     + `${pad(nul > 0 ? (rate / nul).toFixed(2) : '—', 7)}${pad(acc.lags.length ? `${median(acc.lags).toFixed(2)}s` : '—', 11)}`
     + `${pad(anchorOf(anchor), 26)}`);
 }
+
+/* ------------------------------------------------------------------ man-disadvantage tempo (clutch) */
+
+/**
+ * How long a player must spend in a state for its mean speed to count. The prediction file froze 2 s; the world
+ * says that is ~7x too long (addendum, 2026-09-15): per-player DOWN phases run p50 = 4 ticks, and in the mutual-rush
+ * control NO player ever reaches 30 — rounds here end ~1.4 s after the head count breaks. 8 ticks is read off that
+ * distribution (just above its p50), ⛔ not tuned against the verdict: the P1 thresholds below are untouched.
+ */
+const MIN_STATE_TICKS = 8;
+/** P1 thresholds, frozen in the same file before anything was implemented — ⛔ do not tune after reading the rows */
+const P1_CLUTCH_DID = -0.5;
+const P1_CONTROL_DID = 0.3;
+const P1_RATIO = 4;
+const P1_MIN_PAIRED = 50;
+
+/** the man-disadvantage phase is short and rare, so this section needs its own, larger match count */
+const TEMPO_N = num('tempo-n', 40);
+
+const tempoRows: Row[] = [
+  // (+) the same site attacker as the (c) row, plus ONE thing: it stops moving while its team is down a man
+  { label: 'scripted: clutch (+)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new ClutchSlowPolicy(0), observe: 1 },
+  // (−) patrols between the sites forever: never reads the head count, and never arrives and stops either
+  { label: 'scripted: metronome (−)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new MetronomePolicy(8), observe: 1 },
+  // (c) reads nothing, but arrives and stands still — its RAW slowdown is the round clock, and the null must remove it
+  { label: 'scripted: arrive+stop (c)', sim: scriptedSim, map: scriptedMap, red: () => new SiteAttackerPolicy(0), blue: () => new SiteAttackerPolicy(0), observe: 1 },
+  // ⛔ CLOSED 2026-09-15: see the banner below — the between-match null cannot separate "down a man" from "late in
+  // the round" in this world, so the champion rows would be unreadable even if they were printed.
+  ...(flags.has('precision') || !reopened('tempo') ? [] : rows.filter((r) => !r.label.startsWith('scripted'))),
+];
+
+/** Record how fast each observed player moved and the head count it was playing under, tick by tick. */
+function playTempo(row: Row, seed: number, attackers: 0 | 1): TempoTrace {
+  const w = new World(row.sim, row.map, seed, { attackers });
+  const red = row.red();
+  const blue = row.blue();
+  const T = row.sim.teamSize;
+  const base = row.observe === 0 ? 0 : T;
+  const enemy: 0 | 1 = row.observe === 0 ? 1 : 0;
+  const trace: TempoTrace = { speed: [], delta: [] };
+  while (!w.done) {
+    stepMatch(w, red, blue);
+    trace.speed.push(Array.from({ length: T }, (_, k) => {
+      const a = w.agents[base + k];
+      return a.alive ? Math.hypot(a.vx, a.vz) : NaN;   // NaN, not 0: a corpse has no tempo, it is not a slow player
+    }));
+    trace.delta.push(w.aliveCount[row.observe] - w.aliveCount[enemy]);
+  }
+  return trace;
+}
+
+/**
+ * How much of the donor timeline is actually a DIFFERENT timeline. `agree` = share of ticks labelled the same,
+ * `jaccard` = overlap of the DOWN ticks themselves. ⭐ A permutation null is only a null to the extent these are
+ * low: if the head count is a function of the round clock, another match's head count is this match's head count
+ * (GOTCHAS #35), and the null quietly subtracts the very effect it is supposed to test.
+ */
+const donorOverlap = (a: number[], b: number[]): { agree: number; jaccard: number } => {
+  const T = Math.min(a.length, b.length);
+  let same = 0;
+  let both = 0;
+  let either = 0;
+  for (let t = 0; t < T; t++) {
+    const x = Math.sign(a[t]);
+    const y = Math.sign(b[t]);
+    if (x === y) same++;
+    if (x < 0 || y < 0) either++;
+    if (x < 0 && y < 0) both++;
+  }
+  return { agree: T ? same / T : 1, jaccard: either ? both / either : 1 };
+};
+
+const sgn = (x: number) => (Number.isNaN(x) ? '   n/a' : `${x >= 0 ? '+' : '-'}${Math.abs(x).toFixed(2)}`);
+const pm = (s: { mean: number; se: number }) => `${sgn(s.mean)} ± ${s.se.toFixed(2)}`;
+
+console.log('\n⛔ tempo detector CLOSED 2026-09-15 (precision FAIL, runs/g2-tempo-predictions.txt addendum): champion rows are not printed.');
+console.log('   why: in this world the head count is nearly a function of the round clock (first man down at tick 68 ± 15,');
+console.log('   and only 2-4 of ~26 one-second bins hold both states), so ANOTHER match\'s head count is this match\'s head');
+console.log('   count — the null eats 88% of an effect that is causal by construction. A real answer needs a within-match');
+console.log('   fork/intervention (G4c), ⛔ not a permutation. See the `donor agree/∩` column: 95%/94% on the negative row.');
+console.log(`tempo detector — speed (m/s) while DOWN a man vs while EVEN, per player, paired (>= ${MIN_STATE_TICKS} ticks in each state, ${TEMPO_N} seeds x 2 roles);`);
+console.log("null = the same speeds scored against ANOTHER match's head-count timeline, because being down a man and");
+console.log('standing still both happen LATE in a round. HEADLINE = DiD (real − null), per player, mean ± SE');
+console.log(`${padr('observed team', 24)}${pad('paired', 8)}${pad('raw down-even', 16)}${pad('null', 16)}${pad('DiD (headline)', 16)}${pad('up-even', 9)}${pad('down/even ticks', 17)}${pad('donor agree/∩', 14)}${pad('dead donor', 12)}${pad('first down (anchor)', 26)}`);
+
+const tempoDiD = new Map<string, { mean: number; se: number; n: number }>();
+for (const row of tempoRows) {
+  const traces: { seed: number; attackers: 0 | 1; trace: TempoTrace }[] = [];
+  for (let m = 0; m < TEMPO_N; m++) {
+    for (const attackers of [0, 1] as const) {
+      const seed = hashSeed(31337, m);
+      traces.push({ seed, attackers, trace: playTempo(row, seed, attackers) });
+    }
+  }
+  const raw: number[] = [];
+  const nul: number[] = [];
+  let sameDonor = 0;
+  const agree: number[] = [];
+  const jacc: number[] = [];
+  const did: number[] = [];
+  const upv: number[] = [];
+  let downTicks = 0;
+  let evenTicks = 0;
+  type Anchor = { seed: number; attackers: 0 | 1; tick: number };
+  let anchor: Anchor | null = null;
+  /**
+   * The donor for the null: ANOTHER world seed, whose match is at least as long as this one and otherwise as close
+   * in length as possible. Two things this guards, both learned the hard way in the first two precision runs:
+   *   - the two role assignments of the same seed can carry a bit-identical head-count timeline, and a donor that
+   *     changes nothing reads DiD = 0.00 ± 0.00 for every player;
+   *   - a SHORTER donor truncates the trace to its own length, so the null is scored on the early, fast part of the
+   *     match only — the same "both traces must be the same match length" requirement rotateStats documents.
+   */
+  const donorFor = (i: number): number => {
+    const len = traces[i].trace.delta.length;
+    let best = -1;
+    for (let j = 0; j < traces.length; j++) {
+      if (traces[j].seed === traces[i].seed) continue;
+      const lj = traces[j].trace.delta.length;
+      if (lj < len) continue;
+      if (best < 0 || lj < traces[best].trace.delta.length) best = j;
+    }
+    return best;
+  };
+  traces.forEach((t, i) => {
+    const d = donorFor(i);
+    const other = d < 0 ? t : traces[d];
+    const ov = donorOverlap(t.trace.delta, other.trace.delta);
+    const same = d < 0 || ov.agree >= 1;
+    if (same) sameDonor++;
+    else { agree.push(ov.agree); jacc.push(ov.jaccard); }
+    const real = tempoPairs(t.trace, t.trace.delta, MIN_STATE_TICKS);
+    const fake = same ? null : tempoPairs(t.trace, other.trace.delta, MIN_STATE_TICKS);
+    if (anchor === null) {
+      const d = t.trace.delta.findIndex((v) => v < 0);
+      if (d >= 0) anchor = { seed: t.seed, attackers: t.attackers, tick: d };
+    }
+    real.forEach((p, k) => {
+      downTicks += p.downTicks;
+      evenTicks += p.evenTicks;
+      const realOk = !Number.isNaN(p.down) && !Number.isNaN(p.even);
+      if (realOk) raw.push(p.down - p.even);
+      if (!Number.isNaN(p.up) && !Number.isNaN(p.even)) upv.push(p.up - p.even);
+      const f = fake?.[k];
+      if (!f || Number.isNaN(f.down) || Number.isNaN(f.even)) return;
+      nul.push(f.down - f.even);
+      if (realOk) did.push(p.down - p.even - (f.down - f.even));
+    });
+  });
+  const dd = meanSE(did);
+  tempoDiD.set(row.label, dd);
+  console.log(`${padr(row.label, 24)}${pad(String(dd.n), 8)}${pad(pm(meanSE(raw)), 16)}${pad(pm(meanSE(nul)), 16)}`
+    + `${pad(pm(dd), 16)}${pad(sgn(meanSE(upv).mean), 9)}${pad(`${downTicks}/${evenTicks}`, 17)}${pad(`${pct(meanSE(agree).mean)}/${pct(meanSE(jacc).mean)}`, 14)}${pad(`${sameDonor}/${traces.length}`, 12)}${pad(anchorOf(anchor), 26)}`);
+}
+
+// the gate prints its own verdict against the thresholds frozen BEFORE the run, so "precision passed" is not a
+// judgement call made after seeing the table (GOTCHAS #26: prove the tool reached the assertion)
+const plus = tempoDiD.get('scripted: clutch (+)')!;
+const minus = tempoDiD.get('scripted: metronome (−)')!;
+const conf = tempoDiD.get('scripted: arrive+stop (c)')!;
+const worstControl = Math.max(Math.abs(minus.mean), Math.abs(conf.mean));
+const checks: [string, boolean][] = [
+  [`a. clutch DiD ${plus.mean.toFixed(2)} <= ${P1_CLUTCH_DID} and |DiD| >= 3 SE (${(3 * plus.se).toFixed(2)})`, plus.mean <= P1_CLUTCH_DID && Math.abs(plus.mean) >= 3 * plus.se],
+  [`b. both controls |DiD| <= ${P1_CONTROL_DID} (metronome ${Math.abs(minus.mean).toFixed(2)}, arrive+stop ${Math.abs(conf.mean).toFixed(2)})`, worstControl <= P1_CONTROL_DID],
+  [`c. |clutch DiD| >= ${P1_RATIO}x the worst control (${(P1_RATIO * worstControl).toFixed(2)})`, Math.abs(plus.mean) >= P1_RATIO * worstControl],
+  [`d. every scripted row >= ${P1_MIN_PAIRED} paired players`, [plus, minus, conf].every((s) => s.n >= P1_MIN_PAIRED)],
+];
+console.log('\nP1 precision gate (thresholds frozen in runs/g2-tempo-predictions.txt):');
+for (const [text, ok] of checks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${text}`);
+console.log(`  => ${checks.every((c) => c[1]) ? 'PASS — the champion rows may be read (description only)' : 'FAIL — ⛔ the champion rows must NOT be read; fix the definition or close the detector'}`);
 
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');
 console.log('   birth / stability / intervention before any "they learned to trade"). ⛔ detector output never enters training.');

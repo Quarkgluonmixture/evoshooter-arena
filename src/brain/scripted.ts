@@ -373,3 +373,52 @@ export class PacifistRusherPolicy implements Policy {
     world.act[agent * ACT_DIM + A_FIRE] = -1;
   }
 }
+
+/* ---------------------------------------------------------------- G2 tempo controls
+ * Two bots whose ONLY difference is whether the head count changes how they move. They exist so the
+ * man-disadvantage tempo detector can be shown to read a tempo response where one was built in, and nothing
+ * where none was — ⛔ neither is a tactic, and neither may ever enter the evolving population.
+ */
+
+/**
+ * A site attacker that STOPS MOVING while its team is down a man, and plays normally otherwise. The positive
+ * control for the tempo detector: the response is conditioned on the head count and on nothing else — not the
+ * clock, not what it can see — which is exactly the thing the detector claims to find.
+ */
+export class ClutchSlowPolicy extends SiteAttackerPolicy {
+  override act(world: World, agent: number): void {
+    super.act(world, agent);
+    const me = world.agents[agent];
+    const enemy = me.team === 0 ? 1 : 0;
+    if (world.aliveCount[me.team] < world.aliveCount[enemy]) {
+      const off = agent * ACT_DIM;
+      world.act[off + A_MOVE_X] = 0;
+      world.act[off + A_MOVE_Z] = 0;
+    }
+  }
+}
+
+/**
+ * Walks back and forth between the two sites forever on a fixed clock, firing at whatever slot 0 offers. The
+ * negative control: it never reads the head count, and unlike the site bots it never arrives and stops, so its
+ * speed is flat in time as well as in the score — a detector that reads a tempo response here is reading noise.
+ */
+export class MetronomePolicy implements Policy {
+  private readonly period: number;
+  constructor(period = 8) { this.period = period; }
+  act(world: World, agent: number): void {
+    const off = agent * ACT_DIM;
+    const act = world.act;
+    act.fill(0, off, off + ACT_DIM);
+    const a = world.agents[agent];
+    const sg = a.team === 0 ? 1 : -1;
+    const sites = world.map.sites;
+    const leg = Math.floor(world.t / this.period) % 2;
+    const s = sites[(a.slot + leg) % sites.length];
+    const [gx, gz] = navDir(world.map, world.cfg, a.x, a.z, s.x, s.z);
+    act[off + A_MOVE_X] = sg * gx * 3;
+    act[off + A_MOVE_Z] = sg * gz * 3;
+    act[off + A_FIRE] = 1;
+    act[off + A_TARGET0] = 1;
+  }
+}
