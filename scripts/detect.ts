@@ -9,7 +9,7 @@
  *
  * ⛔ Nothing here may enter training: the detector lives under src/probe, behind the T8 firewall.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { DEFAULT_SIM, normalizeSim, type EvoConfig, type SimConfig } from '../src/core/config.ts';
 import { Rng, hashSeed } from '../src/core/rng.ts';
@@ -594,6 +594,11 @@ console.log(`"same fight" radius); an EPISODE is >= ${LURK_TICKS} ticks (${(LURK
 console.log(`Q2's null permutes each match's SLOT LABELS (${LURK_REDRAWS} redraws) and re-pools: same isolation, same clock, identity across matches destroyed`);
 console.log(`${padr('observed team', 24)}${pad('alive ticks', 12)}${pad('isolated', 10)}${pad('share', 7)}${pad('episodes', 10)}${pad('med ep', 8)}${pad('per-slot isolated %', 20)}${pad('top slot', 10)}${pad('null ± SE', 16)}${pad('x null', 7)}${pad('ep speed', 9)}${pad('dealt/taken/K', 14)}${pad('first episode (anchor)', 26)}`);
 
+/** per-champion facts, filled by the lurk and pair sections below and written out by `--out` (⛔ no new maths) */
+const factsByRow = new Map<string, {
+  colour: string; perSlotIsolated: number[]; isolatedShare: number; topSlot: number; topSlotShare: number;
+  lurkXnull: number; pair: string; pairStrength: number; pairXnull: number;
+}>();
 const lurkOut = new Map<string, { share: number; top: number; nullMean: number; alive: number }>();
 for (const row of lurkRows) {
   const perMatch: number[][] = [];
@@ -628,7 +633,15 @@ for (const row of lurkRows) {
   const share = alive ? isolated / alive : NaN;
   lurkOut.set(row.label, { share, top: conc.top, nullMean: conc.nullMean, alive });
   const pooled = perMatch.reduce((acc, r) => acc.map((v, k) => v + r[k]), new Array(row.sim.teamSize).fill(0));
-  const perSlotShare = pooled.map((v, k) => (aliveSlots[k] ? Math.round((100 * v) / aliveSlots[k]) : 0)).join('/');
+  const perSlotShareArr = pooled.map((v, k) => (aliveSlots[k] ? (100 * v) / aliveSlots[k] : 0));
+  const perSlotShare = perSlotShareArr.map((v) => Math.round(v)).join('/');
+  if (!row.label.startsWith('scripted')) {
+    factsByRow.set(row.label, {
+      colour: row.label.trim().slice(-1), perSlotIsolated: perSlotShareArr, isolatedShare: share,
+      topSlot: conc.topSlot, topSlotShare: conc.top, lurkXnull: conc.nullMean > 0 ? conc.top / conc.nullMean : NaN,
+      pair: '', pairStrength: NaN, pairXnull: NaN,
+    });
+  }
   console.log(`${padr(row.label, 24)}${pad(String(alive), 12)}${pad(String(isolated), 10)}${pad(Number.isNaN(share) ? 'n/a' : pct(share), 7)}`
     + `${pad(String(episodes), 10)}${pad(lengths.length ? `${(median(lengths) * row.sim.dt).toFixed(1)}s` : '—', 8)}`
     + `${pad(perSlotShare, 20)}${pad(Number.isNaN(conc.top) ? 'n/a' : `${pct(conc.top)} #${conc.topSlot}`, 10)}`
@@ -732,6 +745,12 @@ for (const row of pairRows) {
   const tops = topMutual(pooled);
   const nul = pairNull(per, row.sim.teamSize, PAIR_REDRAWS, hashSeed(7171, row.label.length));
   pairOut.set(row.label, { top: tops[0]?.strength ?? 0, nullMean: nul.mean, ticks });
+  const fact = factsByRow.get(row.label);
+  if (fact && tops[0]) {
+    fact.pair = `${tops[0].i}-${tops[0].j}`;
+    fact.pairStrength = tops[0].strength;
+    fact.pairXnull = nul.mean > 0 ? tops[0].strength / nul.mean : NaN;
+  }
   const list = tops.slice(0, 3).map((t) => `${t.i}-${t.j} ${pct(t.strength)}`).join('  ');
   // ⭐ the lurk intervention said position beats identity, so the geometric prediction is that pairs are made of
   // spawn NEIGHBOURS. Measured, ⛔ not assumed: spawns sit on one line 4 m apart in slot-index order, verified for
@@ -754,6 +773,17 @@ const pairChecks: [string, boolean][] = [
 console.log('\nP1 precision gate (thresholds frozen in runs/g2-pair-predictions.txt):');
 for (const [text, ok] of pairChecks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${text}`);
 console.log(`  => ${pairChecks.every((c) => c[1]) ? 'PASS — the champion rows may be read (description only)' : 'FAIL — ⛔ the champion rows must NOT be read'}`);
+
+if (flags.has('out')) {
+  const payload = {
+    kind: 'detect-facts' as const,
+    createdAt: new Date().toISOString(),
+    map: num('map', 0) || 'run default',
+    rows: [...factsByRow.entries()].map(([label, f]) => ({ label, ...f })),
+  };
+  writeFileSync(flags.get('out')!, JSON.stringify(payload));
+  console.log(`\nsaved ${flags.get('out')}`);
+}
 
 console.log('\n⚠ this is FORM, not intent: two players shooting the same enemy produce the same shape (VISION §12.1 needs');
 console.log('   birth / stability / intervention before any "they learned to trade"). ⛔ detector output never enters training.');

@@ -36,7 +36,8 @@
     "lurkswap": "node scripts/lurkswap.ts",
     "style": "node scripts/style.ts",
     "eras": "node scripts/eras.ts",
-    "lineage": "node scripts/lineage.ts"
+    "lineage": "node scripts/lineage.ts",
+    "cards": "node scripts/cards.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
