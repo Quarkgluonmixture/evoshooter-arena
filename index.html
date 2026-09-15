@@ -8,6 +8,7 @@
 </head>
 <body>
   <div id="app">
+    <!-- The arena is the stage (VISION §12.3): a proper match first; everything else is a layer you open. -->
     <main id="view">
       <div id="view-canvas"></div>
       <div id="hud">
@@ -58,76 +59,121 @@
           <li><b>Zone</b> in the middle scores 1 pt/s for the side with more agents inside. Wiping the enemy banks the remaining time.</li>
           <li><b>Tall walls</b> block sight; <b>low walls</b> hide legs and torso but not the head.</li>
           <li><b>Camera</b>: click a player tile or press <kbd>1</kbd>–<kbd>5</kbd> (red) / <kbd>6</kbd>–<kbd>0</kbd> (blue); <kbd>Tab</kbd>/<kbd>Space</kbd> next player; <kbd>V</kbd> 1st ↔ 3rd person; <kbd>F</kbd> free orbit; <kbd>D</kbd> auto-director follows the action. In 3rd person, drag to swing the camera around the player and scroll to pull back — a cut or a new player puts it back.</li>
+          <li><b>Panel</b>: <kbd>H</kbd> hides or shows the side panel (evolution, behaviour, evidence, run).</li>
         </ul>
       </details>
+      <button id="panel-toggle" title="H — show the panel">‹</button>
     </main>
+
+    <!-- Drill-down layers. One tab at a time; collapsible. -->
     <aside id="panel">
-      <section>
-        <h2>Training</h2>
-        <div class="row">
-          <button id="train-toggle" class="primary">▶ start evolving</button>
-          <button id="reset">reset</button>
-        </div>
-        <div class="row small">
-          <label>population <select id="pop"><option>12</option><option selected>24</option><option>32</option><option>48</option></select></label>
-          <label>workers <input id="workers" type="number" min="1" max="32" value="4" /></label>
-          <label>seed <input id="seed" type="number" value="1" /></label>
-          <label>map <input id="map-seed" type="number" value="7" /></label>
-        </div>
-        <div id="status" class="status">idle — press start</div>
-      </section>
-      <section>
-        <h2>Time travel</h2>
-        <p class="hint">Pit any generation's champion against any other. Any genome can play either colour.</p>
-        <div class="row small">
-          <label>red gen <select id="tt-red"></select></label>
-          <label>blue gen <select id="tt-blue"></select></label>
-          <button id="tt-play">watch</button>
-        </div>
-        <div class="row small">
-          <button id="tt-first-last">gen 0 vs latest</button>
-          <button id="tt-last-first">latest vs gen 0</button>
-          <button id="tt-half">halfway vs latest</button>
-        </div>
-      </section>
-      <section>
-        <h2>Are they getting better?</h2>
-        <div class="chart tall"><canvas id="c-ladder0"></canvas></div>
-        <div class="chart tall"><canvas id="c-ladder"></canvas></div>
-        <div class="chart tall"><canvas id="c-best"></canvas></div>
-        <div class="chart"><canvas id="c-mean"></canvas></div>
-        <div class="chart"><canvas id="c-balance"></canvas></div>
-      </section>
-      <section>
-        <h2>How they play (population averages)</h2>
-        <div id="metric-charts"></div>
-      </section>
-      <section>
-        <h2>Where they go</h2>
-        <div class="row small"><label>generation <input id="heat-gen" type="range" min="0" max="0" value="0" /> <span id="heat-gen-v">–</span></label></div>
-        <div class="heat-row"><canvas id="heat-red"></canvas><canvas id="heat-blue"></canvas></div>
-      </section>
-      <section>
-        <h2>Who beats whom</h2>
-        <p class="hint">Load a matrix from <code>npm run crossplay -- &lt;runs&gt; --out runs/xp.json</code>. Every number here is the CLI's; the page only draws it.</p>
-        <div class="row small"><label class="file"><input id="xp-import" type="file" accept="application/json" /> load cross-play…</label></div>
-        <div id="xp-view" class="hint">no matrix loaded</div>
-      </section>
-      <section>
-        <h2>What changed, and who changed it</h2>
-        <p class="hint">Load a style or lineage export from <code>npm run style -- &lt;run&gt; --colour R --out runs/style.json</code>
-          or <code>npm run lineage -- &lt;run&gt; --out runs/lineage.json</code>. Every number is the CLI's; the page only draws it —
-          and the file's own warnings are printed above them.</p>
-        <div class="row small"><label class="file"><input id="an-import" type="file" accept="application/json" /> load analysis…</label></div>
-        <div id="an-view" class="hint">no analysis loaded</div>
-      </section>
-      <section>
-        <h2>Save / load</h2>
-        <div class="row small">
-          <button id="export">export run (.json)</button>
-          <label class="file"><input id="import" type="file" accept="application/json" /> import…</label>
-        </div>
-      </section>
+      <nav id="tabs">
+        <button data-tab="evolve" class="on">Evolve</button>
+        <button data-tab="behaviour">Behaviour</button>
+        <button data-tab="evidence">Evidence</button>
+        <button data-tab="run">Run</button>
+        <button id="panel-close" title="H — give the arena the whole window">›</button>
+      </nav>
+
+      <div class="tab" data-tab="evolve">
+        <section>
+          <h2>Training</h2>
+          <div class="row">
+            <button id="train-toggle" class="primary">▶ start evolving</button>
+            <button id="reset">reset</button>
+          </div>
+          <div class="row small">
+            <label>population <select id="pop"><option>12</option><option selected>24</option><option>32</option><option>48</option></select></label>
+            <label>workers <input id="workers" type="number" min="1" max="32" value="4" /></label>
+            <label>seed <input id="seed" type="number" value="1" /></label>
+            <label>map <input id="map-seed" type="number" value="7" /></label>
+          </div>
+          <div id="status" class="status">idle — press start</div>
+        </section>
+        <section>
+          <h2>Time travel</h2>
+          <p class="hint">Pit any generation's champion against any other. Any genome can play either colour.</p>
+          <div class="row small">
+            <label>red gen <select id="tt-red"></select></label>
+            <label>blue gen <select id="tt-blue"></select></label>
+            <button id="tt-play">watch</button>
+          </div>
+          <div class="row small">
+            <button id="tt-first-last">gen 0 vs latest</button>
+            <button id="tt-last-first">latest vs gen 0</button>
+            <button id="tt-half">halfway vs latest</button>
+          </div>
+        </section>
+        <section>
+          <h2>Is this run moving? <small>in-run rulers</small></h2>
+          <p class="hint">A champion against its own past selves, and the two colours against each other. One ladder cannot
+            define progress (a win over a familiar opponent is not a win over the strategy space); the ruler that survives a
+            run is cross-play, under <b>Evidence</b>. A trailing “·” after a win rate means the two champions never met.</p>
+          <div class="chart tall"><canvas id="c-ladder0"></canvas></div>
+          <div class="chart tall"><canvas id="c-ladder"></canvas></div>
+          <div class="chart tall"><canvas id="c-best"></canvas></div>
+          <div class="chart"><canvas id="c-mean"></canvas></div>
+          <div class="chart"><canvas id="c-balance"></canvas></div>
+        </section>
+      </div>
+
+      <div class="tab" data-tab="behaviour" hidden>
+        <section>
+          <h2>How they play <small>population averages</small></h2>
+          <p class="hint">Shapes and frequencies per generation — what happened, never why. Every point is a population
+            average, so one lucky match cannot pose as a trend.</p>
+          <div id="metric-charts"></div>
+        </section>
+        <section>
+          <h2>Where they go</h2>
+          <div class="row small"><label>generation <input id="heat-gen" type="range" min="0" max="0" value="0" /> <span id="heat-gen-v">–</span></label></div>
+          <div class="heat-row"><canvas id="heat-red"></canvas><canvas id="heat-blue"></canvas></div>
+        </section>
+      </div>
+
+      <div class="tab" data-tab="evidence" hidden>
+        <section>
+          <h2>Claim ladder</h2>
+          <p class="hint">An emergence claim stands on three rungs. This page draws what the CLI measured; it computes nothing,
+            and it never climbs a rung for you.</p>
+          <ol class="ladder">
+            <li><b>Detection</b> — what happened, when, how often.<span>live run: the Behaviour tab · files: cross-play, style, lineage — below</span></li>
+            <li><b>Interpretation</b> — what it might mean, with a confidence.<span>not on this page yet. Identity cards are CLI-only (<code>npm run cards</code>), and every line there is marked TRAVELS or VARIES across maps</span></li>
+            <li><b>Intervention</b> — does it survive taking the mechanism away?<span>CLI-only (<code>lurkswap</code>, <code>radiouse</code>, the <code>radio</code> ablations). Nothing above is a cause until it has passed here</span></li>
+          </ol>
+        </section>
+        <section>
+          <h2>Who beats whom</h2>
+          <p class="hint">Load a matrix from <code>npm run crossplay -- &lt;runs&gt; --out runs/xp.json</code>. Every number here is the CLI's; the page only draws it.</p>
+          <div class="row small"><label class="file"><input id="xp-import" type="file" accept="application/json" /> load cross-play…</label></div>
+          <div id="xp-view" class="hint">no matrix loaded</div>
+        </section>
+        <section>
+          <h2>What changed, and who changed it</h2>
+          <p class="hint">Load a style or lineage export from <code>npm run style -- &lt;run&gt; --colour R --out runs/style.json</code>
+            or <code>npm run lineage -- &lt;run&gt; --out runs/lineage.json</code>. Every number is the CLI's; the page only draws it —
+            and the file's own warnings are printed above them.</p>
+          <div class="row small"><label class="file"><input id="an-import" type="file" accept="application/json" /> load analysis…</label></div>
+          <div id="an-view" class="hint">no analysis loaded</div>
+        </section>
+      </div>
+
+      <div class="tab" data-tab="run" hidden>
+        <section>
+          <h2>World</h2>
+          <div id="world-rules" class="status">—</div>
+          <p class="hint">The rules come from the URL: <code>?sites=2&amp;mode=capture&amp;tokens=2&amp;interval=5&amp;delay=3</code>
+            is the two-site capture round with a five-symbol radio that the headless runs train in; the page defaults to single-site
+            koth. An imported run brings its own world and the view is rebuilt around it.</p>
+        </section>
+        <section>
+          <h2>Save / load</h2>
+          <div class="row small">
+            <button id="export">export run (.json)</button>
+            <label class="file"><input id="import" type="file" accept="application/json" /> import…</label>
+          </div>
+        </section>
+      </div>
     </aside>
   </div>
   <script type="module" src="/src/main.ts"></script>
