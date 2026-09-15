@@ -94,7 +94,10 @@ for (const path of files) {
   if (data.scaffold) throw new Error(`${path} is a scaffold run`);
   const { sim } = normalizeSim(data.sim);
   const shape = shapeFor(sim, data.evo.hidden);
-  const map = generateMap(data.evo.mapSeed, sim);
+  // `--map <seed>` re-runs the detectors on another generated map. ⚠ generateMap puts spawns and sites at
+  // identical coordinates on every seed and varies only the 33 cover boxes, so an off-map run changes the ROUTES
+  // and the sight-lines, ⛔ not where anybody starts (runs/g2-lurk-maps-predictions.txt).
+  const map = generateMap(num('map', data.evo.mapSeed), sim);
   const tag = basename(path).replace(/\.json$/, '');
   const take = (t: 0 | 1, e: RunHofEntry | undefined, what: string) => {
     if (!e) throw new Error(`${tag}: no hall-of-fame entry for ${what}`);
