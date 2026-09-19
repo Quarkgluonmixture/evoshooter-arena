@@ -38,7 +38,8 @@
     "eras": "node scripts/eras.ts",
     "lineage": "node scripts/lineage.ts",
     "cards": "node scripts/cards.ts",
-    "clusters": "node scripts/clusters.ts"
+    "clusters": "node scripts/clusters.ts",
+    "mixing": "node scripts/mixing.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
