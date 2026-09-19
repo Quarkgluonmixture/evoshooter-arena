@@ -1,5 +1,5 @@
 /**
- * Headless training: node scripts/train.ts --gens 30 --pop 16 --seed 1 [--out runs/x.json] [--snap-every 10]
+ * Headless training: node scripts/train.ts --gens 30 --pop 16 --seed 1 [--out runs/x.json] [--snap-every 10] [--die K]
  * Prints one line per generation and finishes with the key evidence: does the final champion beat gen-0?
  *
  * `--snap-every N` (needs --out) snapshots the trainer every N generations, so a run the host kills can be resumed by
@@ -28,6 +28,7 @@ const { trainer, resumedAt } = openTrainer(out ?? '', snapEvery, () => new Train
     ...(args.has('mem') ? { memorySeconds: num('mem', 3) } : {}),
     ...(args.get('mode') === 'capture' ? { roundMode: 'capture' as const } : {}),
     ...(args.has('sites') ? { siteCount: (num('sites', 1) === 2 ? 2 : 1) as 1 | 2 } : {}),
+    ...(args.has('die') ? { privateDieDim: num('die', 0) } : {}),
     ...(args.has('tokens') ? { commTokens: num('tokens', 0) } : {}),
     ...(args.has('comm-interval') ? { commIntervalTicks: num('comm-interval', 1) } : {}),
     ...(args.has('comm-delay') ? { commDelayTicks: num('comm-delay', 0) } : {}),

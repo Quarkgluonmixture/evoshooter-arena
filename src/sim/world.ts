@@ -43,7 +43,10 @@ export const AUDIO_CLASSES = 2; // footstep, gunshot
 export function obsDim(cfg: SimConfig): number {
   return SELF_BASE + cfg.teamSize + cfg.siteCount * objFeats(cfg) + objGlobal(cfg) + cfg.lidarRays
     + cfg.mateSlots * (MATE_FEATS_BASE + cfg.commDim)
-    + cfg.enemySlots * ENEMY_FEATS + cfg.audioSectors * AUDIO_CLASSES;
+    + cfg.enemySlots * ENEMY_FEATS + cfg.audioSectors * AUDIO_CLASSES
+    // ⭐ appended LAST on purpose: every index before it keeps its meaning whether or not the die exists,
+    // so turning the channel on cannot silently renumber a leak-probe field (ROADMAP E2b).
+    + cfg.privateDieDim;
 }
 
 /* -------------------------------------------------------------------- state */
@@ -73,6 +76,12 @@ export interface Agent {
   comm: Float32Array;
   /** the quantised symbol currently leaving my radio — only re-decided every `commIntervalTicks` */
   commSaid: Float32Array;
+  /**
+   * ROADMAP E2b: this player's own private die, k numbers in [-1, 1), drawn once per round and constant for
+   * it. ⛔ Private means private — it is in this player's observation and nowhere else: not on the teammate
+   * HUD, not audible, not inferable from the enemy's own die (`A1-P27`, and two world tests hold the line).
+   */
+  die: Float32Array;
   dmgRecent: number;
   hitDirX: number;
   hitDirZ: number;
@@ -328,6 +337,12 @@ export class World {
           lookZ: 1, // both teams start looking at the enemy half (team frame is mirrored)
           comm: new Float32Array(cfg.commDim),
           commSaid: new Float32Array(cfg.commDim),
+          // Drawn from the same pure hash the perception jitter uses, NOT from `this.rng`: a die that drew
+          // from the combat stream would shift every later hit roll, so no run with a die could ever be
+          // compared with one without. The key is (team, slot) — never the agent id, GOTCHAS #17 — and the
+          // team is in it because two teams that shared a die would let each read the other's plan.
+          die: Float32Array.from({ length: cfg.privateDieDim }, (_, k) =>
+            jitter(team * 131 + s, seed | 0, 0x1b873593 + k)),
           dmgRecent: 0,
           hitDirX: 0,
           hitDirZ: 0,
@@ -884,6 +899,9 @@ export class World {
           o[p++] = this.reportLoudness(a, s * AUDIO_CLASSES + c, this.audio[idx]);
         }
       }
+
+      // --- my own private die (ROADMAP E2b), last so every index above keeps its meaning without it
+      for (let k = 0; k < cfg.privateDieDim; k++) o[p++] = a.die[k];
 
       // --- metrics: cover vs nearest known threat
       {

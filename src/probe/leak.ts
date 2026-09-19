@@ -986,6 +986,47 @@ export const LEAK_PROBES: LeakProbe[] = [
           };
     },
   },
+  {
+    id: 'A1-P27',
+    kind: 'counterfactual',
+    test: 'T2',
+    title: "somebody else's private die is rolled to the other extreme",
+    expect: 'clean',
+    run: (cfg) => {
+      // ROADMAP E2b. The die is only worth having if it is PRIVATE: one a teammate could read would be a
+      // free coordination bus, and one the enemy could read would be the opposite of unpredictable. The
+      // registry describes DEFAULT_SIM, where the channel is off and this probe would have nothing to
+      // measure — an empty denominator reads exactly like a pass (GOTCHAS family B, #17) — so the probe
+      // turns the channel on itself rather than passing for the one reason that means nothing was tested.
+      const on: SimConfig = { ...cfg, privateDieDim: Math.max(1, cfg.privateDieDim) };
+      const k = on.privateDieDim;
+      const others = counterfactual(on, {
+        setup: standObserver,
+        mutate: (w) => {
+          for (const a of w.agents) if (a.id !== 0) a.die.fill(a.die[0] > 0 ? -1 : 1);
+        },
+      });
+      if (others.changed.length > 0) {
+        const names = others.changed.map((f) => f.name);
+        return { status: 'leak', fields: names, detail: `another player's die reached me through [${names.join(', ')}]` };
+      }
+      // Positive guard, the half that stops a dead constant from passing: my OWN die has to reach me, and
+      // on exactly its own fields and nowhere else (GOTCHAS #11).
+      const mine = counterfactual(on, {
+        setup: standObserver,
+        mutate: (w) => { w.agents[0].die.fill(w.agents[0].die[0] > 0 ? -1 : 1); },
+      });
+      const names = mine.changed.map((f) => f.name);
+      const want = Array.from({ length: k }, (_, i) => `self.die${i}`);
+      return names.length === k && names.every((n, j) => n === want[j])
+        ? {
+            status: 'clean',
+            fields: [],
+            detail: `nobody else's die moves anything of mine, and my own moves exactly [${want.join(', ')}]`,
+          }
+        : { status: 'leak', fields: names, detail: `my own die should move exactly [${want.join(', ')}], it moved [${names.join(', ')}]` };
+    },
+  },
 ];
 
 /** Wide version of the mid wall, so a contact well off the centre line is still hidden. */

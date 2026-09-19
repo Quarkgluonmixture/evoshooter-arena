@@ -84,6 +84,22 @@ export interface SimConfig {
    * match — a policy object is cached and reused across matches, and state on it would leak between them.
    */
   recurrentDim: number;
+  /**
+   * ROADMAP E2b. Width of each player's PRIVATE DIE: k numbers in [-1, 1) drawn once per round from a pure
+   * hash of (team, slot, match seed), visible to that player alone and constant for the round. 0 = the
+   * shipped baseline, which has no die at all.
+   *
+   * E2b measured why this exists. The world's only randomness is the hit roll, spawns come from the map and
+   * perception jitter is a pure hash of (slot, time bucket), so against a given opponent a policy replays
+   * the same round every time: four champions, two maps, both roles, 32 seeds each read EXACTLY 0.000 bits
+   * of plan entropy, while the equilibrium this world pays 14.5 pp for is a 0.904-bit mixture. A control
+   * that alternates its plan reads 1.000 bits on the same instrument, so the world can carry a mixed plan —
+   * it just cannot generate one for a policy whose inputs are identical every round.
+   *
+   * ⛔ The die encodes nothing. It is not a percept, carries no world truth, and no teammate or enemy can
+   * read it (`A1-P27`). Whether evolution finds a use for it is the open question, not a premise.
+   */
+  privateDieDim: number;
   heatCells: number;        // heat-map grid resolution per axis
 }
 
@@ -140,6 +156,7 @@ export const DEFAULT_SIM: SimConfig = {
   commIntervalTicks: 1,
   commDelayTicks: 0,
   recurrentDim: 0,
+  privateDieDim: 0,
   heatCells: 24,
 };
 
@@ -150,7 +167,7 @@ export const DEFAULT_SIM: SimConfig = {
  * here must leave a scripted-bot match bit-identical. ⛔ Adding a key that reaches the world breaks the one
  * comparison that survives a phase boundary.
  */
-export const BRAIN_ONLY_FIELDS: (keyof SimConfig)[] = ['recurrentDim', 'memorySeconds'];
+export const BRAIN_ONLY_FIELDS: (keyof SimConfig)[] = ['recurrentDim', 'memorySeconds', 'privateDieDim'];
 
 /**
  * Fill in fields a saved run predates. A run exported before `recurrentDim` existed has `undefined` there,

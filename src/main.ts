@@ -27,6 +27,9 @@ const boot = (() => {
     tokens: Number(u.searchParams.get('tokens')) || 0,
     interval: Number(u.searchParams.get('interval')) || 1,
     delay: Number(u.searchParams.get('delay')) || 0,
+    // and so does the private die: it changes obsDim, so a die-trained run replayed without `?die=k` is a
+    // genome-length error rather than a silently different game (ROADMAP E2b, GOTCHAS #33)
+    die: Number(u.searchParams.get('die')) || 0,
   };
 })();
 const bootSim = {
@@ -34,6 +37,7 @@ const bootSim = {
   commTokens: boot.tokens,
   commIntervalTicks: boot.interval,
   commDelayTicks: boot.delay,
+  privateDieDim: boot.die,
   ...(boot.capture ? { roundMode: 'capture' as const } : {}),
 };
 

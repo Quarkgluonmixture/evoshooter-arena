@@ -10,10 +10,14 @@ import { obsDim } from '../src/sim/world.ts';
 // (GOTCHAS #16), the absolute numbers drift with machine load.
 const recArg = process.argv.indexOf('--rec');
 const memArg = process.argv.indexOf('--mem');
+// `--die K` benches the E2b private die the same way. ⚠ It changes obsDim, so the two arms run different
+// genomes and finish different rounds — compare ms/tick, not ms/match.
+const dieArg = process.argv.indexOf('--die');
 const cfg = {
   ...DEFAULT_SIM,
   recurrentDim: recArg > 0 ? Number(process.argv[recArg + 1]) : DEFAULT_SIM.recurrentDim,
   memorySeconds: memArg > 0 ? Number(process.argv[memArg + 1]) : DEFAULT_SIM.memorySeconds,
+  privateDieDim: dieArg > 0 ? Number(process.argv[dieArg + 1]) : DEFAULT_SIM.privateDieDim,
 };
 const shape = shapeFor(cfg, DEFAULT_EVO.hidden);
 const map = generateMap(DEFAULT_EVO.mapSeed, cfg);
@@ -26,4 +30,4 @@ let ticks = 0;
 const t0 = performance.now();
 for (let i = 0; i < N; i++) ticks += runMatch(red, blue, map, i, cfg).ticks;
 const ms = performance.now() - t0;
-console.log(`${N} matches: ${ms.toFixed(0)} ms total, ${(ms / N).toFixed(1)} ms/match, ${ticks / N} ticks/match avg`);
+console.log(`${N} matches: ${ms.toFixed(0)} ms total, ${(ms / N).toFixed(1)} ms/match, ${ticks / N} ticks/match avg, ${(ms * 1000 / ticks).toFixed(1)} us/tick`);

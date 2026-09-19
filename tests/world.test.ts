@@ -10,6 +10,13 @@ import { IdlePolicy, RusherPolicy, PacifistRusherPolicy, CamperPolicy } from '..
 import { runMatch, stepMatch } from '../src/evo/match.ts';
 
 const cfg = DEFAULT_SIM;
+// ⭐ The mirror tests run with the private die ON (GOTCHAS #17: a symmetry test run in a configuration where
+// the channel does not exist tests nothing). An honest private die MUST break pointwise mirror symmetry —
+// two mirrored players who drew the same number could each read the other's plan — so those tests assert the
+// exact set of fields that differ instead of asserting that none do. Side fairness is a distributional
+// property here, and it gets its own test below.
+const cfgDie: SimConfig = { ...DEFAULT_SIM, privateDieDim: 2 };
+const dieIndices = obsSchema(cfgDie).filter((f) => f.name.startsWith('self.die')).map((f) => f.index);
 const map = generateMap(DEFAULT_EVO.mapSeed, cfg);
 const shape = shapeFor(cfg, DEFAULT_EVO.hidden);
 
@@ -39,8 +46,8 @@ describe('World', () => {
   it('keeps the mirror symmetry once contacts exist (kickoff alone never touches the contact channel)', () => {
     // Kickoff has nobody in sight, so the enemy-contact half of the observation is all zeros there and a
     // symmetry break inside it goes unnoticed. Put both sides in the SAME situation, mirrored, and compare.
-    const w = new World(cfg, map, 3);
-    const T = cfg.teamSize;
+    const w = new World(cfgDie, map, 3);
+    const T = cfgDie.teamSize;
     const put = (id: number, x: number, z: number, yaw: number) => {
       const a = w.agents[id];
       a.x = x; a.z = z; a.yaw = yaw;
@@ -61,23 +68,27 @@ describe('World', () => {
     w.observe();
     w.observe(); // second pass so both sides have a contact memory of the same age
     const dim = w.obsDim;
+    const names = obsSchema(cfgDie);
     for (let s = 0; s < T; s++) {
       const red = w.obs.slice(s * dim, (s + 1) * dim);
       const blue = w.obs.slice((T + s) * dim, (T + s + 1) * dim);
-      for (let k = 0; k < dim; k++) {
-        expect(Math.abs(red[k] - blue[k]), `slot ${s} feature ${k}`).toBeLessThan(1e-6);
-      }
+      const differ: number[] = [];
+      for (let k = 0; k < dim; k++) if (Math.abs(red[k] - blue[k]) >= 1e-6) differ.push(k);
+      // Exactly the die, and the whole die: anything else differing is a symmetry break, and the die NOT
+      // differing would mean the two teams drew the same numbers and neither has anything private.
+      expect(differ.map((k) => names[k].name), `slot ${s}`).toEqual(dieIndices.map((k) => names[k].name));
     }
   });
 
   it('gives mirrored teams identical observations at kickoff (team-frame symmetry)', () => {
-    const w = new World(cfg, map, 1);
+    const w = new World(cfgDie, map, 1);
     w.observe();
-    const D = obsDim(cfg);
-    for (let s = 0; s < cfg.teamSize; s++) {
+    const D = obsDim(cfgDie);
+    const skip = new Set(dieIndices);
+    for (let s = 0; s < cfgDie.teamSize; s++) {
       const red = Array.from(w.obs.subarray(s * D, (s + 1) * D));
-      const blue = Array.from(w.obs.subarray((cfg.teamSize + s) * D, (cfg.teamSize + s + 1) * D));
-      for (let k = 0; k < D; k++) expect(blue[k]).toBeCloseTo(red[k], 5);
+      const blue = Array.from(w.obs.subarray((cfgDie.teamSize + s) * D, (cfgDie.teamSize + s + 1) * D));
+      for (let k = 0; k < D; k++) if (!skip.has(k)) expect(blue[k]).toBeCloseTo(red[k], 5);
     }
   });
 
@@ -566,6 +577,59 @@ describe('turning', () => {
     expect(maxStep).toBeLessThanOrEqual(cfg.scanTurnRate * cfg.dt + 1e-9);
     // …and the low-pass means the head does not follow the flip-flop: without it this is ~1 per tick
     expect(reversals / samples).toBeLessThan(0.2);
+  });
+});
+
+describe('private die (ROADMAP E2b)', () => {
+  // E2b measured that a policy facing the same opponent replays the same round: 0.000 bits of plan entropy
+  // against the 0.904-bit mixture this world pays 14.5 pp for. The die is the missing degree of freedom, and
+  // these four tests are what make it honest rather than just present. ⛔ None of them says evolution will
+  // USE it — that is the A/B, not a unit test.
+  const dieOf = (seed: number) => new World(cfgDie, map, seed);
+  const N = 400;
+
+  it('is not a dead constant: a fixed player draws a different number every round', () => {
+    const seen = new Set<number>();
+    for (let s = 0; s < N; s++) seen.add(dieOf(1000 + s).agents[0].die[0]);
+    // A die that repeats is not a die, and it would pass the privacy probe perfectly (GOTCHAS #11)
+    expect(seen.size).toBe(N);
+  });
+
+  it('⭐ never hands the two colours the same number — my die must not tell me the enemy plan', () => {
+    let collisions = 0;
+    for (let s = 0; s < N; s++) {
+      const w = dieOf(1000 + s);
+      for (let slot = 0; slot < cfgDie.teamSize; slot++) {
+        for (let k = 0; k < cfgDie.privateDieDim; k++) {
+          if (w.agents[slot].die[k] === w.agents[cfgDie.teamSize + slot].die[k]) collisions++;
+        }
+      }
+    }
+    expect(collisions).toBe(0);
+  });
+
+  it('gives neither colour an edge — the pointwise mirror cannot hold here, so the DISTRIBUTION does', () => {
+    const pool: number[][] = [[], []];
+    for (let s = 0; s < N; s++) for (const a of dieOf(1000 + s).agents) for (const v of a.die) pool[a.team].push(v);
+    for (const [team, xs] of pool.entries()) {
+      const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+      const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / xs.length);
+      // uniform on [-1, 1) has mean 0 and sd 0.577; the band is far tighter than any usable bias
+      expect(Math.abs(mean), `team ${team} mean`).toBeLessThan(0.05);
+      expect(sd, `team ${team} sd`).toBeGreaterThan(0.54);
+      expect(sd, `team ${team} sd`).toBeLessThan(0.61);
+    }
+  });
+
+  it('holds still for the whole round — it is a plan, not per-tick noise', () => {
+    const w = dieOf(7);
+    const before = Array.from(w.agents[0].die);
+    w.observe();
+    const D = w.obsDim;
+    const reached = Array.from(w.obs.subarray(D - cfgDie.privateDieDim, D));
+    for (let i = 0; i < 300 && !w.done; i++) stepMatch(w, new RusherPolicy(), new CamperPolicy());
+    expect(Array.from(w.agents[0].die)).toEqual(before);
+    expect(reached).toEqual(before);   // and it is the tail of the observation, where the schema says it is
   });
 });
 

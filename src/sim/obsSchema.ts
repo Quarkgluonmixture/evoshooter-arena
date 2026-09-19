@@ -111,6 +111,14 @@ export function obsSchema(cfg: SimConfig): ObsField[] {
     push(`audio${s}.gunshot`, 'audio', 'legal', undefined, 'head-relative sector loudness, no identity, no team label');
   }
 
+  // --- the player's own private die (ROADMAP E2b), appended last
+  for (let k = 0; k < cfg.privateDieDim; k++) {
+    push(`self.die${k}`, 'self', 'legal', undefined,
+      'a private number drawn once per round from a pure hash of (team, slot, match seed): no world truth '
+      + 'reaches it, and no teammate or enemy can read it (A1-P27). It is the only thing in this vector that '
+      + 'differs between two otherwise mirrored players, which is the whole point of it');
+  }
+
   const expected = obsDim(cfg);
   if (f.length !== expected) {
     throw new Error(`obsSchema drift: schema has ${f.length} fields, world.obsDim is ${expected}`);
