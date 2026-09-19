@@ -191,6 +191,9 @@ console.log(`${padr('row', 22)}${padr('role', 5)}${pad('map', 4)}${pad('A own di
 const A = new Map<string, number>();
 const B = new Map<string, number>();
 const C = new Map<string, number>();
+/** cells where fewer than half the matches still had five players at T — a tuple read off a dying team is a
+ *  casualty list, not a plan, so the summary refuses them instead of relying on the warning being noticed. */
+const unguarded = new Set<string>();
 const key = (row: string, role: string, map: number | string) => `${row}|${role}|${map}`;
 
 for (const row of rows) {
@@ -226,6 +229,7 @@ for (const row of rows) {
         `${pad(`${mean(obsA.map((o) => o.tPlan)).toFixed(1)}s`, 8)}${pad(`${tDiv.toFixed(1)}s`, 8)}` +
         `${pad(`${mean(obsA.map((o) => o.firstShot)).toFixed(1)}s`, 9)}${pad(`${(alive5 * 100).toFixed(0)}%`, 8)}`);
       // GOTCHAS #13 / family B: a cell measured on a team that is already dying is a casualty list, not a plan
+      if (alive5 < 0.5) unguarded.add(key(row.name, role, mapSeed));
       if (alive5 < 0.5) console.log(`  ⚠ ${row.name}/${role}/map ${mapSeed}: only ${(alive5 * 100).toFixed(0)}% of matches still had five players at t=${T}s`);
       if (alive5 < 1 && mean(obsA.map((o) => o.firstShot)) < T) console.log(`  ⚠ ${row.name}/${role}/map ${mapSeed}: the mean first shot (${mean(obsA.map((o) => o.firstShot)).toFixed(1)}s) lands before t=${T}s — the plan is being read after contact, not before`);
     }
@@ -235,9 +239,13 @@ for (const row of rows) {
 
 const champs = rows.filter((r) => !r.control).map((r) => r.name);
 const cells = (m: Map<string, number>, rowsIn: string[], roles = ['def', 'atk']) =>
-  rowsIn.flatMap((r) => roles.flatMap((role) => MAPS.map((s) => m.get(key(r, role, s))).filter((v): v is number => v !== undefined)));
+  rowsIn.flatMap((r) => roles.flatMap((role) => MAPS
+    .filter((s) => !unguarded.has(key(r, role, s)))
+    .map((s) => m.get(key(r, role, s))).filter((v): v is number => v !== undefined)));
+const dropped = [...unguarded].length;
 
 console.log('\nagainst predictions/e2b-mixing-predictions.txt:');
+if (dropped) console.log(`  ⚠ ${dropped} cell(s) are left out of every line below: fewer than half their matches still had five players at t=${T}s, so the tuple there is a casualty list, not a plan`);
 const gateFixed = Math.max(...cells(A, ['ctl fixed 3/2'], ['def']));
 const gateAlt = Math.min(...cells(A, ['ctl alternating'], ['def']));
 const gateOk = gateFixed === 0 && gateAlt === 1;
