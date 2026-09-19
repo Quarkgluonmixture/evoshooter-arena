@@ -142,6 +142,10 @@ interface Row {
   foes: Foe[];
   sim: SimConfig;
   control?: boolean;
+  /** champions only: the genome and its first-layer shape, for the die-weight readout (E2c P4) */
+  genome?: Float32Array;
+  inputs?: number;
+  hidden0?: number;
 }
 
 const rows: Row[] = [];
@@ -160,7 +164,10 @@ for (const path of files) {
     const step = Math.max(1, Math.floor(theirs.length / K));
     const foes: Foe[] = theirs.filter((_, i) => i % step === 0).slice(-K)
       .map((e) => ({ name: `g${e.gen}`, make: () => new NeuralPolicy(shape, Float32Array.from(e.genome)) as Policy }));
-    rows.push({ name: `${tag}:${colour === 0 ? 'R' : 'B'}@${pick.gen}`, team: colour, make: () => me, foes, sim });
+    rows.push({
+      name: `${tag}:${colour === 0 ? 'R' : 'B'}@${pick.gen}`, team: colour, make: () => me, foes, sim,
+      genome: Float32Array.from(pick.genome), inputs: shape.inputs, hidden0: data.evo.hidden[0],
+    });
   }
 }
 const simRef = rows[0].sim;
@@ -186,7 +193,10 @@ const bits = (x: number) => x.toFixed(3);
 
 console.log(`mixing — does the round plan vary? · plan = which site each slot is nearest to at t=${T}s (5-tuple)`);
 console.log(`own-dice n=${N} seeds · opponents k=${K} brains · maps ${MAPS.join(',')} · what the world pays for is a ${bits(EQUILIBRIUM_BITS)}-bit mixture (68/32)\n`);
-console.log(`${padr('row', 22)}${padr('role', 5)}${pad('map', 4)}${pad('A own dice', 12)}${pad('B opponents', 13)}${pad('tPlan', 8)}${pad('tDiv', 8)}${pad('1stShot', 9)}${pad('alive5', 8)}`);
+// ⭐ `plans` next to the entropy is what separates a MIXTURE from noise (E2c P2): a real mixed strategy
+// keeps a handful of plans in stable proportions, while a policy using the die as jitter produces a new
+// tuple almost every round and drives the entropy toward log2(n).
+console.log(`${padr('row', 22)}${padr('role', 5)}${pad('map', 4)}${pad('A own dice', 12)}${pad('plans', 7)}${pad('B opponents', 13)}${pad('plans', 7)}${pad('tPlan', 8)}${pad('tDiv', 8)}${pad('1stShot', 9)}${pad('alive5', 8)}`);
 
 const A = new Map<string, number>();
 const B = new Map<string, number>();
@@ -222,10 +232,12 @@ for (const row of rows) {
         ...sides(row.make(hashSeed(9137, mapSeed, 0), 0), newest.make()), attackers);
       const hA = entropy(obsA.map((o) => o.plan));
       const hB = entropy(plansB);
+      const dA = new Set(obsA.map((o) => o.plan)).size;
+      const dB = new Set(plansB).size;
       A.set(key(row.name, role, mapSeed), hA);
       B.set(key(row.name, role, mapSeed), hB);
       const alive5 = obsA.filter((o) => o.alive === cfg.teamSize).length / obsA.length;
-      console.log(`${padr(row.name, 22)}${padr(role, 5)}${pad(String(mapSeed), 4)}${pad(bits(hA), 12)}${pad(row.foes.length > 1 ? bits(hB) : '·', 13)}` +
+      console.log(`${padr(row.name, 22)}${padr(role, 5)}${pad(String(mapSeed), 4)}${pad(bits(hA), 12)}${pad(`${dA}/${obsA.length}`, 7)}${pad(row.foes.length > 1 ? bits(hB) : '·', 13)}${pad(row.foes.length > 1 ? `${dB}/${plansB.length}` : '·', 7)}` +
         `${pad(`${mean(obsA.map((o) => o.tPlan)).toFixed(1)}s`, 8)}${pad(`${tDiv.toFixed(1)}s`, 8)}` +
         `${pad(`${mean(obsA.map((o) => o.firstShot)).toFixed(1)}s`, 9)}${pad(`${(alive5 * 100).toFixed(0)}%`, 8)}`);
       // GOTCHAS #13 / family B: a cell measured on a team that is already dying is a casualty list, not a plan
@@ -259,6 +271,27 @@ console.log(`  P4  what evolution collects vs what the world pays for   ${bits(w
 const cGtB = champs.filter((r) => (C.get(key(r, 'def', 'maps')) ?? 0) > mean(cells(B, [r], ['def']))).length;
 console.log(`  P6  the map moves the plan more than the opponent does    ${cGtB}/${champs.length} champions, defending`);
 console.log(`\narm C (cross-map, fixed seed and opponent): ${champs.map((r) => `${r} def ${bits(C.get(key(r, 'def', 'maps')) ?? NaN)}`).join(' · ')}`);
+// E2c P4, description only: does the first layer keep any weight on the die? ⚠ Drift with no selection
+// leaves a column at roughly its initialisation scale, so this CANNOT distinguish "used" from "ignored" —
+// it is printed so the number is on the record, not so it can be read as evidence.
+const withDie = rows.filter((r) => !r.control && r.genome && r.sim.privateDieDim > 0);
+if (withDie.length) {
+  const colNorm = (g: Float32Array, nin: number, nout: number, i: number) => {
+    let sum = 0;
+    for (let o = 0; o < nout; o++) sum += g[o * nin + i] * g[o * nin + i];
+    return Math.sqrt(sum);
+  };
+  console.log('\nfirst-layer weight on the die (⛔ description, not evidence — drift alone keeps a column near its init scale):');
+  for (const r of withDie) {
+    const nin = r.inputs!;
+    const nout = r.hidden0!;
+    const all = Array.from({ length: nin }, (_, i) => colNorm(r.genome!, nin, nout, i));
+    const dieCols = all.slice(nin - r.sim.privateDieDim);
+    const rest = all.slice(0, nin - r.sim.privateDieDim);
+    const m = mean(rest);
+    console.log(`  ${padr(r.name, 22)} die ${dieCols.map((x) => x.toFixed(3)).join(' ')} · other inputs mean ${m.toFixed(3)} · ratio ${(mean(dieCols) / m).toFixed(2)}x`);
+  }
+}
 console.log('entropy is in bits inside one (row, arm, map, role) cell — never across colours and never across maps, so neither');
 console.log('each team\'s own site order nor GOTCHAS #40 can get into the number.');
 console.log('⛔ 0 bits does not say the champion is weak; it says this world gives it no way to be unpredictable round to round.');
