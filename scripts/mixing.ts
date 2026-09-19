@@ -129,6 +129,28 @@ function divergenceSeconds(cfg: SimConfig, map: ArenaMap, sa: number, sb: number
   return a.t;
 }
 
+/**
+ * ⭐ The end-to-end positive control for E2c: a hand-written defender that picks its site from ITS OWN DIE,
+ * read out of `world.obs` — the same bytes a brain gets, not the agent field behind them. Without this, a
+ * champion row of 0.000 bits would be ambiguous between "evolution did not use the die" and "the die never
+ * reached a policy at all", and only the first of those is a finding (GOTCHAS #26).
+ *
+ * ⚠ It randomises per PLAYER, because that is the only thing a private die can do on its own — five players
+ * with five private numbers and no shared draw cannot agree on one team plan without saying something out
+ * loud. So it reads like `ctl own coins`, not like `ctl alternating`, and that is correct rather than a
+ * defect: E2's table has independent coins at 42 % against the common plan's 39 %.
+ */
+class DieReaderDefender implements Policy {
+  private readonly toA = new SiteDefenderPolicy(0);
+  private readonly toB = new SiteDefenderPolicy(1);
+  act(world: World, agent: number): void {
+    const k = world.cfg.privateDieDim;
+    if (k === 0) throw new Error('die-reader control ran in a world with no die — it would silently read as a fixed plan');
+    const die = world.obs[(agent + 1) * world.obsDim - k];   // the die is the tail of my own observation row
+    (die >= 0 ? this.toA : this.toB).act(world, agent);
+  }
+}
+
 const SPLIT = [0, 0, 0, 1, 1];
 const teamCoin = (seed: number): number[] => (new Rng(seed).int(2) === 0 ? SPLIT : SPLIT.map((s) => 1 - s));
 const independentCoins = (seed: number): number[] => { const r = new Rng(seed); return SPLIT.map(() => (r.int(5) < 3 ? 0 : 1)); };
@@ -185,6 +207,11 @@ rows.push(
   { name: 'ctl team coin', team: 1, make: (s) => new SiteDefenderPolicy(teamCoin(s)), foes: handFoe, sim: simRef, control: true },
   { name: 'ctl own coins', team: 1, make: (s) => new SiteDefenderPolicy(independentCoins(s)), foes: handFoe, sim: simRef, control: true },
 );
+// only meaningful where the channel exists; in a world without a die it would read as a fixed plan and
+// quietly look like a pass
+if (simRef.privateDieDim > 0) {
+  rows.push({ name: 'ctl die-reader', team: 1, make: () => new DieReaderDefender(), foes: handFoe, sim: simRef, control: true });
+}
 
 const maps = new Map<number, ArenaMap>(MAPS.map((s) => [s, generateMap(s, simRef)]));
 const pad = (s: string, n: number) => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
@@ -261,6 +288,11 @@ if (dropped) console.log(`  ⚠ ${dropped} cell(s) are left out of every line be
 const gateFixed = Math.max(...cells(A, ['ctl fixed 3/2'], ['def']));
 const gateAlt = Math.min(...cells(A, ['ctl alternating'], ['def']));
 const gateOk = gateFixed === 0 && gateAlt === 1;
+if (simRef.privateDieDim > 0) {
+  const reader = cells(A, ['ctl die-reader'], ['def']);
+  const ok = reader.every((h) => h > 0);
+  console.log(`  E2c gate: a hand bot reading the die off its observation  ${reader.map(bits).join(' / ')}  ${ok ? '✓ the channel reaches a policy' : '✗ ⛔ the die never got to a policy — a champion 0.000 would mean nothing'}`);
+}
 console.log(`  P5  gate: fixed 3/2 = 0.000 · alternating = 1.000        ${bits(gateFixed)} / ${bits(gateAlt)}  ${gateOk ? '✓ the champion rows may be read' : '✗ ⛔ the instrument did not reach the assertion — do not read the champion rows'}`);
 console.log(`        for scale: a real coin ${bits(Math.min(...cells(A, ['ctl team coin'], ['def'])))} (its own sampling noise) · a plan drawn five times ${bits(Math.min(...cells(A, ['ctl own coins'], ['def'])))}`);
 const worstA = Math.max(...cells(A, champs));
