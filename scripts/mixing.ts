@@ -62,6 +62,14 @@ const N = num('n', 32);
 const K = num('k', 6);
 const T = num('t', 6);
 const MAPS = (flags.get('maps') ?? '7,11').split(',').map(Number);
+/**
+ * `--freeze-die` is the intervention layer (VISION §12.1 (3)): every match is played with the die that ONE
+ * nominated round drew, so the channel is still there, still carries a value the policy could legally have
+ * seen, and simply stops varying. ⛔ Not zeroing it — a constant 0 is a value the die almost never takes,
+ * and an out-of-distribution input tells you what the policy does when confused, not what the die was doing
+ * (GOTCHAS #24). If plan entropy collapses under this and not otherwise, the die CAUSED the variation.
+ */
+const FREEZE_DIE = flags.has('freeze-die');
 if (!files.length) throw new Error('need at least one run file');
 
 interface RunHofEntry { gen: number; fitness: number; genome: number[] }
@@ -96,8 +104,9 @@ const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
 interface Obs { plan: string; tPlan: number; alive: number; firstShot: number }
 /** One whole match; the plan is sampled at T, and the round is played out so the guards mean something. */
-function observe(cfg: SimConfig, map: ArenaMap, seed: number, red: Policy, blue: Policy, attackers: 0 | 1, team: 0 | 1): Obs {
+function observe(cfg: SimConfig, map: ArenaMap, seed: number, red: Policy, blue: Policy, attackers: 0 | 1, team: 0 | 1, frozenDie?: Float32Array[]): Obs {
   const world = new World(cfg, map, seed, { attackers });
+  if (frozenDie) for (const a of world.agents) a.die.set(frozenDie[a.id]);
   const tickT = Math.round(T / cfg.dt);
   let last = planOf(world, team);
   let tPlan = 0;
@@ -219,6 +228,7 @@ const padr = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s
 const bits = (x: number) => x.toFixed(3);
 
 console.log(`mixing — does the round plan vary? · plan = which site each slot is nearest to at t=${T}s (5-tuple)`);
+if (FREEZE_DIE) console.log('⭐ --freeze-die: arm A replays every match with match 0’s die, so the channel is present and constant. Entropy here is what is NOT the die.');
 console.log(`own-dice n=${N} seeds · opponents k=${K} brains · maps ${MAPS.join(',')} · what the world pays for is a ${bits(EQUILIBRIUM_BITS)}-bit mixture (68/32)\n`);
 // ⭐ `plans` next to the entropy is what separates a MIXTURE from noise (E2c P2): a real mixed strategy
 // keeps a handful of plans in stable proportions, while a policy using the die as jitter produces a new
@@ -246,9 +256,13 @@ for (const row of rows) {
       const map = maps.get(mapSeed)!;
       // A — own dice: one map, one opponent, N match seeds
       const obsA: Obs[] = [];
+      // the nominated round is match 0 of this map, so the frozen value is one the policy really does meet
+      const frozen = FREEZE_DIE && cfg.privateDieDim > 0
+        ? new World(cfg, map, hashSeed(9137, mapSeed, 0), { attackers }).agents.map((a) => Float32Array.from(a.die))
+        : undefined;
       for (let m = 0; m < N; m++) {
         const seed = hashSeed(9137, mapSeed, m);
-        obsA.push(observe(cfg, map, seed, ...sides(row.make(seed, m), newest.make()), attackers, row.team));
+        obsA.push(observe(cfg, map, seed, ...sides(row.make(seed, m), newest.make()), attackers, row.team, frozen));
       }
       // B — opponents: one map, one match seed, K brains from the other colour's history
       const plansB = row.foes.map((f) => observe(cfg, map, fixedSeed, ...sides(row.make(fixedSeed, 0), f.make()), attackers, row.team).plan);
@@ -267,6 +281,19 @@ for (const row of rows) {
       console.log(`${padr(row.name, 22)}${padr(role, 5)}${pad(String(mapSeed), 4)}${pad(bits(hA), 12)}${pad(`${dA}/${obsA.length}`, 7)}${pad(row.foes.length > 1 ? bits(hB) : '·', 13)}${pad(row.foes.length > 1 ? `${dB}/${plansB.length}` : '·', 7)}` +
         `${pad(`${mean(obsA.map((o) => o.tPlan)).toFixed(1)}s`, 8)}${pad(`${tDiv.toFixed(1)}s`, 8)}` +
         `${pad(`${mean(obsA.map((o) => o.firstShot)).toFixed(1)}s`, 9)}${pad(`${(alive5 * 100).toFixed(0)}%`, 8)}`);
+      // ⭐ Entropy and a plan count still cannot separate "the team chose between a few shapes" from "one
+      // player is standing on a site boundary and its label flips". So print the actual tuples and how many
+      // SLOTS ever move: a real team plan moves several, a boundary wobble moves one.
+      if (!row.control) {
+        const counts = new Map<string, number>();
+        for (const o of obsA) counts.set(o.plan, (counts.get(o.plan) ?? 0) + 1);
+        const top = [...counts].sort((x, y) => y[1] - x[1]);
+        const vary = new Set<number>();
+        for (const [plan] of counts) for (let k = 0; k < plan.length; k++) if (plan[k] !== top[0][0][k]) vary.add(k);
+        if (top.length > 1) {
+          console.log(`    plans ${top.slice(0, 4).map(([pl, c]) => `${pl}x${c}`).join(' ')}${top.length > 4 ? ' …' : ''} · slots that ever move: ${vary.size}`);
+        }
+      }
       // GOTCHAS #13 / family B: a cell measured on a team that is already dying is a casualty list, not a plan
       if (alive5 < 0.5) unguarded.add(key(row.name, role, mapSeed));
       if (alive5 < 0.5) console.log(`  ⚠ ${row.name}/${role}/map ${mapSeed}: only ${(alive5 * 100).toFixed(0)}% of matches still had five players at t=${T}s`);
