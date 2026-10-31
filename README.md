@@ -1,6 +1,13 @@
 # EvoShooter Arena
 
-A self-evolving 3D team shooter. Two populations of neural-network policies — **red** and **blue** — fight
+The goal is a **simulator for tactical emergence**: observe how competition and evolution produce
+team tactics, roles, communication and styles, then explain them with replay and causal evidence.
+Counter-Strike is a reference for gunplay, professional matches and spectating. Its features are
+useful when they help expose emergence; reproducing CS or building a competitive FPS is not the goal.
+The durable goal is in [VISION](docs/VISION.md); implementation order and remaining gates are in the
+[Roadmap](docs/ROADMAP.md).
+
+**Current implementation.** A self-evolving 3D team shooter. Two populations of neural-network policies — **red** and **blue** — fight
 5v5 rounds in a symmetric arena with cover and a central control zone. Nothing tactical is scripted: each
 generation the two sides are scored against each other (and against a hall of fame of past champions),
 bred, and mutated. You watch the champions play in 3D while a dashboard shows *whether* they are getting
@@ -266,6 +273,11 @@ matches, the worst-trained placed third); and the current meta is fully transiti
 map, **zero** cycles. Details in `LOG.md`, traps in `GOTCHAS.md` #20 and #21.
 
 ## The fixed yardstick, and what it found
+
+> **Historical baseline (2026-09-12).** The diagnosis and "Nothing has been changed" below
+> describe that run. Later objective changes and their gates are recorded under Phase C1 in the
+> [Roadmap](docs/ROADMAP.md). These original measurements are retained; they do not establish
+> the current implementation's performance or reopen a closed phase.
 
 ```
 npm run yardstick -- runs/a.json runs/b.json --gens first,last --n 8
